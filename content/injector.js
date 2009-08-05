@@ -106,8 +106,6 @@ let PeopleInjector = {
    * Injects window.navigator.people into the specified DOM window.
    */
   _inject: function(aWindow) {
-    alert(this._scriptToInject);
-
     let sandbox = new Cu.Sandbox(aWindow);
     sandbox.__proto__ = aWindow.wrappedJSObject;
     Cu.evalInSandbox(this._scriptToInject, sandbox);
