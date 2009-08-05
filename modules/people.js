@@ -49,6 +49,8 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 
 function PeopleService() {
   this._initLogs();
+  this._dbStmts = [];
+  this._dbInit
   this._log.info("People store initialized");
 }
 PeopleService.prototype = {
@@ -135,15 +137,13 @@ PeopleService.prototype = {
       this._log.debug("Initializing Database");
       let isFirstRun = false;
       try {
-          // Get the version of the schema in the file. It will be 0 if the
-          // database has not been created yet.
-          let version = this._db.schemaVersion;
-          if (version == 0) {
-              this._dbCreate();
-              isFirstRun = true;
-          } else if (version != DB_VERSION) {
-              this._dbMigrate(version);
-          }
+        // Get the version of the schema in the file. It will be 0 if the
+        // database has not been created yet.
+        let version = this._db.schemaVersion;
+        if (version == 0)
+          isFirstRun = true;
+        if (version != DB_VERSION)
+          this._dbMigrate(version);
       } catch (e if e.result == Components.results.NS_ERROR_FILE_CORRUPTED) {
           // Database is corrupted, so we backup the database, then throw
           // causing initialization to fail and a new db to be created next use
@@ -153,79 +153,65 @@ PeopleService.prototype = {
       return isFirstRun;
   },
 
-
-  _dbCreate: function () {
-      this._log.debug("Creating Database");
-      this._dbCreateSchema();
-      this._db.schemaVersion = DB_VERSION;
-  },
-
-
-  _dbCreateSchema : function () {
-      this._dbCreateTables();
-      this._dbCreateIndices();
-  },
-
-
-  _dbCreateTables : function () {
-      this._log.debug("Creating Tables");
-      for (let name in this._dbSchema.tables)
-          this._db.createTable(name, this._dbSchema.tables[name]);
-  },
-
-
-  _dbCreateIndices : function () {
-      this._log.debug("Creating Indices");
-      for (let name in this._dbSchema.indices) {
-          let index = this._dbSchema.indices[name];
-          let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
-                          "(" + index.columns.join(", ") + ")";
-          this._db.executeSimpleSQL(statement);
-      }
-  },
-
-
   _dbMigrate : function (oldVersion) {
-      this._log.debug("Attempting to migrate from version " + oldVersion);
+    this._log.debug("Attempting to migrate from version " + oldVersion);
 
-      if (oldVersion > DB_VERSION) {
-          this._log.debug("Downgrading to version " + DB_VERSION);
-          // User's DB is newer. Sanity check that our expected columns are
-          // present, and if so mark the lower version and merrily continue
-          // on. If the columns are borked, something is wrong so blow away
-          // the DB and start from scratch. [Future incompatible upgrades
-          // should swtich to a different table or file.]
+    if (oldVersion > DB_VERSION) {
+      this._log.debug("Downgrading to version " + DB_VERSION);
+      // User's DB is newer. Sanity check that our expected columns are
+      // present, and if so mark the lower version and merrily continue
+      // on. If the columns are borked, something is wrong so blow away
+      // the DB and start from scratch. [Future incompatible upgrades
+      // should swtich to a different table or file.]
 
-          if (!this._dbAreExpectedColumnsPresent())
-              throw Components.Exception("DB is missing expected columns",
-                                         Components.results.NS_ERROR_FILE_CORRUPTED);
+      if (!this._dbAreExpectedColumnsPresent())
+        throw Components.Exception("DB is missing expected columns",
+                                   Components.results.NS_ERROR_FILE_CORRUPTED);
 
-          // Change the stored version to the current version. If the user
-          // runs the newer code again, it will see the lower version number
-          // and re-upgrade (to fixup any entries the old code added).
-          this._db.schemaVersion = DB_VERSION;
-          return;
-      }
-
-      // Upgrade to newer version...
-
-      this._db.beginTransaction();
-
-      try {
-          for (let v = oldVersion + 1; v <= DB_VERSION; v++) {
-              this._log.debug("Upgrading to version " + v + "...");
-              let migrateFunction = "_dbMigrateToVersion" + v;
-              this[migrateFunction]();
-          }
-      } catch (e) {
-          this._log.debug("Migration failed: "  + e);
-          this._db.rollbackTransaction();
-          throw e;
-      }
-
+      // Change the stored version to the current version. If the user
+      // runs the newer code again, it will see the lower version number
+      // and re-upgrade (to fixup any entries the old code added).
       this._db.schemaVersion = DB_VERSION;
-      this._db.commitTransaction();
-      this._log.debug("DB migration completed.");
+      return;
+    }
+
+    // Upgrade to newer version...
+
+    this._db.beginTransaction();
+
+    try {
+      for (let v = oldVersion + 1; v <= DB_VERSION; v++) {
+        this._log.debug("Upgrading to version " + v + "...");
+        let migrateFunction = "_dbMigrateToVersion" + v;
+        this[migrateFunction]();
+      }
+    } catch (e) {
+      this._log.debug("Migration failed: "  + e);
+      this._db.rollbackTransaction();
+      throw e;
+    }
+
+    this._db.schemaVersion = DB_VERSION;
+    this._db.commitTransaction();
+    this._log.debug("DB migration completed.");
+  },
+
+  _dbMigrateToVersion1: function _dbMigrateToVersion1() {
+    this._log.debug("Creating Database");
+
+    this._log.debug("Creating Tables");
+    for (let name in this._dbSchema.tables)
+      this._db.createTable(name, this._dbSchema.tables[name]);
+
+    this._log.debug("Creating Indices");
+    for (let name in this._dbSchema.indices) {
+      let index = this._dbSchema.indices[name];
+      let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
+                        "(" + index.columns.join(", ") + ")";
+      this._db.executeSimpleSQL(statement);
+    }
+
+    this._db.schemaVersion = DB_VERSION;
   },
 
   /*
