@@ -233,24 +233,17 @@ PeopleService.prototype = {
         return false;
       }
     };
-    if (!check("SELECT " +
-                 "id, " +
-                 "guid, " +
-                 "json, " +
-               "FROM moz_people"))
+
+    if (!check("SELECT id, guid, json FROM moz_people"))
+      return false;
+    if (!check("SELECT id, person_id, firstname FROM moz_people_firstnames"))
+      return false;
+    if (!check("SELECT id, person_id, lastname FROM moz_people_lastnames"))
       return false;
 
-    if (!check("SELECT " +
-                 "id, " +
-                 "person_id " +
-                 "firstname " +
-               "FROM moz_people_firstnames"))
-      return false;
-
-    this._log("verified that expected columns are present in DB.");
+    this._log.debug("verified that expected columns are present in DB.");
     return true;
   },
-
 
   /*
    * _dbCleanup
@@ -259,7 +252,7 @@ PeopleService.prototype = {
    * closes the database connection, deletes the database file.
    */
   _dbCleanup : function (backup) {
-    this._log("Cleaning up DB file - close & remove & backup=" + backup);
+    this._log.debug("Cleaning up DB file - close & remove & backup=" + backup);
 
     // Create backup file
     if (backup) {
