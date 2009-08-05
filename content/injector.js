@@ -34,4 +34,86 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* Inject people API into window.navigator objects. */
+/* Inject the people API into window.navigator objects. */
+/* Based on code in the Geode extension. */
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+let PeopleInjector = {
+  get _docSvc() {
+    delete this._docSvc;
+    return this._docSvc = Cc["@mozilla.org/docloaderservice;1"].
+                          getService(Ci.nsIWebProgress);
+  },
+
+  onLoad: function() {
+    // WebProgressListener for getting notification of new doc loads.
+    // XXX Ugh. Since we're a chrome overlay, it would be nice to just
+    // use gBrowser.addProgressListener(). But that isn't sending
+    // STATE_TRANSFERRING, and the earliest we can get at the page is
+    // STATE_STOP (which is onload, and is inconviently late).
+    // We'll use the doc loader service instead, but that means we need to
+    // filter out loads for other windows.
+    this._docSvc.addProgressListener(this,
+                                     Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+  },
+
+  onUnload: function() {
+    this._docSvc.removeProgressListener(this);
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
+                                         Ci.nsISupportsWeakReference]),
+
+  onStateChange: function(aWebProgress, aRequest, aStateFlags,  aStatus) {
+    // STATE_START is too early, doc is still the old page.
+    // STATE_STOP is inconveniently late (it's onload).
+    if (!(aStateFlags & Ci.nsIWebProgressListener.STATE_TRANSFERRING))
+      return;
+
+    var domWindow = aWebProgress.DOMWindow;
+    var chromeWin = domWindow
+                        .QueryInterface(Ci.nsIInterfaceRequestor)
+                        .getInterface(Ci.nsIWebNavigation)
+                        .QueryInterface(Ci.nsIDocShellTreeItem)
+                        .rootTreeItem
+                        .QueryInterface(Ci.nsIInterfaceRequestor)
+                        .getInterface(Ci.nsIDOMWindow)
+                        .QueryInterface(Ci.nsIDOMChromeWindow);
+    if (chromeWin != window)
+      return;
+
+    this._inject(domWindow);
+  },
+
+  // Stubs for the nsIWebProgressListener interfaces that we don't use.
+  onProgressChange: function() {},
+  onLocationChange: function() {},
+  onStatusChange:   function() {},
+  onSecurityChange: function() {},
+
+  get _scriptToInject() {
+    delete this._scriptToInject;
+    let request = new XMLHttpRequest();
+    request.overrideMimeType = "text/plain";
+    return this._scriptToInject =
+      request.open("GET", "resource://people/content/injected.js", false);
+  },
+
+  /*
+   * _inject
+   *
+   * Injects window.navigator.people into the specified DOM window.
+   */
+  _inject: function(aWindow) {
+    alert(this._scriptToInject);
+
+    let sandbox = new Cu.Sandbox(aWindow);
+    sandbox.__proto__ = aWindow.wrappedJSObject;
+    Cu.evalInSandbox(this._scriptToInject, sandbox);
+  }
+
+};
+
+window.addEventListener("load",   function() PeopleInjector.onLoad(),   false);
+window.addEventListener("unload", function() PeopleInjector.onUnload(), false);
