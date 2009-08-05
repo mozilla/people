@@ -140,10 +140,12 @@ PeopleService.prototype = {
         // Get the version of the schema in the file. It will be 0 if the
         // database has not been created yet.
         let version = this._db.schemaVersion;
-        if (version == 0)
+        if (version == 0) {
           isFirstRun = true;
-        if (version != DB_VERSION)
+          this._dbCreate();
+        } else if (version != DB_VERSION) {
           this._dbMigrate(version);
+        }
       } catch (e if e.result == Components.results.NS_ERROR_FILE_CORRUPTED) {
           // Database is corrupted, so we backup the database, then throw
           // causing initialization to fail and a new db to be created next use
@@ -151,6 +153,24 @@ PeopleService.prototype = {
           throw e;
       }
       return isFirstRun;
+  },
+
+  _dbCreate: function _dbCreate() {
+    this._log.debug("Creating Database");
+
+    this._log.debug("Creating Tables");
+    for (let name in this._dbSchema.tables)
+      this._db.createTable(name, this._dbSchema.tables[name]);
+
+    this._log.debug("Creating Indices");
+    for (let name in this._dbSchema.indices) {
+      let index = this._dbSchema.indices[name];
+      let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
+                        "(" + index.columns.join(", ") + ")";
+      this._db.executeSimpleSQL(statement);
+    }
+
+    this._db.schemaVersion = DB_VERSION;
   },
 
   _dbMigrate : function (oldVersion) {
@@ -194,24 +214,6 @@ PeopleService.prototype = {
     this._db.schemaVersion = DB_VERSION;
     this._db.commitTransaction();
     this._log.debug("DB migration completed.");
-  },
-
-  _dbMigrateToVersion1: function _dbMigrateToVersion1() {
-    this._log.debug("Creating Database");
-
-    this._log.debug("Creating Tables");
-    for (let name in this._dbSchema.tables)
-      this._db.createTable(name, this._dbSchema.tables[name]);
-
-    this._log.debug("Creating Indices");
-    for (let name in this._dbSchema.indices) {
-      let index = this._dbSchema.indices[name];
-      let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
-                        "(" + index.columns.join(", ") + ")";
-      this._db.executeSimpleSQL(statement);
-    }
-
-    this._db.schemaVersion = DB_VERSION;
   },
 
   /*
