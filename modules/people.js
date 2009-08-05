@@ -277,19 +277,22 @@ PeopleService.prototype = {
     this._dbFile.remove(false);
   },
 
-  add: function add(obj) {
-    if (!is_array(obj)) {
-    }
+  add: function add(person) {
+    if (Utils.isArray(arguments[0]))
+      return Utils.mapCall(this, arguments);
   },
-  remove: function remove(obj) {
-    if (!is_array(obj)) {
-    }
+
+  update: function update(person) {
+    if (Utils.isArray(arguments[0]))
+      return Utils.mapCall(this, arguments);
   },
-  update: function update(obj) {
-    if (!is_array(obj)) {
-    }
+
+  remove: function remove(attrs) {
+    if (Utils.isArray(arguments[0]))
+      return Utils.mapCall(this, arguments);
   },
-  find: function find(obj) {
+
+  find: function find(attrs) {
   }
 };
 
