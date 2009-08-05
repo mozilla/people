@@ -1,3 +1,5 @@
 # Register a resource: protocol alias so we can refer to extension modules
 # via resource://people/modules/[module name] URLs.
 resource people ./
+
+content people content/
