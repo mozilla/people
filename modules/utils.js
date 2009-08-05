@@ -11,14 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is People.
+ * The Original Code is Util.
  *
  * The Initial Developer of the Original Code is Mozilla.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  Dan Mills <thunder@mozilla.com>
+ *  Edward Lee <edilee@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,50 +34,25 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let EXPORTED_SYMBOLS = ["People"];
+let EXPORTED_SYMBOLS = ["Utils", "Svc"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://people/modules/utils.js");
-
-function is_array(obj) {
-  return obj != null &&
-    typeof obj == "object" &&
-    obj.constructor.name == "Array";
-}
-
-function ensure_array(obj) {
-  if (!is_array(obj))
-    return [obj];
-  return obj;
-}
-
-function PeopleService() {
-  Utils.lazy(this, "_db", function() {
-    let file = Svc.Directory.get("ProfD", Ci.nsIFile);
-    file.append("people.sqlite");
-    return Svc.Storage.openDatabase(file);
-  });
-}
-PeopleService.prototype = {
-  _ensure_db_init: function _ensure_db_init() {
-    
-  },
-
-  add: function add(obj) {
-    let people = ensure_array(obj);
-  },
-  remove: function remove(obj) {
-    let people = ensure_array(obj);
-  },
-  update: function update(obj) {
-    let people = ensure_array(obj);
-  },
-  find: function find(obj) {
+let Utils = {
+  lazy: function lazy(dest, prop, func) {
+    delete dest[prop];
+    dest.__defineGetter__(prop, function() {
+      delete dest[prop];
+      return dest[prop] = func.call(dest);
+    });
   }
 };
 
-let People = new PeopleService();
+let Svc = {};
+[["Directory", "file/directory_service", "nsIProperties"],
+ ["Storage", "storage/service", "mozIStorageService"],
+].forEach(function([prop, cid, iface]) Utils.lazy(Svc, prop, function()
+  Cc["@mozilla.org/" + cid + ";1"].getService(Ci[iface])));
