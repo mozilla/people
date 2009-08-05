@@ -43,14 +43,8 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://people/modules/utils.js");
 
-function is_array(obj) {
-  return obj != null &&
-    typeof obj == "object" &&
-    obj.constructor.name == "Array";
-}
-
 function ensure_array(obj) {
-  if (!is_array(obj))
+  if (!Utils.isArray(obj))
     return [obj];
   return obj;
 }

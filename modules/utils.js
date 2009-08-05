@@ -42,6 +42,10 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 let Utils = {
+  isArray: function isArray(obj) {
+    return obj != null && obj.constructor.toString() == Array;
+  },
+
   lazy: function lazy(dest, prop, func) {
     delete dest[prop];
     dest.__defineGetter__(prop, function() {
