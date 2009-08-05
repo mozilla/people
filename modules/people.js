@@ -45,11 +45,43 @@ const DB_VERSION = 1; // The database schema version
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 Cu.import("resource://people/modules/utils.js");
-Cu.import("resource://people/modules/ext/log4moz.jsm");
+Cu.import("resource://people/modules/ext/log4moz.js");
 
 function PeopleService() {
+  this._initLogs();
+  this._log.info("People store initialized");
 }
 PeopleService.prototype = {
+
+  _initLogs: function _initLogs() {
+    this._log = Log4Moz.repository.getLogger("People.Store");
+    this._log.level = Log4Moz.Level["Trace"];
+
+    let formatter = new Log4Moz.BasicFormatter();
+    let root = Log4Moz.repository.rootLogger;
+
+    let capp = new Log4Moz.ConsoleAppender(formatter);
+    capp.level = Log4Moz.Level["Warn"];
+    root.addAppender(capp);
+
+    let dapp = new Log4Moz.DumpAppender(formatter);
+    dapp.level = Log4Moz.Level["Trace"];
+    root.addAppender(dapp);
+
+    let logfile = Svc.Directory.get("ProfD", Ci.nsIFile);
+    logfile.QueryInterface(Ci.nsILocalFile);
+    logfile.append("people-log.txt");
+    if (!logfile.exists())
+      logfile.create(logfile.NORMAL_FILE_TYPE, 600);
+
+    this._fileApp = new Log4Moz.RotatingFileAppender(logfile, formatter);
+    this._fileApp.level = Log4Moz.Level["Debug"];
+    root.addAppender(this._fileApp);
+  },
+
+  clearLogs: function WeaveSvc_clearLogs() {
+    this._fileApp.clear();
+  },
 
   // The current database schema.
   _dbSchema: {
@@ -81,22 +113,14 @@ PeopleService.prototype = {
   },
 
   get _dbFile() {
-    let file = Components.classes["@mozilla.org/file/directory_service;1"]
-      .getService(Components.interfaces.nsIProperties)
-      .get("ProfD", Components.interfaces.nsIFile);
+    let file = Svc.Directory.get("ProfD", Components.interfaces.nsIFile);
     file.append("people.sqlite");
     this.__defineGetter__("_dbFile", function() file);
     return file;
   },
 
-  get _storageSvc() {
-    let storage = Components.classes["@mozilla.org/storage/service;1"]
-      .getService(Components.interfaces.mozIStorageService);
-    this.__defineGetter__("_storageSvc", function() storage);
-    return storage;
-  }
   get _db() {
-    let dbConn = this._storage.openDatabase(this._dbFile); // auto-creates file
+    let dbConn = Svc.Storagestorage.openDatabase(this._dbFile); // auto-creates file
     this.__defineGetter__("_db", function() dbConn);
     return dbConn;
   },
@@ -263,7 +287,7 @@ PeopleService.prototype = {
     // Close the connection, ignore 'already closed' error
     try { this._db.close() } catch(e) {}
     this._dbFile.remove(false);
-  }
+  },
 
   add: function add(obj) {
     if (!is_array(obj)) {
