@@ -34,4 +34,4 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* Inject people API into window.navigator object. */
+/* Inject people API into window.navigator objects. */
