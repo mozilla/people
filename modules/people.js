@@ -40,35 +40,242 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://people/modules/utils.js");
+const DB_VERSION = 1; // The database schema version
 
-function ensure_array(obj) {
-  if (!Utils.isArray(obj))
-    return [obj];
-  return obj;
-}
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+Cu.import("resource://people/modules/utils.js");
+Cu.import("resource://people/modules/ext/log4moz.jsm");
 
 function PeopleService() {
-  Utils.lazy(this, "_db", function() {
-    let file = Svc.Directory.get("ProfD", Ci.nsIFile);
-    file.append("people.sqlite");
-    return Svc.Storage.openDatabase(file);
-  });
 }
 PeopleService.prototype = {
-  _ensure_db_init: function _ensure_db_init() {
-    
+
+  // The current database schema.
+  _dbSchema: {
+      tables: {
+          moz_people: "id   INTEGER PRIMARY KEY," +
+                      "guid TEXT NOT NULL,"       +
+                      "json TEXT NOT NULL",
+          moz_people_firstnames: "id        INTEGER PRIMARY KEY," +
+                                 "person_id INTEGER NOT NULL,"    +
+                                 "firstname TEXT NOT NULL",
+          moz_people_lastnames: "id        INTEGER PRIMARY KEY," +
+                                 "person_id INTEGER NOT NULL,"    +
+                                 "lastname TEXT NOT NULL"
+      },
+      indices: {
+        moz_people_guid_index: {
+          table: "moz_people",
+          columns: ["guid"]
+        },
+        moz_people_firstname_index: {
+          table: "moz_people_firstnames",
+          columns: ["firstname"]
+        },
+        moz_people_lastname_index: {
+          table: "moz_people_lastnames",
+          columns: ["lastname"]
+        }
+      }
   },
 
+  get _dbFile() {
+    let file = Components.classes["@mozilla.org/file/directory_service;1"]
+      .getService(Components.interfaces.nsIProperties)
+      .get("ProfD", Components.interfaces.nsIFile);
+    file.append("people.sqlite");
+    this.__defineGetter__("_dbFile", function() file);
+    return file;
+  },
+
+  get _storageSvc() {
+    let storage = Components.classes["@mozilla.org/storage/service;1"]
+      .getService(Components.interfaces.mozIStorageService);
+    this.__defineGetter__("_storageSvc", function() storage);
+    return storage;
+  }
+  get _db() {
+    let dbConn = this._storage.openDatabase(this._dbFile); // auto-creates file
+    this.__defineGetter__("_db", function() dbConn);
+    return dbConn;
+  },
+
+  /*
+   * _dbInit
+   *
+   * Attempts to initialize the database. This creates the file if it doesn't
+   * exist, performs any migrations, etc. Return if this is the first run.
+   */
+  _dbInit : function () {
+      this._log.debug("Initializing Database");
+      let isFirstRun = false;
+      try {
+          // Get the version of the schema in the file. It will be 0 if the
+          // database has not been created yet.
+          let version = this._db.schemaVersion;
+          if (version == 0) {
+              this._dbCreate();
+              isFirstRun = true;
+          } else if (version != DB_VERSION) {
+              this._dbMigrate(version);
+          }
+      } catch (e if e.result == Components.results.NS_ERROR_FILE_CORRUPTED) {
+          // Database is corrupted, so we backup the database, then throw
+          // causing initialization to fail and a new db to be created next use
+          this._dbCleanup(true);
+          throw e;
+      }
+      return isFirstRun;
+  },
+
+
+  _dbCreate: function () {
+      this._log.debug("Creating Database");
+      this._dbCreateSchema();
+      this._db.schemaVersion = DB_VERSION;
+  },
+
+
+  _dbCreateSchema : function () {
+      this._dbCreateTables();
+      this._dbCreateIndices();
+  },
+
+
+  _dbCreateTables : function () {
+      this._log.debug("Creating Tables");
+      for (let name in this._dbSchema.tables)
+          this._db.createTable(name, this._dbSchema.tables[name]);
+  },
+
+
+  _dbCreateIndices : function () {
+      this._log.debug("Creating Indices");
+      for (let name in this._dbSchema.indices) {
+          let index = this._dbSchema.indices[name];
+          let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
+                          "(" + index.columns.join(", ") + ")";
+          this._db.executeSimpleSQL(statement);
+      }
+  },
+
+
+  _dbMigrate : function (oldVersion) {
+      this._log.debug("Attempting to migrate from version " + oldVersion);
+
+      if (oldVersion > DB_VERSION) {
+          this._log.debug("Downgrading to version " + DB_VERSION);
+          // User's DB is newer. Sanity check that our expected columns are
+          // present, and if so mark the lower version and merrily continue
+          // on. If the columns are borked, something is wrong so blow away
+          // the DB and start from scratch. [Future incompatible upgrades
+          // should swtich to a different table or file.]
+
+          if (!this._dbAreExpectedColumnsPresent())
+              throw Components.Exception("DB is missing expected columns",
+                                         Components.results.NS_ERROR_FILE_CORRUPTED);
+
+          // Change the stored version to the current version. If the user
+          // runs the newer code again, it will see the lower version number
+          // and re-upgrade (to fixup any entries the old code added).
+          this._db.schemaVersion = DB_VERSION;
+          return;
+      }
+
+      // Upgrade to newer version...
+
+      this._db.beginTransaction();
+
+      try {
+          for (let v = oldVersion + 1; v <= DB_VERSION; v++) {
+              this._log.debug("Upgrading to version " + v + "...");
+              let migrateFunction = "_dbMigrateToVersion" + v;
+              this[migrateFunction]();
+          }
+      } catch (e) {
+          this._log.debug("Migration failed: "  + e);
+          this._db.rollbackTransaction();
+          throw e;
+      }
+
+      this._db.schemaVersion = DB_VERSION;
+      this._db.commitTransaction();
+      this._log.debug("DB migration completed.");
+  },
+
+  /*
+   * _dbAreExpectedColumnsPresent
+   *
+   * Sanity check to ensure that the columns this version of the code expects
+   * are present in the DB we're using.
+   */
+  _dbAreExpectedColumnsPresent : function () {
+    let check = function(query) {
+      try {
+        let stmt = this._db.createStatement(query);
+        // (no need to execute statement, if it compiled we're good)
+        stmt.finalize();
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+    if (!check("SELECT " +
+                 "id, " +
+                 "guid, " +
+                 "json, " +
+               "FROM moz_people"))
+      return false;
+
+    if (!check("SELECT " +
+                 "id, " +
+                 "person_id " +
+                 "firstname " +
+               "FROM moz_people_firstnames"))
+      return false;
+
+    this._log("verified that expected columns are present in DB.");
+    return true;
+  },
+
+
+  /*
+   * _dbCleanup
+   *
+   * Called when database creation fails. Finalizes database statements,
+   * closes the database connection, deletes the database file.
+   */
+  _dbCleanup : function (backup) {
+    this._log("Cleaning up DB file - close & remove & backup=" + backup);
+
+    // Create backup file
+    if (backup) {
+      let backupFile = this._dbFile.leafName + ".corrupt";
+      this._storageSvc.backupDatabaseFile(this._dbFile, backupFile);
+    }
+
+    // Finalize all statements to free memory, avoid errors later
+    for (let i = 0; i < this._dbStmts.length; i++)
+      this._dbStmts[i].statement.finalize();
+    this._dbStmts = [];
+
+    // Close the connection, ignore 'already closed' error
+    try { this._db.close() } catch(e) {}
+    this._dbFile.remove(false);
+  }
+
   add: function add(obj) {
-    let people = ensure_array(obj);
+    if (!is_array(obj)) {
+    }
   },
   remove: function remove(obj) {
-    let people = ensure_array(obj);
+    if (!is_array(obj)) {
+    }
   },
   update: function update(obj) {
-    let people = ensure_array(obj);
+    if (!is_array(obj)) {
+    }
   },
   find: function find(obj) {
   }
