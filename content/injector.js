@@ -38,6 +38,7 @@
 /* Based on code in the Geode extension. */
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://people/modules/ext/URI.js");
 
 let PeopleInjector = {
   get _docSvc() {
@@ -94,10 +95,23 @@ let PeopleInjector = {
 
   get _scriptToInject() {
     delete this._scriptToInject;
-    let request = new XMLHttpRequest();
-    request.overrideMimeType = "text/plain";
-    return this._scriptToInject =
-      request.open("GET", "resource://people/content/injected.js", false);
+
+    let uri = new URI("resource://people/content/injected.js").
+              QueryInterface(Ci.nsIFileURL);
+
+    // Slurp the contents of the file into a string.
+    let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
+                      createInstance(Ci.nsIFileInputStream);
+    inputStream.init(uri.file, 0x01, -1, null); // RD_ONLY
+    let lineStream = inputStream.QueryInterface(Ci.nsILineInputStream);
+    let line = { value: "" }, hasMore, scriptToInject = "";
+    do {
+        hasMore = lineStream.readLine(line);
+        scriptToInject += line.value + "\n";
+    } while (hasMore);
+    lineStream.close();
+
+    return this._scriptToInject = scriptToInject;
   },
 
   /*
