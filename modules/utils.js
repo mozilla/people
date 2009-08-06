@@ -59,11 +59,64 @@ let Utils = {
     let func = mapCall.caller;
     let extra = Array.slice(args, 1);
     return array.map(function(item) func.apply(self, [item].concat(extra)));
+  },
+
+  makeGUID: function makeGUID() {
+    return Svc.UUIDGen.generateUUID().toString().slice(1, 37);
+  },
+
+  // Works on frames or exceptions, munges file:// URIs to shorten the paths
+  // FIXME: filename munging is sort of hackish, might be confusing if
+  // there are multiple extensions with similar filenames
+  formatFrame: function Utils_formatFrame(frame) {
+    let tmp = "<file:unknown>";
+
+    let file = frame.filename || frame.fileName;
+    if (file)
+      tmp = file.replace(/^(?:chrome|file):.*?([^\/\.]+\.\w+)$/, "$1");
+
+    if (frame.lineNumber)
+      tmp += ":" + frame.lineNumber;
+    if (frame.name)
+      tmp = frame.name + "()@" + tmp;
+
+    return tmp;
+  },
+
+  exceptionStr: function Weave_exceptionStr(e) {
+    let message = e.message ? e.message : e;
+    return message + " " + Utils.stackTrace(e);
+ },
+
+  stackTraceFromFrame: function Weave_stackTraceFromFrame(frame) {
+    let output = [];
+    while (frame) {
+      let str = Utils.formatFrame(frame);
+      if (str)
+        output.push(str);
+      frame = frame.caller;
+    }
+    return output.join(" < ");
+  },
+
+  stackTrace: function Weave_stackTrace(e) {
+    // Wrapped nsIException
+    if (e.location)
+      return "Stack trace: " + Utils.stackTraceFromFrame(e.location);
+
+    // Standard JS exception
+    if (e.stack)
+      return "JS Stack trace: " + e.stack.trim().replace(/\n/g, " < ").
+        replace(/@(?:chrome|file):.*?([^\/\.]+\.\w+:)/g, "@$1");
+
+    return "No traceback available";
   }
 };
 
 let Svc = {};
 [["Directory", "file/directory_service", "nsIProperties"],
+ ["Observer", "observer-service", "nsIObserverService"],
  ["Storage", "storage/service", "mozIStorageService"],
+ ["UUIDGen", "uuid-generator", "nsIUUIDGenerator"]
 ].forEach(function([prop, cid, iface]) Utils.lazy(Svc, prop, function()
   Cc["@mozilla.org/" + cid + ";1"].getService(Ci[iface])));

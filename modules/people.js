@@ -19,6 +19,7 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
+ *  Justin Dolske <dolske@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,11 +47,12 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
+Cu.import("resource://people/modules/ext/Observers.js");
 
 function PeopleService() {
   this._initLogs();
   this._dbStmts = [];
-  this._dbInit
+  this._dbInit();
   this._log.info("People store initialized");
 }
 PeopleService.prototype = {
@@ -87,31 +89,12 @@ PeopleService.prototype = {
 
   // The current database schema.
   _dbSchema: {
-      tables: {
-          moz_people: "id   INTEGER PRIMARY KEY," +
-                      "guid TEXT NOT NULL,"       +
-                      "json TEXT NOT NULL",
-          moz_people_firstnames: "id        INTEGER PRIMARY KEY," +
-                                 "person_id INTEGER NOT NULL,"    +
-                                 "firstname TEXT NOT NULL",
-          moz_people_lastnames: "id        INTEGER PRIMARY KEY," +
-                                 "person_id INTEGER NOT NULL,"    +
-                                 "lastname TEXT NOT NULL"
-      },
-      indices: {
-        moz_people_guid_index: {
-          table: "moz_people",
-          columns: ["guid"]
-        },
-        moz_people_firstname_index: {
-          table: "moz_people_firstnames",
-          columns: ["firstname"]
-        },
-        moz_people_lastname_index: {
-          table: "moz_people_lastnames",
-          columns: ["lastname"]
-        }
-      }
+    tables: {
+      people: "id   INTEGER PRIMARY KEY, "  +
+              "guid TEXT UNIQUE NOT NULL, " +
+              "json TEXT NOT NULL",
+    },
+    index_tables: ["firstnames", "lastnames", "emails"]
   },
 
   get _dbFile() {
@@ -122,7 +105,7 @@ PeopleService.prototype = {
   },
 
   get _db() {
-    let dbConn = Svc.Storagestorage.openDatabase(this._dbFile); // auto-creates file
+    let dbConn = Svc.Storage.openDatabase(this._dbFile); // auto-creates file
     this.__defineGetter__("_db", function() dbConn);
     return dbConn;
   },
@@ -162,12 +145,13 @@ PeopleService.prototype = {
     for (let name in this._dbSchema.tables)
       this._db.createTable(name, this._dbSchema.tables[name]);
 
-    this._log.debug("Creating Indices");
-    for (let name in this._dbSchema.indices) {
-      let index = this._dbSchema.indices[name];
-      let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
-                        "(" + index.columns.join(", ") + ")";
-      this._db.executeSimpleSQL(statement);
+    this._log.debug("Creating Index Tables");
+    for each (let index in this._dbSchema.index_tables) {
+      this._db.createTable(index, "id INTEGER PRIMARY KEY, " +
+        "person_id INTEGER NOT NULL, val TEXT NOT NULL");
+      for each (let col in ["person_id", "val"])
+        this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS " + index +
+          "_" + col + " ON " + index + " (" + col + ")");
     }
 
     this._db.schemaVersion = DB_VERSION;
@@ -233,24 +217,16 @@ PeopleService.prototype = {
         return false;
       }
     };
-    if (!check("SELECT " +
-                 "id, " +
-                 "guid, " +
-                 "json, " +
-               "FROM moz_people"))
-      return false;
 
-    if (!check("SELECT " +
-                 "id, " +
-                 "person_id " +
-                 "firstname " +
-               "FROM moz_people_firstnames"))
+    if (!check("SELECT id, guid, json FROM moz_people"))
       return false;
+    for each (let index in this._dbSchema.index_tables)
+      if (!check("SELECT person_id, val FROM " + index))
+        return false;
 
-    this._log("verified that expected columns are present in DB.");
+    this._log.debug("verified that expected columns are present in DB.");
     return true;
   },
-
 
   /*
    * _dbCleanup
@@ -259,12 +235,12 @@ PeopleService.prototype = {
    * closes the database connection, deletes the database file.
    */
   _dbCleanup : function (backup) {
-    this._log("Cleaning up DB file - close & remove & backup=" + backup);
+    this._log.debug("Cleaning up DB file - close & remove & backup=" + backup);
 
     // Create backup file
     if (backup) {
       let backupFile = this._dbFile.leafName + ".corrupt";
-      this._storageSvc.backupDatabaseFile(this._dbFile, backupFile);
+      Svc.Storage.backupDatabaseFile(this._dbFile, backupFile);
     }
 
     // Finalize all statements to free memory, avoid errors later
@@ -277,22 +253,130 @@ PeopleService.prototype = {
     this._dbFile.remove(false);
   },
 
+  /*
+   * _dbCreateStatement
+   *
+   * Creates a statement, wraps it, and then does parameter replacement
+   * Returns the wrapped statement for execution.  Will use memoization
+   * so that statements can be reused.
+   */
+  _dbCreateStatement : function _dbCreateStatement(query, params) {
+    let wrappedStmt = this._dbStmts[query];
+    // Memoize the statements
+    if (!wrappedStmt) {
+      this._log.debug("Creating new statement for query: " + query);
+      let stmt = this._db.createStatement(query);
+
+      wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+        createInstance(Ci.mozIStorageStatementWrapper);
+      wrappedStmt.initialize(stmt);
+      this._dbStmts[query] = wrappedStmt;
+    }
+    // Replace parameters, must be done 1 at a time
+    if (params)
+      for (let i in params)
+        wrappedStmt.params[i] = params[i];
+    return wrappedStmt;
+  },
+
+  changeGUID: function changeGUID(from, to) {
+    if (false)
+      Observers.notify("people-guid-change", [from, to]);
+    return false;
+  },
+
+  _addToIndexTable: function _addToIndexTable(person_id, prop, value) {
+    let stmt;
+    try {
+      let query = "INSERT INTO " + prop + " (person_id, val) VALUES (:person_id, :val)";
+      let params = {
+        person_id: person_id,
+        val:value
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+    } catch (e) {
+      this._log.warn("add to index table failed: " + Utils.exceptionStr(e));
+      throw "add to index table failed: " + Utils.exceptionStr(e);
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
+  },
+
   add: function add(person) {
     if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments);
+      return Utils.mapCall(this, arguments).filter(function(i) i != null);
+
+    person.guid = person.guid || Utils.makeGUID();
+
+    let stmt;
+    try {
+      this._db.beginTransaction();
+
+      let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
+      let params = {
+        guid: person.guid,
+        json: JSON.stringify(person)
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+
+      let id = this._db.lastInsertRowID;
+
+      if (person.firstname)
+        this._addToIndexTable(id, "firstnames", person.firstname);
+      if (person.lastname)
+        this._addToIndexTable(id, "lastnames", person.lastname);
+      if (Utils.isArray(person.emails)) {
+        for each (let e in person.emails) {
+          this._addToIndexTable(id, "emails", e.value);
+        }
+      }
+
+      this._db.commitTransaction();
+    } catch (e) {
+      this._log.warn("add failed: " + Utils.exceptionStr(e));
+      this._db.rollbackTransaction();
+      return {error: "fail", person: person};
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
+
+    Observers.notify("people-add", person.guid);
+    return null;
   },
 
   update: function update(person) {
     if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments);
+      return Utils.mapCall(this, arguments).filter(function(i) i != null);
+
+    // Failure case
+    if (true)
+      return person;
+
+    Observers.notify("people-update", person.guid);
+    return null;
   },
 
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments);
+
+    while (false) {
+      Observers.notify("people-before-remove", row.guid);
+      // remove row..
+      Observers.notify("people-remove", row.guid);
+    }
+
+    // Failure case
+    return 0;
   },
 
   find: function find(attrs) {
+    // Failure case
+    return [];
   }
 };
 
