@@ -280,9 +280,27 @@ PeopleService.prototype = {
   },
 
   changeGUID: function changeGUID(from, to) {
-    if (false)
-      Observers.notify("people-guid-change", [from, to]);
-    return false;
+    let stmt;
+    try {
+      let query = "UPDATE PEOPLE SET guid = :to WHERE guid = :from";
+      let params = {
+        from: from,
+        to: to
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+
+      Observers.notify("people-guid-change", params);
+      return true;
+
+    } catch (e) {
+      this._log.warn("changeGUID failed: " + Utils.exceptionStr(e));
+      return false;
+
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
   },
 
   _addIndexed: function _addIndexed(thing, prop, person_id) {
