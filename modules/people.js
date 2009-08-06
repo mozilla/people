@@ -312,6 +312,12 @@ PeopleService.prototype = {
     return this._db.commitTransaction();
   },
 
+  changeGUID: function changeGUID(from, to) {
+    if (false)
+      Utils.notify("guid", [from, to]);
+    return false;
+  }
+
   _addToIndexTable: function _addToIndexTable(person_id, prop, value) {
     let stmt;
     try {
@@ -378,12 +384,6 @@ PeopleService.prototype = {
 
     Utils.notify("update", params.guid);
     return null;
-  },
-
-  changeGUID: function changeGUID(from, to) {
-    if (false)
-      Utils.notify("guid", [from, to]);
-    return false;
   },
 
   remove: function remove(attrs) {
