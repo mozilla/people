@@ -50,7 +50,7 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 function PeopleService() {
   this._initLogs();
   this._dbStmts = [];
-  this._dbInit
+  this._dbInit();
   this._log.info("People store initialized");
 }
 PeopleService.prototype = {
@@ -122,7 +122,7 @@ PeopleService.prototype = {
   },
 
   get _db() {
-    let dbConn = Svc.Storagestorage.openDatabase(this._dbFile); // auto-creates file
+    let dbConn = Svc.Storage.openDatabase(this._dbFile); // auto-creates file
     this.__defineGetter__("_db", function() dbConn);
     return dbConn;
   },
@@ -257,7 +257,7 @@ PeopleService.prototype = {
     // Create backup file
     if (backup) {
       let backupFile = this._dbFile.leafName + ".corrupt";
-      this._storageSvc.backupDatabaseFile(this._dbFile, backupFile);
+      Svc.Storage.backupDatabaseFile(this._dbFile, backupFile);
     }
 
     // Finalize all statements to free memory, avoid errors later
