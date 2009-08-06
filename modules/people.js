@@ -280,17 +280,25 @@ PeopleService.prototype = {
   },
 
   changeGUID: function changeGUID(from, to) {
+    let people = this.find({guid: from});
+    if (people.length == 0)
+      return false;
+
+    let person = people[0];
+    person.guid = to;
+
     let stmt;
     try {
-      let query = "UPDATE PEOPLE SET guid = :to WHERE guid = :from";
+      let query = "UPDATE PEOPLE SET guid = :to, json = :json WHERE guid = :from";
       let params = {
         from: from,
-        to: to
+        to: to,
+        json: JSON.stringify(person)
       };
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
 
-      Observers.notify("people-guid-change", params);
+      Observers.notify("people-guid-change", {from: from, to: to});
       return true;
 
     } catch (e) {
