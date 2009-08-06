@@ -37,4 +37,19 @@
 /* The people API injected into window.navigator objects. */
 
 window.navigator.people = {
+  _requestSerial: 0,
+  _requests: {},
+
+  find: function(params, successCallback, errorCallback) {
+    let id = this._requestSerial++;
+    this._requests[id] = {
+      params: params,
+      successCallback: successCallback,
+      errorCallback: errorCallback
+    };
+
+    var event = document.createEvent("Events");
+    event.initEvent("moz-people-find", true, true);
+    window.dispatchEvent(event);
+  }
 };

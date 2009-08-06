@@ -52,7 +52,7 @@ let PeopleInjector = {
     // XXX Ugh. Since we're a chrome overlay, it would be nice to just
     // use gBrowser.addProgressListener(). But that isn't sending
     // STATE_TRANSFERRING, and the earliest we can get at the page is
-    // STATE_STOP (which is onload, and is inconviently late).
+    // STATE_STOP (which is onload, and is inconveniently late).
     // We'll use the doc loader service instead, but that means we need to
     // filter out loads for other windows.
     this._docSvc.addProgressListener(this,
@@ -63,8 +63,17 @@ let PeopleInjector = {
     this._docSvc.removeProgressListener(this);
   },
 
+
+  //**************************************************************************//
+  // nsISupports
+
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
+                                         Ci.nsIEventHandler,
                                          Ci.nsISupportsWeakReference]),
+
+
+  //**************************************************************************//
+  // nsIWebProgressListener
 
   onStateChange: function(aWebProgress, aRequest, aStateFlags,  aStatus) {
     // STATE_START is too early, doc is still the old page.
@@ -92,6 +101,14 @@ let PeopleInjector = {
   onLocationChange: function() {},
   onStatusChange:   function() {},
   onSecurityChange: function() {},
+
+
+  //**************************************************************************//
+  // nsIEventHandler
+
+  handleEvent: function(event) {
+    alert(event.type);
+  },
 
   get _scriptToInject() {
     delete this._scriptToInject;
@@ -122,7 +139,9 @@ let PeopleInjector = {
   _inject: function(aWindow) {
     let sandbox = new Cu.Sandbox(aWindow);
     sandbox.__proto__ = aWindow.wrappedJSObject;
-    Cu.evalInSandbox(this._scriptToInject, sandbox);
+    Cu.evalInSandbox(this._scriptToInject, sandbox, "1.7");
+
+    aWindow.addEventListener("moz-people-find", this, false, true);
   }
 
 };
