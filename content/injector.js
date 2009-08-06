@@ -107,7 +107,12 @@ let PeopleInjector = {
   // nsIEventHandler
 
   handleEvent: function(event) {
-    alert(event.type);
+    // XXX I think the scoping is right here, but might be worth checking
+    //     for any funkyness when the request comes from an iframe or such.
+    if (!(event.target instanceof Ci.nsIDOMWindow))
+      throw "event target isn't a window";
+
+    this._prompt(event);
   },
 
   get _scriptToInject() {
@@ -142,6 +147,74 @@ let PeopleInjector = {
     Cu.evalInSandbox(this._scriptToInject, sandbox, "1.7");
 
     aWindow.addEventListener("moz-people-find", this, false, true);
+  },
+
+  approve: function() {
+    alert("approve");
+  },
+
+  deny: function() {
+    alert("deny");
+  },
+
+  _prompt: function(event) {
+    let win = event.target;
+
+    let promptText = "The page at " + (win.location.host || win.location) +
+                     " wants to access your people.";
+
+    let people = this;
+    let buttons = [
+      {
+        label:     "No Way",
+        accessKey: "l",
+        popup:     null,
+        callback:  function(bar) {
+          people.deny();
+        }
+      },
+      {
+        label:     "Just This Once",
+        accessKey: "2",
+        popup:     null,
+        callback:  function(bar) {
+          people.approve();
+        }
+      },
+    ];
+
+    let box = this._getNotificationBox(win);
+    let oldBar = box.getNotificationWithValue("moz-people-find");
+    let newBar = box.appendNotification(promptText,
+                                        "moz-people-find",
+                                        null,
+                                        box.PRIORITY_INFO_MEDIUM,
+                                        buttons);
+    if (oldBar)
+      box.removeNotification(oldBar);
+  },
+
+  _getNotificationBox: function(win) {
+    let notificationBox;
+
+    // Get topmost window, in case we're in a frame.
+    let doc = win.top.document;
+
+    // Find the <browser> that contains the document by looking through all
+    // the open windows and their <tabbrowser>s.
+    let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+    let enumerator = wm.getEnumerator("navigator:browser");
+    let tabBrowser = null;
+    let foundBrowser = null;
+    while (!foundBrowser && enumerator.hasMoreElements()) {
+      tabBrowser = enumerator.getNext().getBrowser();
+      foundBrowser = tabBrowser.getBrowserForDocument(doc);
+    }
+    if (foundBrowser)
+      notificationBox = tabBrowser.getNotificationBox(foundBrowser);
+
+    return notificationBox;
   }
 
 };
