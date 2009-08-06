@@ -312,7 +312,7 @@ PeopleService.prototype = {
     if (false)
       Utils.notify("guid", [from, to]);
     return false;
-  }
+  },
 
   _addToIndexTable: function _addToIndexTable(person_id, prop, value) {
     let stmt;
