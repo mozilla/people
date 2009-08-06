@@ -183,9 +183,8 @@ let PeopleInjector = {
         return notificationBox;
       }
 
-      let promptText = "The page at " + (win.location.host || win.location) +
-                       " wants to access your people.";
-
+      let site = win.location.host || win.location;
+      let promptText = "The page at " + site + " wants to access your people.";
       let buttons = [
         {
           label:     "No Way",
@@ -208,6 +207,15 @@ let PeopleInjector = {
                                           null,
                                           box.PRIORITY_INFO_MEDIUM,
                                           buttons);
+
+      let checkbox = document.createElementNS(
+        "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+        "checkbox"
+      );
+      checkbox.setAttribute("id", "rememberDecision");
+      checkbox.setAttribute("label", "Remember for " + site);
+      newBar.appendChild(checkbox);
+
       if (oldBar)
         box.removeNotification(oldBar);
     }
