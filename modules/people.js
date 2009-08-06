@@ -89,33 +89,11 @@ PeopleService.prototype = {
   // The current database schema.
   _dbSchema: {
     tables: {
-        people:     "id   INTEGER PRIMARY KEY,"  +
-                    "guid TEXT UNIQUE NOT NULL," +
-                    "json TEXT NOT NULL",
-        firstnames: "id        INTEGER PRIMARY KEY," +
-                    "person_id INTEGER NOT NULL,"    +
-                    "val       TEXT NOT NULL",
-        lastnames:  "id        INTEGER PRIMARY KEY," +
-                    "person_id INTEGER NOT NULL,"    +
-                    "val       TEXT NOT NULL",
-        emails:     "id        INTEGER PRIMARY KEY," +
-                    "person_id INTEGER NOT NULL,"    +
-                    "val       TEXT NOT NULL"
+      people: "id   INTEGER PRIMARY KEY, "  +
+              "guid TEXT UNIQUE NOT NULL, " +
+              "json TEXT NOT NULL",
     },
-    indices: {
-      firstnames_index: {
-        table: "firstnames",
-        columns: ["val"]
-      },
-      lastnames_index: {
-        table: "lastnames",
-        columns: ["val"]
-      },
-      emails_index: {
-        table: "emails",
-        columns: ["val"]
-      }
-    }
+    index_tables: ["firstnames", "lastnames", "emails"]
   },
 
   get _dbFile() {
@@ -166,12 +144,13 @@ PeopleService.prototype = {
     for (let name in this._dbSchema.tables)
       this._db.createTable(name, this._dbSchema.tables[name]);
 
-    this._log.debug("Creating Indices");
-    for (let name in this._dbSchema.indices) {
-      let index = this._dbSchema.indices[name];
-      let statement = "CREATE INDEX IF NOT EXISTS " + name + " ON " + index.table +
-                        "(" + index.columns.join(", ") + ")";
-      this._db.executeSimpleSQL(statement);
+    this._log.debug("Creating Index Tables");
+    for each (let index in this._dbSchema.index_tables) {
+      this._db.createTable(index, "id INTEGER PRIMARY KEY, " +
+        "person_id INTEGER NOT NULL, val TEXT NOT NULL");
+      for each (let col in ["person_id", "val"])
+        this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS " + index +
+          "_" + col + " ON " + index + " (" + col + ")");
     }
 
     this._db.schemaVersion = DB_VERSION;
@@ -240,10 +219,9 @@ PeopleService.prototype = {
 
     if (!check("SELECT id, guid, json FROM moz_people"))
       return false;
-    if (!check("SELECT id, person_id, firstname FROM moz_people_firstnames"))
-      return false;
-    if (!check("SELECT id, person_id, lastname FROM moz_people_lastnames"))
-      return false;
+    for each (let index in this._dbSchema.index_tables)
+      if (!check("SELECT person_id, val FROM " + index))
+        return false;
 
     this._log.debug("verified that expected columns are present in DB.");
     return true;
