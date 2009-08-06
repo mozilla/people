@@ -103,10 +103,6 @@ PeopleService.prototype = {
                     "val       TEXT NOT NULL"
     },
     indices: {
-      people_guid_index: {
-        table: "people",
-        columns: ["guid"]
-      },
       firstnames_index: {
         table: "firstnames",
         columns: ["val"]
