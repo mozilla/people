@@ -338,6 +338,10 @@ PeopleService.prototype = {
     return null;
   },
 
+  changeGUID: function changeGUID(from, to) {
+    return false;
+  },
+
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments);
