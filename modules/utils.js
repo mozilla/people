@@ -63,10 +63,6 @@ let Utils = {
 
   makeGUID: function makeGUID() {
     return Svc.UUIDGen.generateUUID().toString().replace(/[{}]/g, '');
-  },
-
-  notify: function notify(type, guid) {
-    Svc.Observer.notifyObservers(guid, "people-storage-changed", type);
   }
 };
 
