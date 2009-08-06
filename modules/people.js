@@ -314,7 +314,7 @@ PeopleService.prototype = {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
-    person.guid = person.guid? person.guid : Utils.makeGUID();
+    person.guid ||= Utils.makeGUID();
 
     let stmt;
     try {
