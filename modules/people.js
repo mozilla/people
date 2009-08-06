@@ -272,20 +272,37 @@ PeopleService.prototype = {
 
   add: function add(person) {
     if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments);
+      return Utils.mapCall(this, arguments).filter(function(i) i != null);
+
+    // Failure case
+    if (true)
+      return person;
+
+    return null;
   },
 
   update: function update(person) {
     if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments);
+      return Utils.mapCall(this, arguments).filter(function(i) i != null);
+
+    // Failure case
+    if (true)
+      return person;
+
+    return null;
   },
 
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments);
+
+    // Failure case
+    return 0;
   },
 
   find: function find(attrs) {
+    // Failure case
+    return [];
   }
 };
 
