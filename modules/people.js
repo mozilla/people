@@ -94,7 +94,7 @@ PeopleService.prototype = {
               "guid TEXT UNIQUE NOT NULL, " +
               "json TEXT NOT NULL"
     },
-    index_tables: ["firstname", "lastname", "emails"]
+    index_tables: ["displayName", "givenName", "familyName", "emails"]
   },
 
   get _dbFile() {
