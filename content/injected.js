@@ -54,18 +54,24 @@ window.navigator.people = {
     window.dispatchEvent(event);
   },
 
-  _notify: function(people) {
-    alert("_notify: " + people.toSource());
+  onFindSucceeded: function(people) {
+    this.onFind(people, "successCallback");
+  },
 
+  onFindFailed: function(error) {
+    this.onFind(error, "errorCallback");
+  },
+
+  onFind: function(response, callback) {
     for (let id in this._requests) {
       let request = this._requests[id];
-      if (request.successCallback) {
+      if (callback in request) {
         try {
-          request.successCallback(people);
+          request[callback](response);
         }
         catch(ex) {
           // FIXME: log exception instead of dumping it.
-          dump("error calling success callback: " + ex + "\n");
+          dump("error calling " + callback + ": " + ex + "\n");
         }
       }
       delete this._requests[id];

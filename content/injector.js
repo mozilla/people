@@ -157,12 +157,16 @@ let PeopleInjector = {
     let sandbox = new Components.utils.Sandbox(win);
     sandbox.__proto__ = win.wrappedJSObject;
     let people = People.find();
-    let source = "window.navigator.people._notify(" + people.toSource() + ")";
+    let source = "window.navigator.people.onFindSucceeded(" + people.toSource() + ")";
     Cu.evalInSandbox(source, sandbox, "1.8");
   },
 
-  deny: function() {
-    alert("deny");
+  deny: function(win) {
+    let sandbox = new Components.utils.Sandbox(win);
+    sandbox.__proto__ = win.wrappedJSObject;
+    let error = { message: "permission denied" };
+    let source = "window.navigator.people.onFindFailed(" + error.toSource() + ")";
+    Cu.evalInSandbox(source, sandbox, "1.8");
   },
 
   _prompt: function(event) {
