@@ -360,10 +360,59 @@ PeopleService.prototype = {
     return null;
   },
 
+  _find: function _find(col, attrs) {
+    let terms = 0;
+    let joins = [];
+    let wheres = [];
+    let params = {};
+
+    // Special case GUID finds
+    if ("guid" in attrs) {
+      wheres.push("guid = :guid");
+      params.guid = attrs.guid;
+    }
+
+    // Build query parts for joined indexed terms
+    let addTerm = function addTerm(val, table) {
+      if (Utils.isArray(arguments[0]))
+        return Utils.mapCall(this, arguments);
+
+      let alias = "t" + terms;
+      joins.push("JOIN " + table + " " + alias + " ON " + alias +
+        ".person_id = p.id");
+      wheres.push(alias + ".val = :p" + terms);
+      params["p" + terms] = val;
+      terms++;
+    };
+
+    // Add the index term for the ones we know about
+    for each (let index in this._dbSchema.index_tables)
+      if (index in attrs)
+        addTerm.call(this, attrs[index], index);
+
+    let query = "SELECT " + col + " FROM people p";
+    if (joins.length > 0)
+      query += " " + joins.join(" ");
+    if (wheres.length > 0)
+      query += " WHERE " + wheres.join(" AND ");
+
+    // TODO do the query..
+    //Cu.reportError(JSON.stringify([query, params]));
+
+    // Do the find on non-indexed fields
+    for (let [attr, val] in Iterator(attrs)) {
+      if (attr == "guid" || this._dbSchema.index_tables.indexOf(attr) != -1)
+        continue;
+      // TODO filter out stuff..
+      //Cu.reportError(JSON.stringify([attr, val]));
+    }
+  },
+
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments);
 
+    let guids = this._find("guid", attrs);
     while (false) {
       Observers.notify("people-before-remove", row.guid);
       // remove row..
@@ -375,6 +424,7 @@ PeopleService.prototype = {
   },
 
   find: function find(attrs) {
+    let jsons = this._find("json", attrs);
     // Failure case
     return [];
   }
