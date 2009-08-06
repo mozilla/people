@@ -297,13 +297,19 @@ PeopleService.prototype = {
     return wrappedStmt;
   },
 
+  beginTransaction: function beginTransaction() {
+    this._db.beginTransaction();
+  },
+
+  commitTransaction: function commitTransaction() {
+    this._db.commitTransaction();
+  },
+
   add: function add(person) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
     person.guid = person.guid? person.guid : Utils.makeGUID();
-
-    this._db.beginTransaction();
 
     let query = "INSERT INTO moz_people (guid, json) VALUES (:guid, :json)";
     let params = {
