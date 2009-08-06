@@ -41,7 +41,25 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
+Cu.import("resource://people/modules/ext/Sync.js");
+
 let Utils = {
+  getRows: function getRows(stmt) {
+    let rows = [];
+    let [execute, onComplete] = Sync.withCb(stmt.executeAsync, stmt);
+    execute({
+      handleResult: function(results) {
+        let row;
+        while ((row = results.getNextRow()) != null) {
+          rows.push(row.getResultByIndex(0));
+        }
+      },
+      handleCompletion: onComplete,
+      handleError: onComplete.throw
+    });
+    return rows;
+  },
+
   isArray: function isArray(obj) {
     return obj != null && obj.constructor.toString() == Array;
   },

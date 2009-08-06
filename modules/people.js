@@ -431,6 +431,8 @@ PeopleService.prototype = {
   },
 
   _find: function _find(col, attrs) {
+    attrs = attrs || {};
+
     let terms = 0;
     let joins = [];
     let wheres = [];
@@ -466,8 +468,13 @@ PeopleService.prototype = {
     if (wheres.length > 0)
       query += " WHERE " + wheres.join(" AND ");
 
-    // TODO do the query..
-    //Cu.reportError(JSON.stringify([query, params]));
+    try {
+      return Utils.getRows(this._dbCreateStatement(query, params).statement);
+    }
+    catch(ex) {
+      this._log.error("find failed during query: " + Utils.exceptionStr(ex));
+      return [];
+    }
 
     // Do the find on non-indexed fields
     for (let [attr, val] in Iterator(attrs)) {
@@ -483,20 +490,26 @@ PeopleService.prototype = {
       return Utils.mapCall(this, arguments);
 
     let guids = this._find("guid", attrs);
-    while (false) {
-      Observers.notify("people-before-remove", row.guid);
-      // remove row..
-      Observers.notify("people-remove", row.guid);
-    }
+    guids.forEach(function(guid) {
+      let param = { guid: guid };
+      Observers.notify("people-before-remove", guid);
 
-    // Failure case
-    return 0;
+      // Remove each indexed field
+      for each (let index in this._dbSchema.index_tables)
+        this._dbCreateStatement("DELETE FROM " + index + " WHERE person_id = " +
+          "(SELECT id FROM people WHERE guid = :guid)", param).execute();
+
+      // Remove the people entry
+      this._dbCreateStatement("DELETE FROM people WHERE guid = :guid", param).
+        execute();
+
+      Observers.notify("people-remove", guid);
+    }, this);
+    return guids.length;
   },
 
   find: function find(attrs) {
-    let jsons = this._find("json", attrs);
-    // Failure case
-    return [];
+    return this._find("json", attrs).map(function(json) JSON.parse(json));
   }
 };
 
