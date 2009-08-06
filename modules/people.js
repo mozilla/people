@@ -260,12 +260,12 @@ PeopleService.prototype = {
    * Returns the wrapped statement for execution.  Will use memoization
    * so that statements can be reused.
    */
-  _dbCreateStatement : function (query, params) {
+  _dbCreateStatement : function _dbCreateStatement(query, params) {
     let wrappedStmt = this._dbStmts[query];
     // Memoize the statements
     if (!wrappedStmt) {
-      this.log("Creating new statement for query: " + query);
-      let stmt = this._dbConnection.createStatement(query);
+      this._log.debug("Creating new statement for query: " + query);
+      let stmt = this._db.createStatement(query);
 
       wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
         createInstance(Ci.mozIStorageStatementWrapper);
@@ -277,14 +277,6 @@ PeopleService.prototype = {
       for (let i in params)
         wrappedStmt.params[i] = params[i];
     return wrappedStmt;
-  },
-
-  beginTransaction: function beginTransaction() {
-    return this._db.beginTransaction();
-  },
-
-  commitTransaction: function commitTransaction() {
-    return this._db.commitTransaction();
   },
 
   changeGUID: function changeGUID(from, to) {
@@ -304,10 +296,11 @@ PeopleService.prototype = {
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
     } catch (e) {
-      this._log.warn("add to index table failed: " + e.name + " : " + e.message);
-      throw "add to index table failed: " + e.name + " : " + e.message;
+      this._log.warn("add to index table failed: " + Utils.exceptionStr(e));
+      throw "add to index table failed: " + Utils.exceptionStr(e);
     } finally {
-      stmt.reset();
+      if (stmt)
+        stmt.reset();
     }
   },
 
@@ -315,10 +308,12 @@ PeopleService.prototype = {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
-    person.guid ||= Utils.makeGUID();
+    person.guid = person.guid || Utils.makeGUID();
 
     let stmt;
     try {
+      this._db.beginTransaction();
+
       let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
       let params = {
         guid: person.guid,
@@ -338,11 +333,15 @@ PeopleService.prototype = {
           this._addToIndexTable(id, "emails", e.value);
         }
       }
+
+      this._db.commitTransaction();
     } catch (e) {
-      this._log.warn("add failed: " + e.name + " : " + e.message);
-      return person;
+      this._log.warn("add failed: " + Utils.exceptionStr(e));
+      this._db.rollbackTransaction();
+      return {error: "fail", person: person};
     } finally {
-      stmt.reset();
+      if (stmt)
+        stmt.reset();
     }
 
     Observers.notify("people-add", person.guid);
