@@ -38,43 +38,7 @@
 /* The people API injected into window.navigator objects. */
 
 window.navigator.people = {
-  _requestSerial: 0,
-  _requests: {},
-
-  find: function(attrs, successCallback, errorCallback) {
-    let id = this._requestSerial++;
-    this._requests[id] = {
-      attrs: attrs,
-      successCallback: successCallback,
-      errorCallback: errorCallback
-    };
-
-    var event = document.createEvent("Events");
-    event.initEvent("moz-people-find", true, true);
-    window.dispatchEvent(event);
-  },
-
-  onFindSucceeded: function(people) {
-    this.onFind(people, "successCallback");
-  },
-
-  onFindFailed: function(error) {
-    this.onFind(error, "errorCallback");
-  },
-
-  onFind: function(response, callback) {
-    for (let id in this._requests) {
-      let request = this._requests[id];
-      if (callback in request) {
-        try {
-          request[callback](response);
-        }
-        catch(ex) {
-          // FIXME: log exception instead of dumping it.
-          dump("error calling " + callback + ": " + ex + "\n");
-        }
-      }
-      delete this._requests[id];
-    }
+  find: function(attrs, successCallback, failureCallback) {
+    find(window, attrs, successCallback, failureCallback);
   }
 };

@@ -142,91 +142,85 @@ let PeopleInjector = {
   /*
    * _inject
    *
-   * Injects window.navigator.people into the specified DOM window.
+   * Injects the content API into the specified DOM window.
    */
-  _inject: function(aWindow) {
-    let sandbox = new Cu.Sandbox(aWindow);
-    sandbox.__proto__ = aWindow.wrappedJSObject;
+  _inject: function(win) {
+    let sandbox = new Cu.Sandbox(win);
+    sandbox.importFunction(this._getFindFunction(), "find");
+    sandbox.window = win.wrappedJSObject;
     Cu.evalInSandbox(this._scriptToInject, sandbox, "1.8",
                      this.SCRIPT_TO_INJECT_URI, 1);
-
-    aWindow.addEventListener("moz-people-find", this, false, true);
   },
 
-  approve: function(win) {
-    let sandbox = new Components.utils.Sandbox(win);
-    sandbox.__proto__ = win.wrappedJSObject;
-    let people = People.find();
-    let source = "window.navigator.people.onFindSucceeded(" + people.toSource() + ")";
-    Cu.evalInSandbox(source, sandbox, "1.8");
-  },
+  _getFindFunction: function() {
+    return function(win, attrs, successCallback, failureCallback) {
+      win = XPCSafeJSObjectWrapper(win);
+      attrs = XPCSafeJSObjectWrapper(attrs);
+      successCallback = XPCSafeJSObjectWrapper(successCallback);
+      failureCallback = XPCSafeJSObjectWrapper(failureCallback);
 
-  deny: function(win) {
-    let sandbox = new Components.utils.Sandbox(win);
-    sandbox.__proto__ = win.wrappedJSObject;
-    let error = { message: "permission denied" };
-    let source = "window.navigator.people.onFindFailed(" + error.toSource() + ")";
-    Cu.evalInSandbox(source, sandbox, "1.8");
-  },
+      function onApproved() {
+        let people = People.find(attrs);
+        // FIXME: detect errors finding people and call the error callback.
+        successCallback(people);
+      }
 
-  _prompt: function(event) {
-    let win = event.target;
+      function onDenied() {
+        let error = { message: "permission denied" };
+        failureCallback(error);
+      }
 
-    let promptText = "The page at " + (win.location.host || win.location) +
-                     " wants to access your people.";
+      function getNotificationBox() {
+        let notificationBox;
+    
+        // Get topmost window, in case we're in a frame.
+        let doc = win.top.document;
 
-    let people = this;
-    let buttons = [
-      {
-        label:     "No Way",
-        accessKey: "l",
-        popup:     null,
-        callback:  function(bar) {
-          people.deny(win);
+        // Find the <browser> that contains the document by looking through
+        // all the open windows and their <tabbrowser>s.
+        let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+                 getService(Ci.nsIWindowMediator);
+        let enumerator = wm.getEnumerator("navigator:browser");
+        let tabBrowser = null;
+        let foundBrowser = null;
+        while (!foundBrowser && enumerator.hasMoreElements()) {
+          tabBrowser = enumerator.getNext().getBrowser();
+          foundBrowser = tabBrowser.getBrowserForDocument(doc);
         }
-      },
-      {
-        label:     "Just This Once",
-        accessKey: "2",
-        popup:     null,
-        callback:  function(bar) {
-          people.approve(win);
-        }
-      },
-    ];
+        if (foundBrowser)
+          notificationBox = tabBrowser.getNotificationBox(foundBrowser);
+    
+        return notificationBox;
+      }
 
-    let box = this._getNotificationBox(win);
-    let oldBar = box.getNotificationWithValue("moz-people-find");
-    let newBar = box.appendNotification(promptText,
-                                        "moz-people-find",
-                                        null,
-                                        box.PRIORITY_INFO_MEDIUM,
-                                        buttons);
-    if (oldBar)
-      box.removeNotification(oldBar);
-  },
+      let promptText = "The page at " + (win.location.host || win.location) +
+                       " wants to access your people.";
 
-  _getNotificationBox: function(win) {
-    let notificationBox;
+      let buttons = [
+        {
+          label:     "No Way",
+          accessKey: "n",
+          popup:     null,
+          callback:  function(bar) onDenied()
+        },
+        {
+          label:     "Way",
+          accessKey: "w",
+          popup:     null,
+          callback:  function(bar) onApproved()
+        },
+      ];
 
-    // Get topmost window, in case we're in a frame.
-    let doc = win.top.document;
-
-    // Find the <browser> that contains the document by looking through all
-    // the open windows and their <tabbrowser>s.
-    let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-             getService(Ci.nsIWindowMediator);
-    let enumerator = wm.getEnumerator("navigator:browser");
-    let tabBrowser = null;
-    let foundBrowser = null;
-    while (!foundBrowser && enumerator.hasMoreElements()) {
-      tabBrowser = enumerator.getNext().getBrowser();
-      foundBrowser = tabBrowser.getBrowserForDocument(doc);
+      let box = getNotificationBox();
+      let oldBar = box.getNotificationWithValue("moz-people-find");
+      let newBar = box.appendNotification(promptText,
+                                          "moz-people-find",
+                                          null,
+                                          box.PRIORITY_INFO_MEDIUM,
+                                          buttons);
+      if (oldBar)
+        box.removeNotification(oldBar);
     }
-    if (foundBrowser)
-      notificationBox = tabBrowser.getNotificationBox(foundBrowser);
-
-    return notificationBox;
   }
 
 };
