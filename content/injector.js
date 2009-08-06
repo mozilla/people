@@ -117,11 +117,12 @@ let PeopleInjector = {
     this._prompt(event);
   },
 
+  SCRIPT_TO_INJECT_URI: "resource://people/content/injected.js",
+
   get _scriptToInject() {
     delete this._scriptToInject;
 
-    let uri = new URI("resource://people/content/injected.js").
-              QueryInterface(Ci.nsIFileURL);
+    let uri = new URI(this.SCRIPT_TO_INJECT_URI).QueryInterface(Ci.nsIFileURL);
 
     // Slurp the contents of the file into a string.
     let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
@@ -146,7 +147,8 @@ let PeopleInjector = {
   _inject: function(aWindow) {
     let sandbox = new Cu.Sandbox(aWindow);
     sandbox.__proto__ = aWindow.wrappedJSObject;
-    Cu.evalInSandbox(this._scriptToInject, sandbox, "1.7");
+    Cu.evalInSandbox(this._scriptToInject, sandbox, "1.8",
+                     this.SCRIPT_TO_INJECT_URI, 1);
 
     aWindow.addEventListener("moz-people-find", this, false, true);
   },

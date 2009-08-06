@@ -56,5 +56,19 @@ window.navigator.people = {
 
   _notify: function(people) {
     alert("_notify: " + people.toSource());
+
+    for (let id in this._requests) {
+      let request = this._requests[id];
+      if (request.successCallback) {
+        try {
+          request.successCallback(people);
+        }
+        catch(ex) {
+          // FIXME: log exception instead of dumping it.
+          dump("error calling success callback: " + ex + "\n");
+        }
+      }
+      delete this._requests[id];
+    }
   }
 };
