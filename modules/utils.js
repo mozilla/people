@@ -62,7 +62,7 @@ let Utils = {
   },
 
   makeGUID: function makeGUID() {
-    return Svc.UUIDGen.generateUUID().toString().replace(/[{}]/g, '');
+    return Svc.UUIDGen.generateUUID().toString().slice(1, 37);
   },
 
   // Works on frames or exceptions, munges file:// URIs to shorten the paths
