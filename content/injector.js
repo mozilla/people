@@ -149,20 +149,20 @@ let PeopleInjector = {
       successCallback = XPCSafeJSObjectWrapper(successCallback);
       failureCallback = XPCSafeJSObjectWrapper(failureCallback);
 
-      function onApproved() {
+      function onAllow() {
         let people = People.find(attrs);
         // FIXME: detect errors finding people and call the error callback.
         successCallback(people);
       }
 
-      function onDenied() {
+      function onDeny() {
         let error = { message: "permission denied" };
         failureCallback(error);
       }
 
       function getNotificationBox() {
         let notificationBox;
-    
+
         // Get topmost window, in case we're in a frame.
         let doc = win.top.document;
 
@@ -191,13 +191,13 @@ let PeopleInjector = {
           label:     "No Way",
           accessKey: "n",
           popup:     null,
-          callback:  function(bar) onDenied()
+          callback:  function(bar) onDeny()
         },
         {
           label:     "Way",
           accessKey: "w",
           popup:     null,
-          callback:  function(bar) onApproved()
+          callback:  function(bar) onAllow()
         },
       ];
 
