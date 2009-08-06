@@ -19,6 +19,7 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
+ *  Justin Dolske <dolske@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -270,9 +271,54 @@ PeopleService.prototype = {
     this._dbFile.remove(false);
   },
 
+  /*
+   * _dbCreateStatement
+   *
+   * Creates a statement, wraps it, and then does parameter replacement
+   * Returns the wrapped statement for execution.  Will use memoization
+   * so that statements can be reused.
+   */
+  _dbCreateStatement : function (query, params) {
+    let wrappedStmt = this._dbStmts[query];
+    // Memoize the statements
+    if (!wrappedStmt) {
+      this.log("Creating new statement for query: " + query);
+      let stmt = this._dbConnection.createStatement(query);
+
+      wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+        createInstance(Ci.mozIStorageStatementWrapper);
+      wrappedStmt.initialize(stmt);
+      this._dbStmts[query] = wrappedStmt;
+    }
+    // Replace parameters, must be done 1 at a time
+    if (params)
+      for (let i in params)
+        wrappedStmt.params[i] = params[i];
+    return wrappedStmt;
+  },
+
   add: function add(person) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
+
+    this._db.beginTransaction();
+
+    let query = "INSERT INTO moz_people (guid, json) VALUES (:guid, :json)";
+    let params = {
+      guid: "fixme",
+      json: "fixme"
+    };
+
+    let stmt;
+    try {
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+    } catch (e) {
+      this._log.warn("add failed: " + e.name + " : " + e.message);
+      throw "Couldn't write to database, person not added.";
+    } finally {
+      stmt.reset();
+    }
 
     // Failure case
     if (true)
