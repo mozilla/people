@@ -59,11 +59,16 @@ let Utils = {
     let func = mapCall.caller;
     let extra = Array.slice(args, 1);
     return array.map(function(item) func.apply(self, [item].concat(extra)));
+  },
+
+  notify: function notify(type, guid) {
+    Svc.Observer.notifyObservers(guid, "people-storage-changed", type);
   }
 };
 
 let Svc = {};
 [["Directory", "file/directory_service", "nsIProperties"],
+ ["Observer", "observer-service", "nsIObserverService"],
  ["Storage", "storage/service", "mozIStorageService"],
 ].forEach(function([prop, cid, iface]) Utils.lazy(Svc, prop, function()
   Cc["@mozilla.org/" + cid + ";1"].getService(Ci[iface])));

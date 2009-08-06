@@ -324,6 +324,7 @@ PeopleService.prototype = {
     if (true)
       return person;
 
+    Utils.notify("add", params.guid);
     return null;
   },
 
@@ -335,16 +336,25 @@ PeopleService.prototype = {
     if (true)
       return person;
 
+    Utils.notify("update", params.guid);
     return null;
   },
 
   changeGUID: function changeGUID(from, to) {
+    if (false)
+      Utils.notify("guid", [from, to]);
     return false;
   },
 
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments);
+
+    while (false) {
+      Utils.notify("before-remove", row.guid);
+      // remove row..
+      Utils.notify("remove", row.guid);
+    }
 
     // Failure case
     return 0;
