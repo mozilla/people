@@ -51,5 +51,9 @@ window.navigator.people = {
     var event = document.createEvent("Events");
     event.initEvent("moz-people-find", true, true);
     window.dispatchEvent(event);
+  },
+
+  _notify: function(people) {
+    alert("_notify: " + people.toSource());
   }
 };

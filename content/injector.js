@@ -39,6 +39,7 @@
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://people/modules/ext/URI.js");
+Cu.import("resource://people/modules/people.js");
 
 let PeopleInjector = {
   get _docSvc() {
@@ -149,8 +150,12 @@ let PeopleInjector = {
     aWindow.addEventListener("moz-people-find", this, false, true);
   },
 
-  approve: function() {
-    alert("approve");
+  approve: function(win) {
+    let sandbox = new Components.utils.Sandbox(win);
+    sandbox.__proto__ = win.wrappedJSObject;
+    let people = People.find();
+    let source = "window.navigator.people._notify(" + people.toSource() + ")";
+    Cu.evalInSandbox(source, sandbox, "1.8");
   },
 
   deny: function() {
@@ -170,7 +175,7 @@ let PeopleInjector = {
         accessKey: "l",
         popup:     null,
         callback:  function(bar) {
-          people.deny();
+          people.deny(win);
         }
       },
       {
@@ -178,7 +183,7 @@ let PeopleInjector = {
         accessKey: "2",
         popup:     null,
         callback:  function(bar) {
-          people.approve();
+          people.approve(win);
         }
       },
     ];
