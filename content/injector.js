@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* Inject the people API into window.navigator objects. */
-/* Based on code in the Geode extension. */
+/* Inject the People content API into window.navigator objects. */
+/* Partly based on code in the Geode extension. */
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://people/modules/ext/URI.js");
@@ -70,7 +70,6 @@ let PeopleInjector = {
   // nsISupports
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                         Ci.nsIEventHandler,
                                          Ci.nsISupportsWeakReference]),
 
 
@@ -106,16 +105,7 @@ let PeopleInjector = {
 
 
   //**************************************************************************//
-  // nsIEventHandler
-
-  handleEvent: function(event) {
-    // XXX I think the scoping is right here, but might be worth checking
-    //     for any funkyness when the request comes from an iframe or such.
-    if (!(event.target instanceof Ci.nsIDOMWindow))
-      throw "event target isn't a window";
-
-    this._prompt(event);
-  },
+  // 
 
   SCRIPT_TO_INJECT_URI: "resource://people/content/injected.js",
 
