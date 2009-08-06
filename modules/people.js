@@ -90,7 +90,7 @@ PeopleService.prototype = {
   _dbSchema: {
       tables: {
           moz_people: "id   INTEGER PRIMARY KEY," +
-                      "guid TEXT NOT NULL,"       +
+                      "guid TEXT UNIQUE NOT NULL,"       +
                       "json TEXT NOT NULL",
           moz_people_firstnames: "id        INTEGER PRIMARY KEY," +
                                  "person_id INTEGER NOT NULL,"    +
@@ -301,12 +301,14 @@ PeopleService.prototype = {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
+    person.guid = person.guid? person.guid : Utils.makeGUID();
+
     this._db.beginTransaction();
 
     let query = "INSERT INTO moz_people (guid, json) VALUES (:guid, :json)";
     let params = {
-      guid: "fixme",
-      json: "fixme"
+      guid: person.guid,
+      json: JSON.stringify(person)
     };
 
     let stmt;

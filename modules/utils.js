@@ -61,6 +61,10 @@ let Utils = {
     return array.map(function(item) func.apply(self, [item].concat(extra)));
   },
 
+  makeGUID: function makeGUID() {
+    return Svc.UUIDGen.generateUUID().toString().replace(/[{}]/g, '');
+  },
+
   notify: function notify(type, guid) {
     Svc.Observer.notifyObservers(guid, "people-storage-changed", type);
   }
@@ -70,5 +74,6 @@ let Svc = {};
 [["Directory", "file/directory_service", "nsIProperties"],
  ["Observer", "observer-service", "nsIObserverService"],
  ["Storage", "storage/service", "mozIStorageService"],
+ ["UUIDGen", "uuid-generator", "nsIUUIDGenerator"]
 ].forEach(function([prop, cid, iface]) Utils.lazy(Svc, prop, function()
   Cc["@mozilla.org/" + cid + ";1"].getService(Ci[iface])));
