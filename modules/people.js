@@ -88,31 +88,38 @@ PeopleService.prototype = {
 
   // The current database schema.
   _dbSchema: {
-      tables: {
-          moz_people: "id   INTEGER PRIMARY KEY," +
-                      "guid TEXT UNIQUE NOT NULL,"       +
-                      "json TEXT NOT NULL",
-          moz_people_firstnames: "id        INTEGER PRIMARY KEY," +
-                                 "person_id INTEGER NOT NULL,"    +
-                                 "firstname TEXT NOT NULL",
-          moz_people_lastnames: "id        INTEGER PRIMARY KEY," +
-                                 "person_id INTEGER NOT NULL,"    +
-                                 "lastname TEXT NOT NULL"
+    tables: {
+        people:     "id   INTEGER PRIMARY KEY,"  +
+                    "guid TEXT UNIQUE NOT NULL," +
+                    "json TEXT NOT NULL",
+        firstnames: "id        INTEGER PRIMARY KEY," +
+                    "person_id INTEGER NOT NULL,"    +
+                    "val       TEXT NOT NULL",
+        lastnames:  "id        INTEGER PRIMARY KEY," +
+                    "person_id INTEGER NOT NULL,"    +
+                    "val       TEXT NOT NULL",
+        emails:     "id        INTEGER PRIMARY KEY," +
+                    "person_id INTEGER NOT NULL,"    +
+                    "val       TEXT NOT NULL"
+    },
+    indices: {
+      people_guid_index: {
+        table: "people",
+        columns: ["guid"]
       },
-      indices: {
-        moz_people_guid_index: {
-          table: "moz_people",
-          columns: ["guid"]
-        },
-        moz_people_firstname_index: {
-          table: "moz_people_firstnames",
-          columns: ["firstname"]
-        },
-        moz_people_lastname_index: {
-          table: "moz_people_lastnames",
-          columns: ["lastname"]
-        }
+      firstnames_index: {
+        table: "firstnames",
+        columns: ["val"]
+      },
+      lastnames_index: {
+        table: "lastnames",
+        columns: ["val"]
+      },
+      emails_index: {
+        table: "emails",
+        columns: ["val"]
       }
+    }
   },
 
   get _dbFile() {
@@ -298,11 +305,29 @@ PeopleService.prototype = {
   },
 
   beginTransaction: function beginTransaction() {
-    this._db.beginTransaction();
+    return this._db.beginTransaction();
   },
 
   commitTransaction: function commitTransaction() {
-    this._db.commitTransaction();
+    return this._db.commitTransaction();
+  },
+
+  _addToIndexTable: function _addToIndexTable(person_id, prop, value) {
+    let stmt;
+    try {
+      let query = "INSERT INTO " + prop + " (person_id, val) VALUES (:person_id, :val)";
+      let params = {
+        person_id: person_id,
+        val:value
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+    } catch (e) {
+      this._log.warn("add to index table failed: " + e.name + " : " + e.message);
+      throw "add to index table failed: " + e.name + " : " + e.message;
+    } finally {
+      stmt.reset();
+    }
   },
 
   add: function add(person) {
@@ -311,26 +336,33 @@ PeopleService.prototype = {
 
     person.guid = person.guid? person.guid : Utils.makeGUID();
 
-    let query = "INSERT INTO moz_people (guid, json) VALUES (:guid, :json)";
-    let params = {
-      guid: person.guid,
-      json: JSON.stringify(person)
-    };
-
     let stmt;
     try {
+      let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
+      let params = {
+        guid: person.guid,
+        json: JSON.stringify(person)
+      };
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
+
+      let id = this._db.lastInsertRowID;
+
+      if (person.firstname)
+        this._addToIndexTable(id, "firstnames", person.firstname);
+      if (person.lastname)
+        this._addToIndexTable(id, "lastnames", person.lastname);
+      if (Utils.isArray(person.emails)) {
+        for each (let e in person.emails) {
+          this._addToIndexTable(id, "emails", e.value);
+        }
+      }
     } catch (e) {
       this._log.warn("add failed: " + e.name + " : " + e.message);
-      throw "Couldn't write to database, person not added.";
+      return person;
     } finally {
       stmt.reset();
     }
-
-    // Failure case
-    if (true)
-      return person;
 
     Utils.notify("add", params.guid);
     return null;
