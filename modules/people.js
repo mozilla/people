@@ -92,9 +92,9 @@ PeopleService.prototype = {
     tables: {
       people: "id   INTEGER PRIMARY KEY, "  +
               "guid TEXT UNIQUE NOT NULL, " +
-              "json TEXT NOT NULL",
+              "json TEXT NOT NULL"
     },
-    index_tables: ["firstnames", "lastnames", "emails"]
+    index_tables: ["firstname", "lastname", "emails"]
   },
 
   get _dbFile() {
@@ -249,7 +249,7 @@ PeopleService.prototype = {
     this._dbStmts = [];
 
     // Close the connection, ignore 'already closed' error
-    try { this._db.close() } catch(e) {}
+    try { this._db.close(); } catch(e) {}
     this._dbFile.remove(false);
   },
 
@@ -285,22 +285,61 @@ PeopleService.prototype = {
     return false;
   },
 
-  _addToIndexTable: function _addToIndexTable(person_id, prop, value) {
+  _addIndexed: function _addIndexed(thing, prop, person_id) {
+    if (Utils.isArray(thing))
+      return Utils.mapCall(this, arguments);
+
+    let value = thing;
+    if (typeof(thing) == "object")
+      value = thing.value || thing.val || thing[prop];
+
     let stmt;
     try {
       let query = "INSERT INTO " + prop + " (person_id, val) VALUES (:person_id, :val)";
       let params = {
         person_id: person_id,
-        val:value
+        val: value
       };
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
+
     } catch (e) {
-      this._log.warn("add to index table failed: " + Utils.exceptionStr(e));
-      throw "add to index table failed: " + Utils.exceptionStr(e);
+      this._log.warn("add indexed field failed: " + Utils.exceptionStr(e));
+      throw "add indexed field failed: " + Utils.exceptionStr(e);
+
     } finally {
       if (stmt)
         stmt.reset();
+    }
+
+    return null;
+  },
+
+  _clearIndexed: function _clearIndexed(person_id, prop) {
+    let stmt;
+    try {
+      let query = "DELETE FROM " + prop + " WHERE person_id = :person_id";
+      let params = {
+        person_id: person_id
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+
+    } catch (e) {
+      this._log.warn("clear indexed field failed: " + Utils.exceptionStr(e));
+      throw "clear indexed field failed: " + Utils.exceptionStr(e);
+
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
+  },
+
+  _updateIndexed: function _updateIndexed(person_id, person) {
+    for each (let idx in this._dbSchema.index_tables) {
+      this._clearIndexed(person_id, idx);
+      if (idx in person)
+        this._addIndexed(person[idx], idx, person_id);
     }
   },
 
@@ -322,23 +361,15 @@ PeopleService.prototype = {
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
 
-      let id = this._db.lastInsertRowID;
-
-      if (person.firstname)
-        this._addToIndexTable(id, "firstnames", person.firstname);
-      if (person.lastname)
-        this._addToIndexTable(id, "lastnames", person.lastname);
-      if (Utils.isArray(person.emails)) {
-        for each (let e in person.emails) {
-          this._addToIndexTable(id, "emails", e.value);
-        }
-      }
+      this._updateIndexed(this._db.lastInsertRowID, person);
 
       this._db.commitTransaction();
+
     } catch (e) {
       this._log.warn("add failed: " + Utils.exceptionStr(e));
       this._db.rollbackTransaction();
       return {error: "fail", person: person};
+
     } finally {
       if (stmt)
         stmt.reset();
@@ -352,9 +383,48 @@ PeopleService.prototype = {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
-    // Failure case
-    if (true)
-      return person;
+    let stmt;
+    try {
+      if (!person.guid)
+        throw "person object must contain a guid";
+
+      this._db.beginTransaction();
+
+      let query = "SELECT * FROM people WHERE guid = :guid";
+      let params = {
+        guid: person.guid
+      };
+      stmt = this._dbCreateStatement(query, params);
+
+      let id;
+      while (stmt.step()) {
+        id = stmt.row.id;
+      }
+      if (!id)
+        throw "no object for guid " + person.guid;
+      stmt.reset();
+
+      query = "UPDATE people SET json = :json WHERE id = :id";
+      params = {
+        id: id,
+        json: JSON.stringify(person)
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+
+      this._updateIndexed(id, person);
+
+      this._db.commitTransaction();
+
+    } catch (e) {
+      this._log.warn("update failure: " + Utils.exceptionStr(e));
+      this._db.rollbackTransaction();
+      return {error: e.message, person: person};
+
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
 
     Observers.notify("people-update", person.guid);
     return null;
