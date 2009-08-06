@@ -41,10 +41,10 @@ window.navigator.people = {
   _requestSerial: 0,
   _requests: {},
 
-  find: function(params, successCallback, errorCallback) {
+  find: function(attrs, successCallback, errorCallback) {
     let id = this._requestSerial++;
     this._requests[id] = {
-      params: params,
+      attrs: attrs,
       successCallback: successCallback,
       errorCallback: errorCallback
     };
