@@ -47,6 +47,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
+Cu.import("resource://people/modules/ext/Observers.js");
 
 function PeopleService() {
   this._initLogs();
@@ -288,7 +289,7 @@ PeopleService.prototype = {
 
   changeGUID: function changeGUID(from, to) {
     if (false)
-      Utils.notify("guid", [from, to]);
+      Observers.notify("people-guid-change", [from, to]);
     return false;
   },
 
@@ -344,7 +345,7 @@ PeopleService.prototype = {
       stmt.reset();
     }
 
-    Utils.notify("add", params.guid);
+    Observers.notify("people-add", person.guid);
     return null;
   },
 
@@ -356,7 +357,7 @@ PeopleService.prototype = {
     if (true)
       return person;
 
-    Utils.notify("update", params.guid);
+    Observers.notify("people-update", person.guid);
     return null;
   },
 
@@ -365,9 +366,9 @@ PeopleService.prototype = {
       return Utils.mapCall(this, arguments);
 
     while (false) {
-      Utils.notify("before-remove", row.guid);
+      Observers.notify("people-before-remove", row.guid);
       // remove row..
-      Utils.notify("remove", row.guid);
+      Observers.notify("people-remove", row.guid);
     }
 
     // Failure case
