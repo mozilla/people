@@ -39,10 +39,14 @@
 /* Partly based on code in the Geode extension. */
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://people/modules/ext/URI.js");
-Cu.import("resource://people/modules/people.js");
 
 let PeopleInjector = {
+  // URI module
+  URI: null,
+
+  // People module
+  People: null,
+
   get _docSvc() {
     delete this._docSvc;
     return this._docSvc = Cc["@mozilla.org/docloaderservice;1"].
@@ -112,7 +116,8 @@ let PeopleInjector = {
   get _scriptToInject() {
     delete this._scriptToInject;
 
-    let uri = new URI(this.SCRIPT_TO_INJECT_URI).QueryInterface(Ci.nsIFileURL);
+    let uri =
+      new this.URI(this.SCRIPT_TO_INJECT_URI).QueryInterface(Ci.nsIFileURL);
 
     // Slurp the contents of the file into a string.
     let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
@@ -143,6 +148,9 @@ let PeopleInjector = {
   },
 
   _getFindFunction: function() {
+    // Make the People module accessible to the find function via a closure.
+    let People = this.People;
+
     return function(win, attrs, successCallback, failureCallback) {
       win = XPCSafeJSObjectWrapper(win);
       attrs = XPCSafeJSObjectWrapper(attrs);
@@ -222,6 +230,9 @@ let PeopleInjector = {
   }
 
 };
+
+Cu.import("resource://people/modules/ext/URI.js", PeopleInjector);
+Cu.import("resource://people/modules/people.js", PeopleInjector);
 
 window.addEventListener("load",   function() PeopleInjector.onLoad(),   false);
 window.addEventListener("unload", function() PeopleInjector.onUnload(), false);
