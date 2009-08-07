@@ -1,0 +1,29 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<title>Import Your Contacts</title>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="import.js"></script>
+</head>
+<body>
+
+<form>
+<fieldset>
+<p>Import your GMail contacts</p>
+Gmail username: <input type="text" id="gmail-username-input"/><br/>
+Gmail password: <input type="password" id="gmail-password-input"/><br/>
+<input type="button" value="Import" onclick="doGmailImport();"/>
+</fieldset>
+</form>
+
+<form>
+<fieldset>
+<p>Import your Yahoo contacts</p>
+Yahoo username: <input type="text" id="gmail-username-input"/><br/>
+Yahoo password: <input type="password" id="gmail-password-input"/><br/>
+<input type="button" value="Import" onclick="doYahooImport();"/>
+</fieldset>
+</form>
+
+<span id="debug"></span>
+
+</body> </html>
