@@ -150,12 +150,17 @@ let PeopleInjector = {
   _getFindFunction: function() {
     // Make the People module accessible to the find function via a closure.
     let People = this.People;
+    let URI = this.URI;
 
     return function(win, attrs, successCallback, failureCallback) {
       win = XPCSafeJSObjectWrapper(win);
       attrs = XPCSafeJSObjectWrapper(attrs);
       successCallback = XPCSafeJSObjectWrapper(successCallback);
       failureCallback = XPCSafeJSObjectWrapper(failureCallback);
+
+      let permissionManager = Cc["@mozilla.org/permissionmanager;1"].
+                              getService(Ci.nsIPermissionManager);
+      let uri = new URI(win.location);
 
       function onAllow() {
         let people = People.find(attrs);
@@ -165,6 +170,11 @@ let PeopleInjector = {
         }
         catch(ex) {
           Components.utils.reportError(ex);
+        }
+
+        if (checkbox && checkbox.checked) {
+          permissionManager.add(uri, "people-find",
+                                Ci.nsIPermissionManager.ALLOW_ACTION);
         }
       }
 
@@ -176,6 +186,23 @@ let PeopleInjector = {
         catch(ex) {
           Components.utils.reportError(ex);
         }
+
+        if (checkbox && checkbox.checked) {
+          permissionManager.add(uri, "people-find",
+                                Ci.nsIPermissionManager.DENY_ACTION);
+        }
+      }
+
+      switch(permissionManager.testPermission(uri, "people-find")) {
+        case Ci.nsIPermissionManager.ALLOW_ACTION:
+          onAllow();
+          return;
+        case Ci.nsIPermissionManager.DENY_ACTION:
+          onDeny();
+          return;
+        case Ci.nsIPermissionManager.UNKNOWN_ACTION:
+        default:
+          // fall through to the rest of the function.
       }
 
       function getNotificationBox() {
