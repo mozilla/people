@@ -160,12 +160,22 @@ let PeopleInjector = {
       function onAllow() {
         let people = People.find(attrs);
         // FIXME: detect errors finding people and call the error callback.
-        successCallback(people);
+        try {
+          successCallback(people);
+        }
+        catch(ex) {
+          Components.utils.reportError(ex);
+        }
       }
 
       function onDeny() {
         let error = { message: "permission denied" };
-        failureCallback(error);
+        try {
+          failureCallback(error);
+        }
+        catch(ex) {
+          Components.utils.reportError(ex);
+        }
       }
 
       function getNotificationBox() {
