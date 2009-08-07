@@ -23,6 +23,7 @@ function makePersonObject(name, email) {
     displayName: name,
     givenName: firstname,
     familyName: lastname,
+    emails:[{value: email}],
     documents: {
       default: {
         moz_schema: "http://portablecontacts.net/draft-spec.html",
