@@ -87,7 +87,7 @@ let PeopleManager = {
 		identity.setAttribute("class", "identity");
 		let email_type = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 		email_type.setAttribute("class", "type");
-		email_type.innerHTML = email.type;
+		email_type.innerHTML = email.type || "";
 		let email_value = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 		email_value.setAttribute("class", "value");
 		let uri = encodeURIComponent(email.value);
