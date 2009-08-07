@@ -196,6 +196,15 @@ let PeopleInjector = {
         }
       }
 
+      // Special-case the built-in people manager, which has content privileges
+      // to prevent malicious content from exploiting bugs in its implementation
+      // to get chrome access but should always have access to your people
+      // (since it is a feature of this extension).
+      if (win.location == "chrome://people/content/manager.xhtml") {
+        onAllow();
+        return;
+      }
+
       switch(permissionManager.testPermission(uri, "people-find")) {
         case Ci.nsIPermissionManager.ALLOW_ACTION:
           onAllow();
