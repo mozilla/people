@@ -4,4 +4,6 @@ resource people ./
 
 content people content/
 
+overlay chrome://browser/content/browser.xul chrome://people/content/overlay.xul
+
 overlay chrome://browser/content/browser.xul chrome://people/content/injector.xul
