@@ -9,7 +9,16 @@
       href="chrome://people/content/manager.css"
       type="text/css" />
 </head>
+<script type="text/javascript;version=1.8">
+  $(document).ready(function(){
+    $(".draggable").sortable({
+      containment: "document",
+      distance: 5,
+    });
+  });
+</script>
+
 <body id="body">
-  <div id="results"></div>
+  <ol id="results" class="draggable"></ol>
 </body>
 </html>
