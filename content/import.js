@@ -1,31 +1,5 @@
 Components.utils.import("resource://people/modules/people.js");
 
-/* People object
-{
-  // guid identifies this person, schema describes the wrapper object
-  guid: "af24d-fe488-ab748-b947f",
-  schema: "http://mozilla.com/schemas/people/1",
-
-  // we pull out some fields for convenience.
-  // we only index fields we pull out.
-  firstname: "foo"
-  lastname: "bar"
-
-  documents: [
-    {
-      moz_schema: "http://portablecontacts.net/draft-spec.html",
-      firstname: "foo",
-      lastname: "bar",
-      emails: [
-        {value: "foo@gmail.com"},
-        {value: "foo@yahoo.com"},
-        {value: "bar@yahoo.com"}
-      ]
-    }
-  ]
-}
-*/
-
 function makePersonObject(name, email) {
   var firstname, lastname;
   if (name) {
@@ -42,12 +16,15 @@ function makePersonObject(name, email) {
     lastname = "";
   }
 
+  // See https://wiki.mozilla.org/Labs/Sprints/People for schema
+
   return {
     schema: "http://mozilla.com/schemas/people/1",
-    firstname: firstname,
-    lastname: lastname,
-    documents: [
-      {
+    displayName: name,
+    givenName: firstname,
+    familyName: lastname,
+    documents: {
+      default: {
         moz_schema: "http://portablecontacts.net/draft-spec.html",
         firstname: firstname,
         lastname: lastname,
@@ -55,7 +32,7 @@ function makePersonObject(name, email) {
           {value: email}
         ]
       }
-    ]
+    }
   };
 }
 
