@@ -50,7 +50,7 @@ FormAutoCompleteOverride.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIAutoCompleteSearch]),
 
   _isEmailSearch: function(param) {
-    return false;
+    return true;
   },
 
   startSearch: function (searchString, searchParam, prevResult, listener) {
@@ -67,9 +67,12 @@ FormAutoCompleteOverride.prototype = {
       originalImpls.mainACImpl.startSearch(searchString, searchParam, 
         prevResult, listener);
     }
+  },
+  
+  stopSearch: function() {
+    originalImpls.mainACImpl.stopSearch();
   }
 }
-FormAutoCompleteOverride.prototype.__proto__ = originalImpls.mainACImpl;
 
 var components = [FormHistoryOverride, FormAutoCompleteOverride];
 function NSGetModule(compMgr, fileSpec)
