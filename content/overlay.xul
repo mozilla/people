@@ -41,7 +41,7 @@
   <menupopup id="menu_ToolsPopup">
     <menuitem class="menuitem-iconic"
           label="People Manager" insertafter="menu_openAddons"
-          oncommand="window.getBrowser().addTab('chrome://people/content/manager.xul');">
+          oncommand="window.getBrowser().selectedTab = window.getBrowser().addTab('chrome://people/content/manager.xul');">
     </menuitem>
   </menupopup>
 </overlay>
