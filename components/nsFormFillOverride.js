@@ -2,20 +2,24 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://people/modules/people.js");
 
 function _() {
   let msg = Array.join(arguments, " ");
   dump(msg + "\n");
   Cu.reportError(msg);
 }
-_("loaded");
+_("?loaded");
 
 __defineGetter__("FACS", function() {
   _("get FACS");
   delete this.FACS;
   return this.FACS = Components.classesByID["{895db6c7-dbdf-40ea-9f64-b175033243dc}"].
     getService(Ci.nsIAutoCompleteSearch);
+});
+__defineGetter__("People", function() {
+  delete this.People;
+  Cu.import("resource://people/modules/people.js");
+  return People;
 });
 function PeopleAutoCompleteSearch() {
   _("new PACS");
@@ -41,7 +45,11 @@ PeopleAutoCompleteSearch.prototype = {
 
     // Match the name and show the email for now..
     People.find({ displayName: string }).forEach(function(person) {
-      result.appendMatch(person.documents.default.emails[0].value, "");
+      // Might not have an email for some reason... ?
+      try {
+        result.appendMatch(person.documents.default.emails[0].value, "");
+      }
+      catch(ex) {}
     });
 
     let resultCode = result.matchCount ? "RESULT_SUCCESS" : "RESULT_NOMATCH";

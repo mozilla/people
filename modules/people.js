@@ -274,8 +274,15 @@ PeopleService.prototype = {
     }
     // Replace parameters, must be done 1 at a time
     if (params)
-      for (let i in params)
-        wrappedStmt.params[i] = params[i];
+      for (let [param, val] in Iterator(params)) {
+        // Escape params that start with /
+        if (param[0] == "/") {
+          param = param.slice(1);
+          val = "%" + wrappedStmt.statement.escapeStringForLIKE(val, "/") + "%";
+        }
+
+        wrappedStmt.params[param] = val;
+      }
     return wrappedStmt;
   },
 
@@ -478,8 +485,8 @@ PeopleService.prototype = {
       let alias = "t" + terms;
       joins.push("JOIN " + table + " " + alias + " ON " + alias +
         ".person_id = p.id");
-      wheres.push(alias + ".val = :p" + terms);
-      params["p" + terms] = val;
+      wheres.push(alias + ".val LIKE :p" + terms + " ESCAPE '/'");
+      params["/p" + terms] = val;
       terms++;
     };
 
