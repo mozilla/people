@@ -1,7 +1,19 @@
 Components.utils.import("resource://people/modules/people.js");
 
+/*
+ * TODO
+ *
+ * 1. Auto log-in to Gmail ifyou're not logged in already.
+ * 2. Detect duplicates.
+ * 3. Try out the Yahoo one.
+ * 4. Better status display.
+ * 5. Pull other info (user icons) from Google
+ */
+
+
 function makePersonObject(name, email) {
   var firstname, lastname;
+  name = name.replace(/"/g, "&quot;");
   if (name) {
     if (name.indexOf(" ") > -1) {
       var nameParts = name.split(" ");
@@ -27,8 +39,8 @@ function makePersonObject(name, email) {
     documents: {
       default: {
         moz_schema: "http://portablecontacts.net/draft-spec.html",
-        firstname: firstname,
-        lastname: lastname,
+        displayName: name,
+        name: { givenName: firstname, familyName: lastname},
         emails: [
           {value: email}
         ]
