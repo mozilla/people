@@ -90,8 +90,8 @@ let PeopleManager = {
 		email_type.innerHTML = email.type;
 		let email_value = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 		email_value.setAttribute("class", "value");
-		email.value = encodeURIComponent(email.value);
-		email_value.innerHTML = '<a href="mailto:'+email.value+'">'+email.value+'</a>';
+		let uri = encodeURIComponent(email.value);
+		email_value.innerHTML = '<a href="mailto:'+uri+'">'+email.value+'</a>';
 
 		identity.appendChild(email_type);
 		identity.appendChild(email_value);
