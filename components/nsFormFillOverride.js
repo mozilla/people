@@ -3,6 +3,12 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+function _() {
+  let msg = Array.join(arguments, " ");
+  dump(msg + "\n");
+  Cu.reportError(msg);
+}
+
 var originalImpls = {
   _mainFFImpl: null,
   get mainFFImpl() {
@@ -54,9 +60,9 @@ FormAutoCompleteOverride.prototype = {
   },
 
   startSearch: function (searchString, searchParam, prevResult, listener) {
-    dump("startSearch called\n");
+    _("startSearch called");
     if (this._isEmailSearch(searchParam)) {
-      dump("doing email search: " + searchString + "\n");
+      _("doing email search: " + searchString);
       var input = Cc["@mozilla.org/satchel/form-fill-controller;1"];
       var FAC = Cc["@mozilla.org/satchel/form-autocomplete;1"].
                 getService(Ci.nsIFormAutoComplete);
