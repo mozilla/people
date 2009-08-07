@@ -21,8 +21,8 @@ img { margin: 0em; padding: 0em; border: none; }
 
 .contact {  }
 .contact > .summary { position: relative; min-height: 52px; }
-.summary > photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
-.summary > photo > .photo > image { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
+.summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
+.summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
 .summary > .information { margin-left: 54px; padding-left: 1em; }
 .summary > .information > .name { color: #222; font-weight: bold; font-size: 120%; overflow: hidden; white-space: nowrap; }
 .summary > .information > .description { color: #999; margin-top: 0.5em; }
