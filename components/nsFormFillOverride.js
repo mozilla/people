@@ -50,7 +50,7 @@ FormAutoCompleteOverride.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIAutoCompleteSearch]),
 
   _isEmailSearch: function(param) {
-    return false;
+    alert(param);
   },
 
   startSearch: function (searchString, searchParam, prevResult, listener) {

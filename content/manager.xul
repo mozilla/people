@@ -39,5 +39,6 @@
 <page xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
          id="managerPageLoader">
 
-  <iframe type="content" src="manager.xhtml" flex="1"/>
+<iframe type="content" src="manager.xhtml" flex="1" style="margin:0; padding:0;"/>
+
 </page>

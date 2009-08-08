@@ -3,22 +3,38 @@
     xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
     version="-//W3C//DTD XHTML 1.1//EN" xml:lang="en">
 <head>
-  <script type="application/javascript;version=1.8"
-      src="chrome://people/content/manager.js"></script>
-  <link rel="stylesheet"
+ <link rel="stylesheet"
       href="chrome://people/content/manager.css"
       type="text/css" />
+  <script type="text/javascript;version=1.8"
+      src="chrome://people/content/jquery.js"></script>
+  <script type="text/javascript;version=1.8"
+      src="chrome://people/content/quicksilver.js"></script>
+  <script type="text/javascript;version=1.8"
+      src="chrome://people/content/search.js"></script>
+  <script type="text/javascript;version=1.8"
+      src="chrome://people/content/manager.js"></script>
 </head>
+
+
 <script type="text/javascript;version=1.8">
   $(document).ready(function(){
+
+    PeopleManager.onLoad();
+
     $(".draggable").sortable({
       containment: "document",
       distance: 5,
+      grid: [52, 52],
+      items: "li",
     });
   });
 </script>
 
 <body id="body">
-  <ol id="results" class="draggable"></ol>
+    <form class="controls" method="get">
+      <input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
+    </form>
+    <ol id="results" class="draggable"></ol>
 </body>
 </html>

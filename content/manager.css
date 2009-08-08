@@ -35,3 +35,5 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 .identity > .type { position: absolute; color: #999; width: 52px; text-align: right;}
 .identity > .value { margin-left: 54px; padding-left: 1em; }
 
+form { margin:0; padding:2px; background:#D7D6D5;}
+form input {padding:2px; font-size:small; width:100%;}
