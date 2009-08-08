@@ -210,6 +210,23 @@ GmailImporter.prototype = {
       }
       return false;
     },
+    // FIXME: how to map these?
+    function t10(l, o) {
+      if (/adr;type=([^:;]*):([^;]*);([^;]*);([^;]*);([^;]*);([^;]*);([^;]*);([^;]*)/i.test(l)) {
+        let type = RegExp.$1,
+            pobox = RegExp.$2, extendedAddr = RegExp.$3, street = RegExp.$4,
+            locality = RegExp.$5, region = RegExp.$6, code = RegExp.$7,
+            country = RegExp.$8;
+        if (!o.addresses)
+          o.addresses = [];
+        o.addresses.push({type: type, formatted: extendedAddr,
+                          streetAddress: street,
+                          locality: locality, region: region,
+                          postalCode: code, country: country});
+        return true;
+      }
+      return false;
+    }
   ],
 
   import: function GmailImporter_import() {
