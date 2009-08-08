@@ -226,6 +226,15 @@ GmailImporter.prototype = {
         return true;
       }
       return false;
+    },
+    function t11(l, o) {
+      if (/url;type=([^:]*):(.*)$/i.test(l)) {
+        if (!o.urls)
+          o.urls = [];
+        o.urls.push({type: RegExp.$1, value: RegExp.$2});
+        return true;
+      }
+      return false;
     }
   ],
 
