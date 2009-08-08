@@ -150,6 +150,7 @@ let PeopleInjector = {
   _getFindFunction: function() {
     // Make the People module accessible to the find function via a closure.
     let People = this.People;
+    let URI = this.URI;
 
     return function(win, attrs, successCallback, failureCallback) {
       win = XPCSafeJSObjectWrapper(win);
@@ -157,25 +158,63 @@ let PeopleInjector = {
       successCallback = XPCSafeJSObjectWrapper(successCallback);
       failureCallback = XPCSafeJSObjectWrapper(failureCallback);
 
+      let permissionManager = Cc["@mozilla.org/permissionmanager;1"].
+                              getService(Ci.nsIPermissionManager);
+      let uri = new URI(win.location);
+
       function onAllow() {
         let people = People.find(attrs);
-        // FIXME: detect errors finding people and call the error callback.
+        // FIXME: detect errors finding people and call the failure callback.
+
         try {
           successCallback(people);
         }
         catch(ex) {
           Components.utils.reportError(ex);
         }
+
+        if (checkbox && checkbox.checked) {
+          permissionManager.add(uri, "people-find",
+                                Ci.nsIPermissionManager.ALLOW_ACTION);
+        }
       }
 
       function onDeny() {
         let error = { message: "permission denied" };
-        try {
-          failureCallback(error);
+        if (failureCallback) {
+          try {
+            failureCallback(error);
+          }
+          catch(ex) {
+            Components.utils.reportError(ex);
+          }
         }
-        catch(ex) {
-          Components.utils.reportError(ex);
+
+        if (checkbox && checkbox.checked) {
+          permissionManager.add(uri, "people-find",
+                                Ci.nsIPermissionManager.DENY_ACTION);
         }
+      }
+
+      // Special-case the built-in people manager, which has content privileges
+      // to prevent malicious content from exploiting bugs in its implementation
+      // to get chrome access but should always have access to your people
+      // (since it is a feature of this extension).
+      if (win.location == "chrome://people/content/manager.xhtml") {
+        onAllow();
+        return;
+      }
+
+      switch(permissionManager.testPermission(uri, "people-find")) {
+        case Ci.nsIPermissionManager.ALLOW_ACTION:
+          onAllow();
+          return;
+        case Ci.nsIPermissionManager.DENY_ACTION:
+          onDeny();
+          return;
+        case Ci.nsIPermissionManager.UNKNOWN_ACTION:
+        default:
+          // fall through to the rest of the function.
       }
 
       function getNotificationBox() {

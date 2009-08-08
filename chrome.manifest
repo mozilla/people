@@ -4,6 +4,10 @@ resource people ./
 
 content people content/
 
-overlay chrome://browser/content/browser.xul chrome://people/content/overlay.xul
+# localizations in alphabetical order
+locale  people   en-US   locale/en-US/
 
-overlay chrome://browser/content/browser.xul chrome://people/content/injector.xul
+# FIXME: consolidate multiple browser.xul overlays.
+overlay chrome://browser/content/browser.xul           chrome://people/content/overlay.xul
+overlay chrome://browser/content/browser.xul           chrome://people/content/injector.xul
+overlay chrome://browser/content/pageinfo/pageInfo.xul chrome://people/content/pageInfo.xul
