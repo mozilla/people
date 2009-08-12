@@ -21,6 +21,7 @@
    -
    - Contributor(s):
    -   Chris Beard <cbeard@mozilla.org>
+   -   Myk Melez <myk@mozilla.org>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,11 +38,15 @@
    - ***** END LICENSE BLOCK ***** -->
 
 <overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-         id="managerOverlay">
+         id="peopleOverlay">
+
+  <script type="application/javascript" src="chrome://people/content/injector.js"/>
+
   <menupopup id="menu_ToolsPopup">
     <menuitem class="menuitem-iconic"
           label="Contacts" insertafter="menu_openAddons"
           oncommand="window.getBrowser().selectedTab = window.getBrowser().addTab('chrome://people/content/manager.xul');">
     </menuitem>
   </menupopup>
+
 </overlay>
