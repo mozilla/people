@@ -112,7 +112,7 @@ GmailImporter.prototype = {
             honorific = RegExp.$4, honorificSuf = RegExp.$5;
 
         if (!o.displayName) {
-          o.displayName = "given";
+          o.displayName = given;
           if (additional)
             o.displayName += " " + additional;
           if (family)
