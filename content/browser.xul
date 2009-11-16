@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet href="chrome://people/content/browser.css" type="text/css"?>
 
 <!-- ***** BEGIN LICENSE BLOCK *****
    - Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -48,5 +49,7 @@
           oncommand="window.getBrowser().selectedTab = window.getBrowser().addTab('chrome://people/content/manager.xul');">
     </menuitem>
   </menupopup>
+
+  <tabbrowser id="content" autocompletepopup="PopupAutoCompleteRichResult"/>
 
 </overlay>

@@ -47,9 +47,12 @@ PeopleAutoCompleteSearch.prototype = {
     People.find({ displayName: string }).forEach(function(person) {
       // Might not have an email for some reason... ?
       try {
-        let name = person.displayName;
         let email = person.documents.default.emails[0].value;
-        result.appendMatch(name + " <" + email + ">", "");
+        let data = JSON.stringify(person);
+        data = person.displayName + " <" + email + ">";
+        let img = person.documents.default.photos[0].value.replace(/\\:/g, ":");
+        email = person.documents.default.organizations[0].title;
+        result.appendMatch(email, data, img, "people");
       }
       catch(ex) {}
     });
