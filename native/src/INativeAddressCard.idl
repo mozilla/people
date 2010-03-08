@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is People.
+ * The Original Code is Weave code.
  *
- * The Initial Developer of the Original Code is Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Myk Melez <myk@mozilla.org>
- *   Justin Dolske <dolske@mozilla.com>
+ *   Michael Hanson <mhanson@mozilla.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,10 +36,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* The people API injected into window.navigator objects. */
+#include "nsISupports.idl"
 
-window.navigator.people = {
-  find: function(attrs, fields, successCallback, failureCallback) {
-    find(window, attrs, fields, successCallback, failureCallback);
-  }
+/** TODO what uuid should I use? **/
+[scriptable, uuid(E2CF04E9-59B5-4A27-AA51-4402AAFD74D0)]
+interface INativeAddressCard : nsISupports
+{
+
+	/** NOTE That this is a Mozilla Labs prototype, and should not be
+	* taken as a stable API or even the right way to do this.  The Thunderbird 
+	* source has an extensive scriptable addressbook model, which is almost
+	* certainly a better place to start. */
+
+  string getProperty(in string name);
+	
+  void getPropertyListLabels(in string name,
+														 out unsigned long count,
+														[retval, array, size_is(count)] out string labels);
+
+  void getPropertyListValues(in string name, 
+														 out unsigned long count,
+														[retval, array, size_is(count)] out string values);
+
 };
+

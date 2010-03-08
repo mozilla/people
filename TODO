@@ -1,5 +1,6 @@
 Quick n' dirty list of tasks:
 
+* Redo person schema to make per-service data refresh possible.
 * Add a plugin interface to the backend to support "accelerators",
   little bundles that would describe fields to be indexed in separate
   tables, and what fields they map to in .find().  Only accelerated

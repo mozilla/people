@@ -39,70 +39,46 @@ function appendNameValueBlock(container, name, value)
 {
 	let typeDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 	typeDiv.setAttribute("class", "type");
-	try {
-		typeDiv.innerHTML = name;
-	} catch (e) {
-		typeDiv.innerHTML = '';	
-	}
+	typeDiv.innerHTML = name;
 	let valueDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 	valueDiv.setAttribute("class", "value");
-	try {
-		valueDiv.innerHTML = value;	
-	} catch (e) {
-		valueDiv.innerHTML = '';		
-	}
+	valueDiv.innerHTML = value;	
 	container.appendChild(typeDiv);
 	container.appendChild(valueDiv);
 }
-
-function addFieldList(container, aList, defaultType, valueScheme)
+function addFieldList(container, aList)
 {
+	var any= false;
 	for each (let item in aList) {
+		any = true;
 		let row = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 		row.setAttribute("class", "identity");
-		
-		let label = null;
-		if (item.type) 
-		{
-			label = htmlescape(item.type);
-		}
-		else
-		{
-			label = defaultType;
-		}
-
-		let value = null;
-		if (valueScheme != undefined)
-		{
-			let uri = encodeURIComponent(item.value);
-			let withScheme = null;
-			if (uri.indexOf(valueScheme) == 0) {
-				withScheme = uri;
-			} else {
-				withScheme = valueScheme + ':' + escape(uri);
-			}
-			value = '<a href="' + withScheme + '">' + htmlescape(item.value) + '</a>';
-		}
-		else
-		{
-			value = htmlescape(item.value);
-		}
-		appendNameValueBlock(row, label, value);
+		appendNameValueBlock(row, htmlescape(item.type), htmlescape(item.value));
 		container.appendChild(row);
 	}
+	return any;
 }
 
-let PeopleManager = {
+let PeopleDisclosure = {
   onLoad: function() {
-    navigator.people.find( {}, null, PeopleManager.render);
+		result = People.find({});
+		PeopleDisclosure.onResult(result);
   },
 
-	render: function(peopleStore) {
-			let results = document.getElementById("results");
-			if (results) {
-				while (results.lastChild) results.removeChild(results.lastChild);
-			}
-			PeopleManager.renderContactCards(peopleStore);
+	onResult: function(peopleStore) {
+		this.peopleResults = peopleStore;
+		for each (var p in peopleStore) {
+			selectedPeople[p.guid] = false;
+		}
+		this.render();
+	},
+
+	render: function() {
+		let results = document.getElementById("results");
+		if (results) {
+			while (results.lastChild) results.removeChild(results.lastChild);
+		}
+		this.renderContactCards(this.peopleResults);
 	},
 
 	renderContactCards : function(peopleStore)
@@ -110,7 +86,7 @@ let PeopleManager = {
     let results = document.getElementById("results");
     if(results) {
 			if (peopleStore.length == 0) {
-				document.getElementById("message").innerHTML = "<br/><br/><br/>You have no contacts loaded.  Activate one of your contact sources, at top right, to make them available to Firefox!"
+				document.getElementById("message").innerHTML = "<br/><br/><br/>You have no contacts loaded in Firefox.  Select \"Contacts\" from the Tools menu to activate some."
 			}
 			else {
 				document.getElementById("message").innerHTML = "";
@@ -134,71 +110,92 @@ let PeopleManager = {
 				});
 			
 				for each (let person in peopleStore) {
-					try {
-						
-						let id = person.documents.default;
-						let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						contact.setAttribute("class", "contact");
-						let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						summary.setAttribute("class", "summary");
+					let anyDataVisible = false;
+					let id = person.documents.default;
+					let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					contact.setAttribute("class", "contact");
 
-						let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-						let photoURL = "chrome://people/content/images/person.png"; 
-						for each (let photo in id.photos) {
-							if( photo.type == "thumbnail") {
-								photoURL = photo.value;
-							}
+					let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					summary.setAttribute("class", "summary");
+
+					let checkbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+					checkbox.setAttribute("type", "checkbox");
+					checkbox.setAttribute("name", person.guid);
+					checkbox.setAttribute("class", "disclosureCheckbox");
+					checkbox.setAttribute("onclick", "selectedPeople['" + person.guid + "']=this.checked");
+					if (selectedPeople[person.guid]) checkbox.setAttribute("checked", "true");
+					summary.appendChild(checkbox);
+
+					let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+					let photoURL = "chrome://people/content/images/person_grey.png"; 
+					for each (let photo in id.photos) {
+						if( photo.type == "thumbnail") {
+							photoURL = photo.value;
 						}
+					}
+					if (photoURL) {
 						img.setAttribute("src", photoURL);
 						photo.setAttribute("class", "photo");
 						photo.appendChild(img);
 						summary.appendChild(photo);
-
-						let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						information.setAttribute("class", "information");
-						let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						displayName.setAttribute("class", "name");
-						displayName.innerHTML = htmlescape(id.displayName);
-						information.appendChild(displayName);
-
-						let description = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						description.setAttribute("class", "description");
-						for each (let organization in id.organizations) {
-							description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
-						}
-						information.appendChild(description);
-							
-						summary.appendChild(information);
-						contact.appendChild(summary);
-
-						let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-						identities.setAttribute("class", "identities");
-						addFieldList(identities, id.emails, "email", "mailto");
-						addFieldList(identities, id.phoneNumbers, "phone", "tel");
-						addFieldList(identities, id.ims);
-						addFieldList(identities, id.accounts);
-						addFieldList(identities, id.links, "URL", "http");
-						addFieldList(identities, id.location);
-
-						contact.appendChild(identities);
-						results.appendChild(contact);
-					} catch (e) {
-						// this shouldn't happen...
-						People._log.info(e);
-						dump(e + "\n");
 					}
+
+					let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					information.setAttribute("class", "information");
+
+					let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					displayName.setAttribute("class", "name");
+
+					if (fieldActive["displayName"] == true) {
+						displayName.innerHTML = htmlescape(id.displayName);
+						anyDataVisible = true;
+					}
+					information.appendChild(displayName);
+
+					let description = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					description.setAttribute("class", "description");
+					for each (let organization in id.organizations) {
+						description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
+					}
+					information.appendChild(description);
+						
+					summary.appendChild(information);
+					contact.appendChild(summary);
+
+					let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+					identities.setAttribute("class", "identities");
+					if (fieldActive["emails"]== true) {
+						for each (let email in id.emails) {
+							anyDataVisible = true;
+							let identity = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+							identity.setAttribute("class", "identity");
+
+							let uri = encodeURIComponent(email.value);
+							appendNameValueBlock(identity, htmlescape(email.type) || "email", 
+																	'<a href="mailto:'+escape(uri)+'">'+htmlescape(email.value)+'</a>');
+							identities.appendChild(identity);
+						 }
+					}
+
+					if (fieldActive["phoneNumbers"] == true) anyDataVisible |= addFieldList(identities, id.phoneNumbers);
+					//addFieldList(identities, id.ims);
+					//addFieldList(identities, id.accounts);
+					if (fieldActive["links"] == true) anyDataVisible |= addFieldList(identities, id.links);
+					//addFieldList(identities, id.location);
+
+					contact.appendChild(identities);
+					
+					if (anyDataVisible)
+						results.appendChild(contact);
 				 }
 			 }
      }
-   $('#searchbox').liveUpdate($("#results")).focus();
 	}
 };
 
 
 function htmlescape(html) {
-	if (!html) return html;
-	
   return html.
     replace(/&/gmi, '&amp;').
     replace(/"/gmi, '&quot;').

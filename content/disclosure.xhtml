@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+    version="-//W3C//DTD XHTML 1.1//EN" xml:lang="en">
+<head>
+ <link rel="stylesheet"
+      href="chrome://people/content/disclosure.css"
+      type="text/css" />
+  <script type="text/javascript;version=1.8"
+      src="chrome://people/content/jquery.js"></script>
+  <script type="text/javascript;version=1.8"
+      src="chrome://people/content/disclosure.js"></script>
+</head>
+
+
+<script type="text/javascript;version=1.8">
+let allFieldList = ["displayName", "emailhash", "emails", "phoneNumbers", "links"];
+let fieldLabels = {displayName:"Name", emailhash: "Unique Identifier (based on email, but not addressible)", emails: "Email Addresses", phoneNumbers: "Phone Numbers", links: "URLs (web site addresses)"};
+let fieldActive = {displayName:true, familyName:true, givenName:true, emailhash:true, emails:true, phoneNumbers:true, links:true}
+let fieldList = allFieldList; // by default, ask for all fields
+let selectedPeople = {}
+let remember = {};
+
+function selectAll() { for (p in selectedPeople) { selectedPeople[p] = true; } PeopleDisclosure.render();}
+function unselectAll() { for (p in selectedPeople) { selectedPeople[p] = false; } PeopleDisclosure.render();}
+
+$(document).ready(function(){
+	Components.utils.import("resource://people/modules/people.js");
+	
+
+	var targetURL  = window.top.arguments ? window.top.arguments[0].site : "Some Page";
+	var targetFields  = window.top.arguments ? window.top.arguments[0].fields : undefined;
+	remember  = window.top.arguments ? window.top.arguments[0].remember : undefined;
+	selectedPeople = window.top.arguments ? window.top.arguments[0].selectedPeople : {};
+	
+	if (targetFields != undefined) {
+		fieldList = targetFields;
+		fieldActive = window.top.arguments[0].fieldsActive;
+		for each (var f in fieldList) {
+			fieldActive[f] = true;
+		}
+	}
+	
+	let titleText = document.getElementById("titleText");
+	
+	// TODO: DO a better job extracting the host name from the target URL
+	if (targetURL != undefined) {
+		if (("" + targetURL).indexOf("file:") == 0) {
+			targetURL = "A file on your computer";
+		}
+	}
+	titleText.innerHTML = "" + targetURL + " wants to access...";
+
+	let fields = document.getElementById("fieldselector");
+	for each (let aField in fieldList) {
+		let aLabel = fieldLabels[aField];
+		let aLabelDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+		aLabelDiv.innerHTML = aLabel;
+		aLabelDiv.setAttribute("class", "fieldLabel");
+
+		let aFieldCheckbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+		aFieldCheckbox.id = "field-" + aField;
+		aFieldCheckbox.setAttribute("type", "checkbox");
+		aFieldCheckbox.setAttribute("onclick", "fieldActive['" + aField + "']=!fieldActive['" + aField + "']; PeopleDisclosure.render()");
+		if (fieldActive[aField]) {
+			aFieldCheckbox.setAttribute("checked", "true");
+		}
+
+		aLabelDiv.insertBefore(aFieldCheckbox, aLabelDiv.firstChild);
+		fields.appendChild(aLabelDiv);
+	}
+	
+	PeopleDisclosure.onLoad();
+});
+
+function toggleRemember()
+{
+	remember.value = document.getElementById('remember').checked;
+}
+
+</script>
+
+<body id="body">
+	<form class="controls" method="get">
+
+	<div style="font-size:16pt;font-weight:bold; left:10px;margin-left:32px;padding-top:16px;padding-top:16px">
+
+	<div style="float:right; padding-right:12px;font:9pt Arial">
+		<input type="checkbox" id="remember" onclick="toggleRemember()" /> Remember these settings for this page<br/>
+		<small>(NOTE: Current implementation does not save<br/>restricted people, only fields. If you "remember",<br/>all people will be included in the result set next time.)</small>
+	</div>
+
+	<div id="titleText" style="display:inline"></div>
+	<div id="fieldselector" class="fieldselector"></div>
+	</div>
+
+	<div style="float:right; padding-right:12px;font:9pt Arial">
+		<a class="selectLinks" href="javascript:selectAll()">select all</a> - 
+		<a class="selectLinks" href="javascript:unselectAll()">unselect all</a>
+	</div>	
+	<div style="font-size:16pt;font-weight:bold; margin-left:32px;left:10px;">
+	for these people:
+	</div>
+	
+	</form>
+
+	<div id="message"></div>
+	<div id="results"></div>
+</body>
+</html>

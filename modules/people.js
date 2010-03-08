@@ -1,4 +1,4 @@
-/* ***** BEGIN LICENSE BLOCK *****
+	/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -154,6 +154,9 @@ PeopleService.prototype = {
           "_" + col + " ON " + index + " (" + col + ")");
     }
 
+		this._db.createTable("site_permissions", "id INTEGER PRIMARY KEY, " +
+			"url TEXT NOT NULL, fields TEXT NOT NULL");
+		this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS site_permissions_url ON site_permissions (url)");
     this._db.schemaVersion = DB_VERSION;
   },
 
@@ -264,7 +267,6 @@ PeopleService.prototype = {
     let wrappedStmt = this._dbStmts[query];
     // Memoize the statements
     if (!wrappedStmt) {
-      this._log.debug("Creating new statement for query: " + query);
       let stmt = this._db.createStatement(query);
 
       wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
@@ -280,7 +282,6 @@ PeopleService.prototype = {
           param = param.slice(1);
           val = "%" + wrappedStmt.statement.escapeStringForLIKE(val, "/") + "%";
         }
-
         wrappedStmt.params[param] = val;
       }
     return wrappedStmt;
@@ -337,7 +338,7 @@ PeopleService.prototype = {
       stmt.execute();
 
     } catch (e) {
-      this._log.warn("add indexed field failed: " + Utils.exceptionStr(e));
+      this._log.warn("add indexed field failed (for " + value + "; " + JSON.stringify(thing) + "): " + Utils.exceptionStr(e));
       throw "add indexed field failed: " + Utils.exceptionStr(e);
 
     } finally {
@@ -375,17 +376,72 @@ PeopleService.prototype = {
         this._addIndexed(person[idx], idx, person_id);
     }
   },
+	
+	deleteAll: function deleteAll() {
+		let stmt = null;
+		try {
+      this._db.beginTransaction();
+			for each (let idx in this._dbSchema.index_tables) {
+				let query = "DELETE FROM " + idx;
+				stmt = this._dbCreateStatement(query);
+				stmt.execute();
+			}
+			let query = "DELETE FROM people";
+			stmt = this._dbCreateStatement(query);
+			stmt.execute();
+      this._db.commitTransaction();
 
-  add: function add(person) {
+    } catch (e) {
+      this._log.warn("deleteAll failed: " + Utils.exceptionStr(e));
+      throw "deleteAll failed: " + Utils.exceptionStr(e);
+
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
+	},
+
+	findDuplicateGUID: function findDuplicate(person) {
+
+		// Try email:
+		if (person.emails && person.emails.length > 0 && person.emails[0].value) {
+			match = this._find("guid", {emails: person.emails[0].value});
+			if (match && match.length > 0) {
+				return match[0];
+			}
+		}
+		
+		// Now try full name match:
+		if (person.displayName) {
+			match = this._find("guid", {displayName: person.displayName});
+			if (match && match.length > 0) {
+				return match[0];
+			}
+		}
+		
+		return null;
+	},
+
+  add: function add(person, service) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
-    person.guid = person.guid || Utils.makeGUID();
+		// Check for duplicate, and merge if so.
+		let dupMatchTargetGUID = this.findDuplicateGUID(person);
+		if (dupMatchTargetGUID) {
+			let dupMatchTargetList = this._find("json", {guid:dupMatchTargetGUID}).map(function(json) JSON.parse(json));
+			let dupMatchTarget = dupMatchTargetList[0];
+			this.mergePerson(dupMatchTarget, person, service);
+			this.update(dupMatchTarget);
+			Observers.notify("people-update", dupMatchTarget.guid); // wonder if this should be add. probably not.
+			return null;
+		}
 
+		// Not a duplicate: put it into the database
+    person.guid = person.guid || Utils.makeGUID();
     let stmt;
     try {
       this._db.beginTransaction();
-
       let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
       let params = {
         guid: person.guid,
@@ -393,9 +449,7 @@ PeopleService.prototype = {
       };
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
-
       this._updateIndexed(this._db.lastInsertRowID, person);
-
       this._db.commitTransaction();
 
     } catch (e) {
@@ -407,7 +461,6 @@ PeopleService.prototype = {
       if (stmt)
         stmt.reset();
     }
-
     Observers.notify("people-add", person.guid);
     return null;
   },
@@ -501,22 +554,83 @@ PeopleService.prototype = {
     if (wheres.length > 0)
       query += " WHERE " + wheres.join(" AND ");
 
+		// Look up the results, filtering on indexed terms
     try {
-      return Utils.getRows(this._dbCreateStatement(query, params).statement);
+      result = Utils.getRows(this._dbCreateStatement(query, params).statement);
     }
     catch(ex) {
       this._log.error("find failed during query: " + Utils.exceptionStr(ex));
       return [];
     }
 
-    // Do the find on non-indexed fields
+    // Post-process to do the find on non-indexed fields
     for (let [attr, val] in Iterator(attrs)) {
       if (attr == "guid" || this._dbSchema.index_tables.indexOf(attr) != -1)
         continue;
-      // TODO filter out stuff..
-      //Cu.reportError(JSON.stringify([attr, val]));
+			
+			let matchSet = []
+			for (let obj in result) {
+				if (obj.attr == val) {
+					matchSet.push(obj);
+				}
+			}
+			result = matchSet;
     }
+		return result;
   },
+
+	mergePerson: function merge(dest, source, service) {
+		function objectEquals(obj1, obj2) {
+				for (var i in obj1) {
+						if (obj1.hasOwnProperty(i)) {
+								if (!obj2.hasOwnProperty(i)) return false;
+								if (obj1[i] != obj2[i]) return false;
+						}
+				}
+				for (var i in obj2) {
+						if (obj2.hasOwnProperty(i)) {
+								if (!obj1.hasOwnProperty(i)) return false;
+								if (obj1[i] != obj2[i]) return false;
+						}
+				}
+				return true;
+		}
+
+		let otherDoc = source.documents.default;
+		let myDoc = dest.documents.default;
+		for (let attr in otherDoc) {
+			if (otherDoc.hasOwnProperty(attr)) {
+				var val = otherDoc[attr];
+				if (!myDoc.hasOwnProperty(attr)) {
+					myDoc[attr] = val;
+				} 
+				else
+				{
+					if (Utils.isArray(val))
+					{
+						if (Utils.isArray(myDoc[attr]))
+						{
+							// two arrays, and we need to check for object equality...
+							for (index in val) {
+								var newObj = val[index];
+								var equalObjs = myDoc[attr].filter(function(item, idx, array) {return objectEquals(item, newObj)});
+								if (equalObjs.length == 0) { // no match, go ahead...
+									myDoc[attr].push(val[index]);
+								}
+							}
+						}
+						else
+						{
+							// log oddity: one was list, one not
+						}
+					}
+				}
+			}
+		}
+		
+		// TODO update convenience fields
+	},
+
 
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
@@ -543,7 +657,109 @@ PeopleService.prototype = {
 
   find: function find(attrs) {
     return this._find("json", attrs).map(function(json) JSON.parse(json));
-  }
+  },
+	
+
+	importFromService: function importFromService(svcName, completionCallback) {
+
+		// note that this could cause an asynchronous call
+		Cu.import("resource://people/modules/import.js");
+		PeopleImporter.getBackend(svcName).import(completionCallback);
+
+	},
+	
+	resetSavedPermissions : function resetSavedPermissions() {
+		
+		try {
+			// first the permissions manager bit
+      let permissionManager = Cc["@mozilla.org/permissionmanager;1"].
+                              getService(Ci.nsIPermissionManager);
+			for (var e = permissionManager.enumerator; e.hasMoreElements(); )
+			{
+				p = e.getNext().QueryInterface(Ci.nsIPermission);
+				if (p.type == "people-find") {
+					permissionManager.remove(p.host, p.type);
+				}
+			}
+    } catch (e) {
+      this._log.warn("reset site_permissions failed (" + e + ")");
+      throw "reset site_permissions failed: " + Utils.exceptionStr(e);
+		}
+	
+		let stmt = null;
+		try {
+      this._db.beginTransaction();
+			stmt = this._dbCreateStatement("DELETE FROM site_permissions;");
+      stmt.execute();
+      this._db.commitTransaction();
+    } catch (e) {
+      this._log.warn("reset site_permissions failed (" + e + ")");
+      throw "reset site_permissions failed: " + Utils.exceptionStr(e);
+    } finally {
+      if (stmt) stmt.reset();
+    }
+    return null;
+	},
+	
+	storeSiteFieldPermissions: function storeSiteFieldPermissions(site, permissionList) {
+		let stmt = null;
+		try {
+
+      this._db.beginTransaction();
+      let params = {
+        url: site,
+        fields: "" + permissionList // convert to string if necessary
+      };
+			People._log.warn("Saving permissions: INSERT OR REPLACE INTO site_permissions (url, fields) VALUES ('" + site + "', '" + permissionList + "')");
+			stmt = this._dbCreateStatement("INSERT OR REPLACE INTO site_permissions (url, fields) VALUES (:url, :fields)", params);
+      stmt.execute();
+      this._log.info("saving site_permissions for '" + site + "' as " + permissionList);
+      this._db.commitTransaction();
+			
+    } catch (e) {
+      this._log.warn("add site_permissions failed (" + e + ")");
+      throw "add site_permissions failed: " + Utils.exceptionStr(e);
+    } finally {
+      if (stmt) stmt.reset();
+    }
+    return null;
+	},
+	
+	getSiteFieldPermissions: function getSiteFieldPermissions(site) {
+		let stmt = null;
+		try {
+
+			let query = "SELECT fields FROM site_permissions WHERE url = :url";
+
+			// Look up the results, filtering on indexed terms
+			try {
+				let params = {url:site};
+				stmt = this._dbCreateStatement(query, params);
+				result = Utils.getRows(stmt.statement);
+				if (result && result.length>0) {
+					this._log.info("get site_permissions for " + site + " returning " + result);
+					return result[0].split(',');
+				} else {
+					return null;
+				}
+			}
+			catch(ex) {
+				this._log.error("getSiteFieldPermissions failed during query: " + Utils.exceptionStr(ex));
+				return null;
+			}
+			
+    } catch (e) {
+      this._log.warn("get site_permissions failed");
+      throw "get site_permissions failed: " + Utils.exceptionStr(e);
+    } finally {
+      if (stmt) stmt.reset();
+    }
+	}
 };
 
+
+
 let People = new PeopleService();
+
+
+

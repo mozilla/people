@@ -152,7 +152,8 @@ let PeopleInjector = {
     let People = this.People;
     let URI = this.URI;
 
-    return function(win, attrs, successCallback, failureCallback) {
+    return function(win, attrs, fields, successCallback, failureCallback) {
+
       win = XPCSafeJSObjectWrapper(win);
       attrs = XPCSafeJSObjectWrapper(attrs);
       successCallback = XPCSafeJSObjectWrapper(successCallback);
@@ -163,8 +164,105 @@ let PeopleInjector = {
       let uri = new URI(win.location);
 
       function onAllow() {
-        let people = People.find(attrs);
-        // FIXME: detect errors finding people and call the failure callback.
+				// This function is called when the user clicks "Allow..."
+				// or automatically because a) they are in a built-in screen,
+				// or b) they've saved the permissions.
+			
+				let people = null;
+
+				if (win.location != "chrome://people/content/manager.xhtml" && 
+					  win.location != "chrome://people/content/disclosure.xhtml")
+				{
+					// Check for saved site permissions; if none are found, present the disclosure box
+					people = People.find(attrs);
+					let peopleGuidMap = null;
+					let allowedFields = People.getSiteFieldPermissions(uri.spec);
+					
+					if (allowedFields == null)
+					{
+						peopleGuidMap = {};
+						let fieldsActive = {};
+						let remember = {value:false};
+						let loc;
+						try {
+							loc = win.location.host;
+						} catch (e) {
+							loc = win.location;
+						}
+						
+						var params = {
+							site: loc,
+							fields: fields, 
+							fieldsActive: fieldsActive, // on exit, a map of fields to booleans
+							peopleList: people,
+							selectedPeople: peopleGuidMap, // on exit, a map of guids to booleans
+							remember: remember,
+							cancelled: false
+						};
+						var disclosureDialog = openDialog("chrome://people/content/disclosure.xul", "Access to Contacts", "modal", params);
+ 						if (!params.cancelled)
+						{
+							// Construct allowed field list...
+							var editedFields = [];
+							for each (f in fields) {
+								if (fieldsActive[f]) editedFields.push(f);
+							}
+							allowedFields = editedFields;
+							People._log.info("remember is " + JSON.stringify(remember));
+
+							if (remember.value) {
+								People._log.info("Disclosure dialog requests remember");
+							
+								People.storeSiteFieldPermissions(uri.spec, allowedFields);
+
+								// This blows up if uri doesn't have a host
+								permissionManager.add(uri, "people-find",
+																			Ci.nsIPermissionManager.ALLOW_ACTION);
+							} else {
+								People._log.info("Disclosure dialog requests NO remember");
+							}
+						} else {
+							// user cancelled
+							return onDeny();
+						}
+					} 
+					
+					// FIXME: right now, if you save permissions, we always use the entire people list.
+					// (this is signalled by personGuidMap == null)
+					// Storing individual guids is a big lose; perhaps groups can save us?
+					
+					// Limit the result data...
+					fields = allowedFields;
+					People._log.warn("got field set of " + fields);
+					if (peopleGuidMap) {
+						People._log.warn("using selected-person map");
+					} else {
+						People._log.warn("selecting all people");
+					}
+					let outputSet = [];
+					for each (p in people) {
+						if (peopleGuidMap == null || peopleGuidMap[p.guid]) {
+							
+							// Convert from the multi-service internal representation
+							// to a simple, flat, single-schema representation:
+							let newPerson = {}
+							for each (f in fields) {
+								// find that field in the person... for now we just look in the default document
+								if (p.documents.default[f] != undefined) {
+									newPerson[f] = p.documents.default[f];
+								}
+							}
+							outputSet.push(newPerson);
+						}
+					}
+					people = outputSet;
+				}
+				else
+				{
+					
+					people = People.find(attrs);
+					// FIXME: detect errors finding people and call the failure callback.
+				}
 
         try {
           successCallback(people);
@@ -173,34 +271,37 @@ let PeopleInjector = {
           Components.utils.reportError(ex);
         }
 
-        if (checkbox && checkbox.checked) {
-          permissionManager.add(uri, "people-find",
-                                Ci.nsIPermissionManager.ALLOW_ACTION);
-        }
       }
 
       function onDeny() {
+				People._log.warn("user denied permission for people.find call");
         let error = { message: "permission denied" };
         if (failureCallback) {
           try {
             failureCallback(error);
           }
           catch(ex) {
+						People._log.warn("Error: " + ex);
             Components.utils.reportError(ex);
           }
-        }
+        } else {
+					People._log.warn("No failure callback");
+				}
 
-        if (checkbox && checkbox.checked) {
+				// FIXME: We have no way to persist a deny right now, since we moved the checkbox into the disclosure dialog.
+/*        if (checkbox && checkbox.checked) {
           permissionManager.add(uri, "people-find",
                                 Ci.nsIPermissionManager.DENY_ACTION);
-        }
+        }*/
       }
 
       // Special-case the built-in people manager, which has content privileges
       // to prevent malicious content from exploiting bugs in its implementation
       // to get chrome access but should always have access to your people
       // (since it is a feature of this extension).
-      if (win.location == "chrome://people/content/manager.xhtml") {
+      if (win.location == "chrome://people/content/manager.xhtml" || 
+					win.location == "chrome://people/content/disclosure.xhtml") 
+			{
         onAllow();
         return;
       }
@@ -241,17 +342,17 @@ let PeopleInjector = {
       }
 
       let site = win.location.host || win.location;
-      let promptText = "The page at " + site + " wants to access your people.";
+      let promptText = "The page at " + site + " wants to access some of your contacts data.";
       let buttons = [
         {
-          label:     "No Way",
+          label:     "Do Not Allow Access",
           accessKey: "n",
           popup:     null,
           callback:  function(bar) onDeny()
         },
         {
-          label:     "Way",
-          accessKey: "w",
+          label:     "Allow Access...",
+          accessKey: "a",
           popup:     null,
           callback:  function(bar) onAllow()
         },
@@ -259,20 +360,18 @@ let PeopleInjector = {
 
       let box = getNotificationBox();
       let oldBar = box.getNotificationWithValue("moz-people-find");
+
       let newBar = box.appendNotification(promptText,
                                           "moz-people-find",
                                           null,
                                           box.PRIORITY_INFO_MEDIUM,
                                           buttons);
 
-      let checkbox = document.createElementNS(
-        "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
-        "checkbox"
-      );
+/*      let checkbox = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul","checkbox");
       checkbox.setAttribute("id", "rememberDecision");
       checkbox.setAttribute("label", "Remember for " + site);
       newBar.appendChild(checkbox);
-
+*/
       if (oldBar)
         box.removeNotification(oldBar);
     }

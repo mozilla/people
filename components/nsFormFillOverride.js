@@ -4,9 +4,11 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function _() {
+/* uncomment for verbose logging.
   let msg = Array.join(arguments, " ");
   dump(msg + "\n");
   Cu.reportError(msg);
+*/
 }
 _("?loaded");
 
@@ -34,10 +36,12 @@ PeopleAutoCompleteSearch.prototype = {
   ]),
 
   checkPeople: function checkPeople(param) {
-    return param.search(/e-?mail/) != -1;
+    return param.search(/e-?mail/) != -1 || param.search(/recipients?/) != -1 || param.search(/^to$/) != -1;
   },
 
   findPeople: function findPeople(string, listener) {
+    _("findPeople", Array.slice(arguments));
+	
     let result = Cc["@mozilla.org/autocomplete/simple-result;1"].
       createInstance(Ci.nsIAutoCompleteSimpleResult);
     result.setSearchString(string);
@@ -50,11 +54,24 @@ PeopleAutoCompleteSearch.prototype = {
         let email = person.documents.default.emails[0].value;
         let data = JSON.stringify(person);
         data = person.displayName + " <" + email + ">";
-        let img = person.documents.default.photos[0].value.replace(/\\:/g, ":");
-        email = person.documents.default.organizations[0].title;
+				
+				let img = null;
+				if (person.documents.default.photos) {
+					if (person.documents.default.photos[0] && person.documents.default.photos[0].value)	{
+						img = person.documents.default.photos[0].value.replace(/\\:/g, ":");
+					}
+				}
+				/*email = null;
+				if (person.document.default.organizations) {
+					if (person.documents.default.organizations[0] && person.documents.default.organizations[0].title) {
+						email = person.documents.default.organizations[0].title;
+					}
+				}*/
         result.appendMatch(email, data, img, "people");
       }
-      catch(ex) {}
+      catch(ex) {
+		    _("findPeople error", ex);
+			}
     });
 
     let resultCode = result.matchCount ? "RESULT_SUCCESS" : "RESULT_NOMATCH";

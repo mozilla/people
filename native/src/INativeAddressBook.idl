@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is People.
+ * The Original Code is Weave code.
  *
- * The Initial Developer of the Original Code is Mozilla.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Myk Melez <myk@mozilla.org>
- *   Justin Dolske <dolske@mozilla.com>
+ *   Michael Hanson <mhanson@mozilla.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,10 +36,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* The people API injected into window.navigator objects. */
+#include "nsISupports.idl"
+#include "INativeAddressCard.idl"
 
-window.navigator.people = {
-  find: function(attrs, fields, successCallback, failureCallback) {
-    find(window, attrs, fields, successCallback, failureCallback);
-  }
+/** TODO what uuid should I use? **/
+[scriptable, uuid(059D6B1A-04D2-4B95-A537-624A5F949796)]
+interface INativeAddressBook : nsISupports
+{
+
+	/** NOTE That this is a Mozilla Labs prototype, and should not be
+	* taken as a stable API or even the right way to do this.  The Thunderbird 
+	* source has an extensive scriptable addressbook model, which is almost
+	* certainly a better place to start. */
+
+  /**
+   * Returns all the addresses in the address book.
+   *
+   * @param count
+   *        The number of elements in the array. JS callers can simply use
+   *        the array's .length property, and supply an dummy object for
+   *        this out param. For example: |getAddresses({})|
+   * @param cards
+   *        An array of INativeAddressCard objects. 
+	 *
+   * @exception NS_ERROR_NOT_AVAILABLE if the named property does not exist.
+   * @exception NS_ERROR_CANNOT_CONVERT_DATA if the property cannot be converted
+   *                                         to the desired type.
+   */
+  void getCards(out unsigned long count,
+								[retval, array, size_is(count)] out INativeAddressCard cards);
 };
+

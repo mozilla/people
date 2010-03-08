@@ -128,7 +128,30 @@ let Utils = {
         replace(/@(?:chrome|file):.*?([^\/\.]+\.\w+:)/g, "@$1");
 
     return "No traceback available";
-  }
+  },
+	
+  xpath: function Weave_xpath(xmlDoc, xpathString) {
+    let root = xmlDoc.ownerDocument == null ?
+      xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;
+    let nsResolver = xmlDoc.createNSResolver(root);
+
+    return xmlDoc.evaluate(xpathString, xmlDoc, nsResolver,
+                           Ci.nsIDOMXPathResult.ANY_TYPE, null);
+  },
+
+  // return the text value of the first node matched by an xpath expression
+  // works with attributes, text nodes, and HTML elements (using .innerHTML)
+  xpathText: function(doc, expr) {
+    try {
+      let iter = Utils.xpath(doc, expr);
+      let foo = iter.iterateNext();
+      return foo.nodeValue? foo.nodeValue :
+        (foo.innerText? foo.innerText : foo.innerHTML);
+    } catch (e) {
+      return undefined;
+    }
+  },
+
 };
 
 let Svc = {};

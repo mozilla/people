@@ -18,23 +18,79 @@
 
 
 <script type="text/javascript;version=1.8">
+	function clickServiceBadge(service)
+	{
+		try {
+			People.importFromService(service, importerComplete);
+		} catch (e) {
+			document.getElementById('message').innerHTML = e.message;
+		}
+	}
+	
+	function importerComplete(error) 
+	{
+		if (error) {
+			document.getElementById('message').innerHTML = error.message;		
+		} else {
+			navigator.people.find( {}, null, PeopleManager.render);
+		}
+	}
+
+	function resetSavedPerms()
+	{
+		People.resetSavedPermissions();
+	}
+
+	function deleteAll()
+	{
+		People.deleteAll();
+    navigator.people.find( {}, null, PeopleManager.render);
+	}
+
   $(document).ready(function(){
-
+	
+		Components.utils.import("resource://people/modules/import.js");
+		Components.utils.import("resource://people/modules/people.js");
     PeopleManager.onLoad();
+		let services = PeopleImporter.getBackends();
+		for (let service in services) {
+			let importer = PeopleImporter.getBackend(service);
 
-    $(".draggable").sortable({
-      containment: "document",
-      distance: 5,
-      grid: [52, 52],
-      items: "li",
-    });
+			svcDiv = $("&lt;div&gt;").attr({class:"importerbadge"}).append($("&lt;a&gt;").attr(
+				{
+				 href:"javascript:clickServiceBadge('" + service + "')"
+				}
+			).append($("&lt;img&gt;").attr(
+				{src:importer.iconURL,
+				 id:service+"-badge", 				
+				 class:"activeimporter",
+				 }
+			)))
+			$("#importerbadges").append(svcDiv);
+		}
   });
+	
 </script>
 
 <body id="body">
-    <form class="controls" method="get">
-      <input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
-    </form>
-    <ol id="results" class="draggable"></ol>
+	<form class="controls" method="get">
+
+	<div style="float:left;font-size:16pt;font-weight:bold; margin-left:8px;margin-top:8px">
+		Contacts
+	</div>
+	<div class="searchframe">
+		<input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
+		<img align="top" src="chrome://people/content/images/search-textbox.png"/>
+	</div>
+	<div id="importerbadges">Import from:<br/></div>
+	<div id="controllinks">
+		<a class="ctllink" href="javascript:resetSavedPerms()">reset saved permissions</a><br/>
+		<a class="ctllink" href="javascript:deleteAll()">empty addressbook</a><br/>
+	</div>
+	</form>
+
+	<div id="message" class="message"></div>
+<!--  <ol id="results" class="draggable"></ol>-->
+	<div id="results"></div>
 </body>
 </html>

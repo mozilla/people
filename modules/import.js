@@ -69,7 +69,10 @@ PeopleImporterSvc.prototype = {
   registerBackend: function ImporterSvc_register(backend) {
     this._log.debug("Registering importer backend for " + backend.prototype.name);
     this._backends[backend.prototype.name] = backend;
-  }
+  },
+	getBackends: function ImporterSvc_getBackends() {
+		return this._backends;
+	}
 };
 let PeopleImporter = new PeopleImporterSvc();
 
@@ -93,6 +96,7 @@ GmailImporter.prototype = {
   __proto__: ImporterBackend.prototype,
   get name() "gmail",
   get displayName() "Gmail Contacts",
+	get iconURL() "chrome://people/content/images/gmail.png",
 
   beginTest: function t0(l) { return /^begin:vcard$/i.test(l); },
   tests: [
@@ -238,7 +242,7 @@ GmailImporter.prototype = {
     }
   ],
 
-  import: function GmailImporter_import() {
+  import: function GmailImporter_import(completionCallback) {
     this._log.debug("Importing Gmail contacts into People store");
 
     let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
@@ -250,7 +254,8 @@ GmailImporter.prototype = {
     if (req.status != 200) {
       this._log.warn("Could not download contacts from Google " +
                      "(status " + req.status + ")");
-      return;
+      throw {error:"Unable to get contacts from Google", 
+						 message:"Could not download contacts from Google: please make sure you are <a href='https://mail.google.com'>logged in to Gmail</a>"};
     }
 
     this._log.debug("Contact list downloaded, parsing");
@@ -279,10 +284,194 @@ GmailImporter.prototype = {
     }
 
     this._log.info("Adding " + people.length + " Gmail contacts to People store");
-    People.add(people);
+    People.add(people, this);
+		completionCallback(null);
   }
 };
+
+
+
+
+
+
+function NativeAddressBookImporter() {
+  this._log = Log4Moz.repository.getLogger("People.NativeAddressBookImporter");
+  this._log.debug("Initializing importer backend for " + this.displayName);
+};
+
+NativeAddressBookImporter.prototype = {
+  __proto__: ImporterBackend.prototype,
+  get name() "native",
+  get displayName() "Native Address Book",
+	get iconURL() "chrome://people/content/images/macaddrbook.png",
+
+
+  import: function NativeAddressBookImporter_import(completionCallback) {
+    this._log.debug("Importing Native address book contacts into People store");
+
+		try
+		{
+			let nativeAddrBook = Components.classes["@labs.mozilla.com/NativeAddressBook;1"].getService(Components.interfaces["INativeAddressBook"]);
+			let allCards = nativeAddrBook.getCards({});
+			
+			let people = [];
+			for (i=0;i<allCards.length;i++) {
+			
+				person = {}
+				let fname = allCards[i].getProperty("firstName");
+				let lname = allCards[i].getProperty("lastName");
+				// let email = allCards[i].getProperty("email");
+				
+				if (!fname && !lname) continue; // skip anonymous cards for now
+				
+				if (fname && lname) {
+					person.displayName = fname + " " + lname;
+				} else if (lname) {
+					person.displayName = lname;			
+				} else if (fname) {
+					person.displayName = fname;
+				}
+				person.name = {}
+				person.name.givenName = fname;
+				person.name.familyName = lname;
+
+				person.emails = []
+				let emailLabels = allCards[i].getPropertyListLabels("email", []);
+				let emailValues = allCards[i].getPropertyListValues("email", []);
+				for (let j=0;j<emailLabels.length;j++) {
+					person.emails.push({value:emailValues[j], type:emailLabels[j]});
+				}
+				person.phoneNumbers = []
+				let phoneLabels = allCards[i].getPropertyListLabels("phone", []);
+				let phoneValues = allCards[i].getPropertyListValues("phone", []);
+				for (let j=0;j<phoneLabels.length;j++) {
+					person.phoneNumbers.push({value:phoneValues[j], type:phoneLabels[j]});
+				}
+
+	/*			person.links = []
+				let urlLabels = allCards[i].getPropertyListLabels("urls", []);
+				let urlValues = allCards[i].getPropertyListValues("urls", []);
+				for (let j=0;j<urlLabels.length;j++) {
+					person.links.push({value:urlValues[j], type:urlLabels[j]});
+				}
+	*/
+
+				people.push(new PoCoPerson(person).obj);
+			}
+			this._log.info("Adding " + people.length + " Native address book contacts to People store");
+			People.add(people, this);
+			completionCallback(null);
+		} catch (e) {
+			this._log.info("Unable to access native address book importer: " + e);
+			completionCallback({error:"Access Error",message:"Unable to access native address book importer: " + e});
+		}
+	}
+};
+
+
+function TwitterAddressBookImporter() {
+  this._log = Log4Moz.repository.getLogger("People.TwitterAddressBookImporter");
+  this._log.debug("Initializing importer backend for " + this.displayName);
+};
+
+TwitterAddressBookImporter.prototype = {
+  __proto__: ImporterBackend.prototype,
+  get name() "twitter",
+  get displayName() "Twitter Address Book",
+	get iconURL() "chrome://people/content/images/twitter.png",
+
+  import: function NativeAddressBookImporter_import(completionCallback) {
+    this._log.debug("Importing Twitter address book contacts into People store");
+
+		// Look up saved twitter password; if we don't have one, log and bail out
+		login = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
+		let potentialURLs = ["https://twitter.com", "https://www.twitter.com", "http://twitter.com", "http://www.twitter.com"];
+
+		let logins = null;
+		for each (var u in potentialURLs) {
+			logins = login.findLogins({}, u, u, null);
+			if (logins && logins.length > 0) break;
+		}
+		if (!logins || logins.length == 0) {
+			this._log.error("No saved twitter.com login information: can't import Twitter address book");
+			throw {error:"Unable to get contacts from Twitter", 
+						 message:"Could not download contacts from Twitter: please visit <a href='https://twitter.com'>Twitter.com</a> and save your password."};
+		}
+
+		// Okay, if there's more than one... which username should we use?
+		let aLogin = logins[0];
+		if (logins.length>1) {
+			this._log.info("More than one saved twitter.com login!  Using the first one.");
+		}
+
+    let twitLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+      .createInstance(Components.interfaces.nsIXMLHttpRequest);
+		twitLoad.open('GET', "http://twitter.com/statuses/friends.json", true, aLogin.username, aLogin.password);
+
+		let that = this;
+		twitLoad.onreadystatechange = function (aEvt) {  
+			if (twitLoad.readyState == 4) {  
+				that._log.info("Twitter readystate change " + twitLoad.status + "\n");
+
+				if (twitLoad.status == 401) {
+					that._log.error("Twitter login failed.");
+					completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password"});
+
+				} else if (twitLoad.status != 200) {
+					that._log.error("Error " + twitLoad.status + " while accessing Twitter.");
+					completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password (error " + twitLoad.status + ")"});
+				} else {
+					let result = JSON.parse(twitLoad.responseText);
+					that._log.info("Twitter discovery got " + result.length + " persons\n");
+
+					let people = [];
+					for (var i=0; i< result.length;i++) 
+					{
+						var p = result[i];
+						if (typeof p.screen_name != 'undefined')
+						{
+							that._log.info(" Constructing person for " + p.screen_name + "; display " + p.name + "\n");
+							try {
+								person = {}
+								person.accounts = [{type:"twitter", value:p.screen_name}]
+
+								if (p.name) {
+									person.displayName = p.name;
+									
+									// For now, let's assume European-style givenName familyName+
+									let split = p.name.split(" ");
+									person.name = {};
+									person.name.givenName = split[0];
+									person.name.familyName = split.splice(1, 1).join(" ");
+								}
+								if (p.profile_image_url) 
+									person.photos = [{type:"thumbnail", value:p.profile_image_url}];
+								if (p.location) 
+									person.location = [{type:"Location", value:p.location}] //???
+								if (p.url) 
+									person.links = [{type:"URL", value:p.url}]
+								
+								people.push(new PoCoPerson(person).obj);
+								
+							} catch (e) {
+								that._log.error("Twitter import error " + e + "\n");
+							}
+						}
+					}
+					that._log.info("Adding " + people.length + " Twitter address book contacts to People store");
+					People.add(people, that);
+					completionCallback(null);
+				}
+			}
+		}
+		twitLoad.send(null);
+	}
+}
+
+
 PeopleImporter.registerBackend(GmailImporter);
+PeopleImporter.registerBackend(NativeAddressBookImporter);
+PeopleImporter.registerBackend(TwitterAddressBookImporter);
 
 // See https://wiki.mozilla.org/Labs/Sprints/People for schema
 function Person() {
@@ -307,6 +496,7 @@ function PoCoPerson(contact) {
 }
 PoCoPerson.prototype = {
   __proto__: Person.prototype,
+	
   setPoCo: function setPoCo(contact) {
     this._obj.documents.default = contact;
     this._obj.documentSchemas = "http://portablecontacts.net/draft-spec.html";
@@ -329,6 +519,7 @@ PoCoPerson.prototype = {
       this._obj.emails.push({value: e.value, type: e.type});
     }
   }
+	
 };
 
 //function getYahooContacts( callback ){
@@ -362,3 +553,7 @@ PoCoPerson.prototype = {
 //
 //  return asyncRequest;
 //}
+
+
+
+

@@ -10,13 +10,14 @@ body { font-family: sans-serif; font-size: 11pt; margin: 0px; padding: 0px; back
   -moz-box-shadow: #bbb 2px 2px 1px; 
 	display:inline-block;
 	vertical-align:top;
-
 }
 
 .photo {max-width: 100px;}
 
-.identity {
-}
+.fieldselector {font-size:10pt; font-weight:normal; padding-top:10px;padding-bottom:10px}
+.selectLinks  {text-decoration:none; color:#000080}
+
+.identity { }
 
 img { margin: 0em; padding: 0em; border: none; }
 
@@ -26,31 +27,23 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 .contact { min-height: 52px; }
 .contact > .summary { position: relative;  /*min-height: 52px;*/}
 
-.disclosureCheckbox { float:left}
+.disclosureCheckbox { position: absolute; left:0px; top:-4px}
 
-.summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
+.summary > .photo { width: 52px; height: 52px; left: 22px; position: absolute; border: 1px solid #aaa; }
 .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
-.summary > .information { margin-left: 54px; padding-left: 1em; }
+.summary > .information { margin-left: 70px; padding-left: 1em; }
 .summary > .information > .name { color: #222; font-weight: bold; font-size: 90%; overflow: hidden; white-space: nowrap; }
-.summary > .information > .description { color: #999; font-size:80%}
+.summary > .information > .description { color: #999; margin-top: 0.5em; }
 
 .contact > .identities { /*margin-top: 1em; border-top: 1px solid #ddd; padding-top: 0.5em;*/ }
 
 .identities > .identity > .identity { position: relative; margin-bottom: 0.2em; }
 
 .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; }
-.identity > .type { position: absolute; margin-left:54px; color: #999; width: 52px; text-align: right; font-size:80%}
-.identity > .value { margin-left: 106px; padding-left: 1em; font-size:80% }
-
-#controllinks {
-	float:right;
-	font:8pt Arial;
-	margin-right:8px;
-}
-.ctllink {color:black}
+.identity > .type { position: absolute; margin-left:70px; color: #999; width: 52px; text-align: right; font-size:80%}
+.identity > .value { margin-left: 122px; padding-left: 1em; font-size:80% }
 
 #importerbadges {
-	font:8pt Arial;
  float:right; padding-left:8px; padding-top:4px; padding-bottom:4px;
  background-color:white; -moz-border-radius: 0.5em;  vertical-align:top;
  }
@@ -62,7 +55,7 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 .importerbadge { display:inline; padding-left:8px; padding-right:8px;	-moz-user-select:none;}
 .inactiveimporter { opacity:0.25;}
 
-.controls { margin:0;	padding:2px; 	background:#D7D6D5;	height:66px;	border-bottom:1px solid #808080; }
+.controls { margin:0;	padding:2px; 	background:#D7D6D5;		border-bottom:1px solid #808080; }
 /* form input {padding:2px; font-size:small; width:100%;} */
 
 .searchframe {
