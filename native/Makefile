@@ -47,10 +47,10 @@ ifeq ($(sdkdir),)
   exit 1
 endif
 
-ifdef platform_target
-  platform=$(platform_target)
-else
-  platform=*
+ifeq ($(platform_target),1)
+  $(warning No 'platform_target' variable given)
+  $(warning Currently supported values are 'darwin')
+	exit 1
 endif
 
 all: build
@@ -58,15 +58,15 @@ all: build
 .PHONY: build lib rebuild_all
 
 clean:
-	$(MAKE) -C src clean
+	$(MAKE) -C src-darwin clean
 	rm -rf platform
 	rm -rf components/*
 
 lib:
-	$(MAKE) -C src install
+	$(MAKE) -C src-$(platform_target) install
 
 build:
 	cp -R -v components $(stage_dir)
-	cd platform;mkdir -p ../$(stage_dir)/platform;cp -R -v $(platform) ../$(stage_dir)/platform
+	cd platform;mkdir -p ../$(stage_dir)/platform;cp -R -v * ../$(stage_dir)/platform
 
 rebuild_all: lib build

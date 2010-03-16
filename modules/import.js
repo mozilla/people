@@ -351,8 +351,6 @@ NativeAddressBookImporter.prototype = {
 			}
 			this._log.info("Adding " + people.length + " Native address book contacts to People store");
       People.add(people, this, progressFunction);
-			this._log.info("Done adding " + people.length + " Native address book contacts to People store");
-			this._log.info("Spent " + People.findDupTime + " in _findDupTime; "+ People.addTime + " in add");
 			completionCallback(null);
 		} catch (e) {
       if ((""+e).indexOf("NativeAddressBook;1'] is undefined") >= 0) {
