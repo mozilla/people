@@ -18,61 +18,249 @@
 
 
 <script type="text/javascript;version=1.8">
-	function clickServiceBadge(service)
-	{
-		try {
-			People.importFromService(service, importerComplete);
-		} catch (e) {
-			document.getElementById('message').innerHTML = e.message;
-		}
-	}
-	
-	function importerComplete(error) 
-	{
-		if (error) {
-			document.getElementById('message').innerHTML = error.message;		
-		} else {
-			navigator.people.find( {}, null, PeopleManager.render);
-		}
-	}
+function doServiceImport(service)
+{
+  try {
+    updateImportProgress(service, "Working...");
+    People.importFromService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);});
+  } catch (e) {
+    updateImportProgress(service, e.message);
+  }
+}
 
-	function resetSavedPerms()
-	{
-		People.resetSavedPermissions();
-	}
+function updateImportProgress(service, msg)
+{
+  if (msg == null) {
+    document.getElementById('importer' + service + 'progress').style.display = 'none';     
+    document.getElementById('importer' + service + 'progress').innerHTML = "";
+  } else {
+    document.getElementById('importer' + service + 'progress').style.display = 'block'; 
+    document.getElementById('importer' + service + 'progress').innerHTML = msg;
+  }
+}
 
-	function deleteAll()
-	{
-		People.deleteAll();
+function importerComplete(error, service) 
+{
+  if (error) {
+    updateImportProgress(service, error.message);
+  } else {
+    updateImportProgress(service, null);
     navigator.people.find( {}, null, PeopleManager.render);
-	}
+  }
+}
 
-  $(document).ready(function(){
-	
-		Components.utils.import("resource://people/modules/import.js");
-		Components.utils.import("resource://people/modules/people.js");
-    PeopleManager.onLoad();
-		let services = PeopleImporter.getBackends();
-		for (let service in services) {
-			let importer = PeopleImporter.getBackend(service);
+function resetSavedPerms()
+{
+  People.resetSavedPermissions();
+  renderPermissions();
+}
 
-			svcDiv = $("&lt;div&gt;").attr({class:"importerbadge"}).append($("&lt;a&gt;").attr(
-				{
-				 href:"javascript:clickServiceBadge('" + service + "')"
-				}
-			).append($("&lt;img&gt;").attr(
-				{src:importer.iconURL,
-				 id:service+"-badge", 				
-				 class:"activeimporter",
-				 }
-			)))
-			$("#importerbadges").append(svcDiv);
-		}
-  });
-	
+function deleteAll()
+{
+  People.deleteAll();
+  navigator.people.find( {}, null, PeopleManager.render);
+}
+
+function setContactDisplayMode(mode)
+{
+ contactDisplayMode = mode;
+  navigator.people.find( {}, null, PeopleManager.render);
+}
+
+function renderPermissions()
+{
+  let permissionTable = document.getElementById('permissionsTableBody');
+  permissionTable.innerHTML = "";
+  let permissions = People.getAllPermissions();
+  for each (let perm in permissions) {
+    let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let aSite = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let aFields = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+
+    aDiv.setAttribute("class", "row");
+    aSite.setAttribute("class", "site");
+    aFields.setAttribute("class", "field");
+
+    aDiv.appendChild(aSite);
+    aDiv.appendChild(aFields);
+    aSite.appendChild(document.createTextNode(perm.url));
+    aFields.appendChild(document.createTextNode(perm.fields));
+
+    permissionTable.appendChild(aDiv);
+  }
+  
+
+}
+
+$(document).ready(function(){
+  selectPane("contact");
+  Components.utils.import("resource://people/modules/import.js");
+  Components.utils.import("resource://people/modules/people.js");
+  PeopleManager.onLoad();
+  let services = PeopleImporter.getBackends();
+  
+  let importers = document.getElementById('importerbadges');
+  for (let service in services) {
+    let importer = PeopleImporter.getBackend(service);
+
+    let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    svcDiv.setAttribute("class", "importerbadge");
+
+    let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+    svcImg.setAttribute("src", importer.iconURL);
+    svcImg.setAttribute("id", service+"-badge");
+    svcDiv.appendChild(svcImg);
+
+    let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    svcLabel.setAttribute("class", "importerlabel");
+    svcLabel.appendChild(document.createTextNode(importer.displayName));
+    svcDiv.appendChild(svcLabel);
+
+    let svcButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+    svcButton.setAttribute("type", "submit");
+    svcButton.setAttribute("onclick", "javascript:doServiceImport('" + service + "')");
+    svcButton.setAttribute("class", "importerbutton");
+    svcButton.setAttribute("value", "Import");
+    svcDiv.appendChild(svcButton);
+
+    let svcProgress = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    svcProgress.setAttribute("class", "importerprogress");
+    svcProgress.setAttribute("id", "importer" + service + "progress");
+    svcProgress.appendChild(document.createTextNode(""));
+    svcDiv.appendChild(svcProgress);
+    
+    importers.appendChild(svcDiv);
+  }
+  renderPermissions();
+});
+function setsrc(id, u)
+{
+  document.getElementById(id).src = u;
+}
+  
+var contactDisplayMode = "table";  
+var PANES = ["contact", "service", "permission"];
+function selectPane(pane) {
+  for each (var p in PANES) {
+    if (p == pane) {
+      document.getElementById(p + "pane").style.display="block";
+      document.getElementById(p + "paneswitch").setAttribute("class", "controlbutton_selected");
+    } else {
+      document.getElementById(p + "pane").style.display="none";    
+      document.getElementById(p + "paneswitch").setAttribute("class", "controlbutton");
+    }
+  }
+}
 </script>
 
 <body id="body">
+  <div class="controlbar">
+
+    <div id="contactpaneswitch" class="controlbutton" onclick="selectPane('contact')">
+      <img src="images/people.png"/><br/>
+      Contacts
+    </div>
+    <div id="servicepaneswitch" class="controlbutton" onclick="selectPane('service')">
+      <img src="images/services.png"/><br/>
+      <div class="controlbuttonlabel">Services</div>
+    </div>
+    <div id="permissionpaneswitch" class="controlbutton" onclick="selectPane('permission')">
+      <img src="images/lock.png"/><br/>
+      Permissions
+    </div>
+
+    <div id="message"></div>
+
+  </div>
+
+  <div style="display:none" id="contactpane">
+
+  <div class="contactcontrols">
+	<div class="searchframe">Search:
+    <div class="searchbubble">
+		 <input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
+		<img align="top" src="chrome://people/content/images/search-textbox.png"/>
+    </div>
+	</div>
+  
+  <div id="contactdisplaymodes">
+  <div onclick="setContactDisplayMode('cards')" class="contactdisplaymode"><img src="images/cards.png"/></div>
+  <div onclick="setContactDisplayMode('table')" class="contactdisplaymode"><img src="images/table.png"/></div>
+  </div>
+  </div>
+
+  <div id="contacts"></div>
+
+  </div>
+  <div style="display:none" id="servicepane">
+
+  <img style="position:absolute;left:850px;top:20px" src="images/experiment.png"/>
+  <p style="color:#505050;font-weight:normal">
+  This is a <b>Mozilla Labs Experiment</b>.  It is NOT production-quality code.  It
+  may crash, generate incorrect output, or contain security bugs.  Please do not use it
+  on Firefox profile you cannot afford to lose.  If you do not know what a Firefox Profile
+  is, you may want to read about them <a href="http://kb.mozillazine.org/Profile_Manager">here</a>;
+  they are a good way to experiment with Firefox addons without putting your data at risk.
+  </p>
+
+  <p>
+  <b>Firefox Contacts</b> reads your contact information from any website or program
+  on your computer, and uses it to enhance your web browsing experience.
+  </p>
+
+  <p>
+  Contacts will try to connect contacts that probably represent the same person by
+  looking at email addresses and full names.
+  </p>
+
+  <div class="controlsubhead">Contact Services</div>
+  <p>
+  <div style="float:right">
+    <input type="submit" 
+      onclick="javascript:window.open('directory.xhtml', '_blank')" value="Find More Services"/></div>
+  These are services that Firefox can load your contacts from.
+  </p>
+
+	<div id="importerbadges">
+  </div>
+  
+  <p style="color:#808080"><i>
+  We haven't implemented "Refresh" yet - if you change the data in your services, you
+  can empty your address book and import it again.</i></p>
+  
+  <div class="controlsubhead">Contact Database Management</div>
+
+  <p id="contactCount"></p>
+  
+  <p>
+  <div style="float:right"><input type="submit" onclick="javascript:deleteAll()" value="Empty Address Book"/></div>
+  Remove all contacts (you can import them again)
+  </p>
+
+  </div>
+
+  <div style="display:none" id="permissionpane">
+  <div style="float:right;padding-left:16px"><input type="submit" onclick="javascript:resetSavedPerms()" value="Reset Saved Permissions"/></div>
+
+  When web pages request access to your Contacts, you will be asked whether you want
+  to give them permission.  This table shows which pages you have granted contact access
+  to.
+
+  <div id='permissionsTable'>
+  
+    <div class="permissionsTableHead">
+      <div class="sitehead">Site</div>
+      <div class="fieldhead">Data Fields</div>
+    </div>
+    
+    <div id='permissionsTableBody' class='permissionsTableBody'></div>
+  </div>
+
+  </div>
+
+<!--
+
+
 	<form class="controls" method="get">
 
 	<div style="float:left;font-size:16pt;font-weight:bold; margin-left:8px;margin-top:8px">
@@ -82,15 +270,20 @@
 		<input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
 		<img align="top" src="chrome://people/content/images/search-textbox.png"/>
 	</div>
-	<div id="importerbadges">Import from:<br/></div>
+
+	<div id="importerbadges"><div id="importerprogressbox"><div id="importerprogressmsg">Import progress:</div><div style="background-color:black;opacity:0.5;height:16px" id="importerprogress"></div></div>Import from:<br/></div>
 	<div id="controllinks">
 		<a class="ctllink" href="javascript:resetSavedPerms()">reset saved permissions</a><br/>
 		<a class="ctllink" href="javascript:deleteAll()">empty addressbook</a><br/>
 	</div>
 	</form>
 
+		<a class="ctllink" href="javascript:resetSavedPerms()">reset saved permissions</a><br/>
+
 	<div id="message" class="message"></div>
-<!--  <ol id="results" class="draggable"></ol>-->
 	<div id="results"></div>
+
+-->
+
 </body>
 </html>

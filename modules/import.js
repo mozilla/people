@@ -35,14 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * TODO
- *
- * 1. Auto log-in to Gmail ifyou're not logged in already.
- * 2. Detect duplicates.
- * 3. Try out the Yahoo one.
- * 5. Pull other info (user icons) from Google
- */
 
 let EXPORTED_SYMBOLS = ["PeopleImporter"];
 
@@ -242,13 +234,13 @@ GmailImporter.prototype = {
     }
   ],
 
-  import: function GmailImporter_import(completionCallback) {
+  import: function GmailImporter_import(completionCallback, progressFunction) {
     this._log.debug("Importing Gmail contacts into People store");
 
     let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
       .createInstance(Components.interfaces.nsIXMLHttpRequest);
     req.open('GET', 'https://mail.google.com/mail/contacts/data/export?' +
-             'exportType=ALL&out=VCARD', false);
+             'exportType=GROUP&groupToExport=^Mine&out=VCARD', false);
     req.send(null);
 
     if (req.status != 200) {
@@ -259,9 +251,11 @@ GmailImporter.prototype = {
     }
 
     this._log.debug("Contact list downloaded, parsing");
+    progressFunction(0.25);
 
     let people = [], cur = {}, fencepost = true;
     for each (let line in req.responseText.split('\r\n')) {
+      progressFunction(0.50);
       if (this.beginTest(line)) {
         if (fencepost) {
           fencepost = !fencepost;
@@ -284,15 +278,11 @@ GmailImporter.prototype = {
     }
 
     this._log.info("Adding " + people.length + " Gmail contacts to People store");
-    People.add(people, this);
+    People.add(people, this, progressFunction);
+    progressFunction(0.75);
 		completionCallback(null);
   }
 };
-
-
-
-
-
 
 function NativeAddressBookImporter() {
   this._log = Log4Moz.repository.getLogger("People.NativeAddressBookImporter");
@@ -302,11 +292,11 @@ function NativeAddressBookImporter() {
 NativeAddressBookImporter.prototype = {
   __proto__: ImporterBackend.prototype,
   get name() "native",
-  get displayName() "Native Address Book",
+  get displayName() "Native Address Book (on your computer)",
 	get iconURL() "chrome://people/content/images/macaddrbook.png",
 
 
-  import: function NativeAddressBookImporter_import(completionCallback) {
+  import: function NativeAddressBookImporter_import(completionCallback, progressFunction) {
     this._log.debug("Importing Native address book contacts into People store");
 
 		try
@@ -316,7 +306,8 @@ NativeAddressBookImporter.prototype = {
 			
 			let people = [];
 			for (i=0;i<allCards.length;i++) {
-			
+        progressFunction(Math.floor( i * 100.0 / allCards.length ));
+        
 				person = {}
 				let fname = allCards[i].getProperty("firstName");
 				let lname = allCards[i].getProperty("lastName");
@@ -359,11 +350,17 @@ NativeAddressBookImporter.prototype = {
 				people.push(new PoCoPerson(person).obj);
 			}
 			this._log.info("Adding " + people.length + " Native address book contacts to People store");
-			People.add(people, this);
+      People.add(people, this, progressFunction);
+			this._log.info("Done adding " + people.length + " Native address book contacts to People store");
+			this._log.info("Spent " + People.findDupTime + " in _findDupTime; "+ People.addTime + " in add");
 			completionCallback(null);
 		} catch (e) {
-			this._log.info("Unable to access native address book importer: " + e);
-			completionCallback({error:"Access Error",message:"Unable to access native address book importer: " + e});
+      if ((""+e).indexOf("NativeAddressBook;1'] is undefined") >= 0) {
+        completionCallback({error:"Access Error",message:"Sorry, native address book support isn't done for this platform yet."});
+      } else {
+        this._log.info("Unable to access native address book importer: " + e);
+        completionCallback({error:"Access Error",message:"Unable to access native address book importer: " + e});
+      }
 		}
 	}
 };
@@ -380,7 +377,7 @@ TwitterAddressBookImporter.prototype = {
   get displayName() "Twitter Address Book",
 	get iconURL() "chrome://people/content/images/twitter.png",
 
-  import: function NativeAddressBookImporter_import(completionCallback) {
+  import: function NativeAddressBookImporter_import(completionCallback, progressFunction) {
     this._log.debug("Importing Twitter address book contacts into People store");
 
 		// Look up saved twitter password; if we don't have one, log and bail out
@@ -389,7 +386,8 @@ TwitterAddressBookImporter.prototype = {
 
 		let logins = null;
 		for each (var u in potentialURLs) {
-			logins = login.findLogins({}, u, u, null);
+			logins = login.findLogins({}, u, "https://twitter.com", null);
+      this._log.error("Checking for saved password at " + u +": found " + logins + " (length " + logins.length + ")");
 			if (logins && logins.length > 0) break;
 		}
 		if (!logins || logins.length == 0) {
@@ -427,6 +425,8 @@ TwitterAddressBookImporter.prototype = {
 					let people = [];
 					for (var i=0; i< result.length;i++) 
 					{
+            progressFunction(Math.floor( i * 100.0 / result.length ));
+            
 						var p = result[i];
 						if (typeof p.screen_name != 'undefined')
 						{
@@ -459,7 +459,7 @@ TwitterAddressBookImporter.prototype = {
 						}
 					}
 					that._log.info("Adding " + people.length + " Twitter address book contacts to People store");
-					People.add(people, that);
+					People.add(people, that, progressFunction);
 					completionCallback(null);
 				}
 			}
@@ -469,8 +469,8 @@ TwitterAddressBookImporter.prototype = {
 }
 
 
-PeopleImporter.registerBackend(GmailImporter);
 PeopleImporter.registerBackend(NativeAddressBookImporter);
+PeopleImporter.registerBackend(GmailImporter);
 PeopleImporter.registerBackend(TwitterAddressBookImporter);
 
 // See https://wiki.mozilla.org/Labs/Sprints/People for schema

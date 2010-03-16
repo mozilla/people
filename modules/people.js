@@ -54,6 +54,9 @@ function PeopleService() {
   this._dbStmts = [];
   this._dbInit();
   this._log.info("People store initialized");
+  
+  this.findDupTime = 0;
+  this.addTime = 0;
 }
 PeopleService.prototype = {
 
@@ -129,6 +132,8 @@ PeopleService.prototype = {
         } else if (version != DB_VERSION) {
           this._dbMigrate(version);
         }
+        
+        this._db.executeSimpleSQL("PRAGMA synchronous=OFF");
       } catch (e if e.result == Components.results.NS_ERROR_FILE_CORRUPTED) {
           // Database is corrupted, so we backup the database, then throw
           // causing initialization to fail and a new db to be created next use
@@ -402,66 +407,150 @@ PeopleService.prototype = {
 	},
 
 	findDuplicateGUID: function findDuplicate(person) {
+    // TODO: This is much slower than I would like.  Are the indices working properly?
+    
+    var start = (new Date).getTime();
 
 		// Try email:
 		if (person.emails && person.emails.length > 0 && person.emails[0].value) {
-			match = this._find("guid", {emails: person.emails[0].value});
+			match = this._find("guid", {emails: "=" + person.emails[0].value});
 			if (match && match.length > 0) {
 				return match[0];
 			}
 		}
 		
 		// Now try full name match:
-		if (person.displayName) {
-			match = this._find("guid", {displayName: person.displayName});
+		if (person.displayName && person.displayName != "undefined" && person.displayName != "null") {
+			match = this._find("guid", {displayName: "=" + person.displayName});
 			if (match && match.length > 0) {
 				return match[0];
 			}
 		}
-		
+    
 		return null;
 	},
 
-  add: function add(person, service) {
-    if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments).filter(function(i) i != null);
+  add: function add(person, service, progressFunction) {
+    let peopleArray;
+    
+    if (Utils.isArray(arguments[0])) {
+      peopleArray = arguments[0];
+    } else {
+      peopleArray = person;
+    }
 
-		// Check for duplicate, and merge if so.
-		let dupMatchTargetGUID = this.findDuplicateGUID(person);
-		if (dupMatchTargetGUID) {
-			let dupMatchTargetList = this._find("json", {guid:dupMatchTargetGUID}).map(function(json) JSON.parse(json));
-			let dupMatchTarget = dupMatchTargetList[0];
-			this.mergePerson(dupMatchTarget, person, service);
-			this.update(dupMatchTarget);
-			Observers.notify("people-update", dupMatchTarget.guid); // wonder if this should be add. probably not.
-			return null;
-		}
-
-		// Not a duplicate: put it into the database
-    person.guid = person.guid || Utils.makeGUID();
-    let stmt;
     try {
       this._db.beginTransaction();
-      let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
-      let params = {
-        guid: person.guid,
-        json: JSON.stringify(person)
-      };
-      stmt = this._dbCreateStatement(query, params);
-      stmt.execute();
-      this._updateIndexed(this._db.lastInsertRowID, person);
+
+      duplicates = []
+      let emailLookup, displayNameLookup;
+      
+      if (peopleArray.length > 50) { // it's worth it to build a lookup table...
+        var start = (new Date).getTime();
+        emailLookup = {};
+        displayNameLookup = {};
+        
+        var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN emails t0 ON t0.person_id = p.id");
+        stmt.reset();
+        while (stmt.step()) {  
+          let guid = stmt.row.guid;  
+          let val = stmt.row.val;  
+
+          emailLookup[val] = guid;
+        }
+
+        var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN displayName t0 ON t0.person_id = p.id");
+        stmt.reset();
+        while (stmt.step()) {  
+          let guid = stmt.row.guid;  
+          let val = stmt.row.val;  
+          
+          displayNameLookup[val] = guid;
+        }
+        
+        var stop = (new Date).getTime();
+      }
+      
+      
+      for (var i=0;i<peopleArray.length;i++) {
+        if (progressFunction) {
+          progressFunction("Adding; " + Math.floor(i * 100 / peopleArray.length) + "%");
+        }
+
+        var person = peopleArray[i];
+        var start = (new Date).getTime();
+        
+        // Check for duplicate, and merge if so.
+        let dupMatchTargetGUID;
+        if (emailLookup) {
+          for each (anEmail in person.emails) {
+            if (emailLookup[anEmail.value]) {
+              dupMatchTargetGUID = emailLookup[anEmail.value];
+              break;
+            }
+          }
+          if (!dupMatchTargetGUID) {
+            if (person.displayName && displayNameLookup[person.displayName]) {
+              dupMatchTargetGUID = displayNameLookup[person.displayName];
+            }
+          }
+        }
+        else dupMatchTargetGUID = this.findDuplicateGUID(person);
+
+        if (dupMatchTargetGUID) {
+          duplicates.push([person, dupMatchTargetGUID]);
+          continue;
+        }
+        var dup = (new Date).getTime();
+
+        // Not a duplicate: put it into the database
+        person.guid = person.guid || Utils.makeGUID();
+        let stmt;
+        try {
+          let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
+          let params = {
+            guid: person.guid,
+            json: JSON.stringify(person)
+          };
+          stmt = this._dbCreateStatement(query, params);
+          stmt.execute();
+          this._updateIndexed(this._db.lastInsertRowID, person);
+          
+        } catch (e) {
+          this._log.warn("add failed: " + Utils.exceptionStr(e));
+          // this._db.rollbackTransaction();
+          // return {error: "fail", person: person};
+
+        } finally {
+          if (stmt)
+            stmt.reset();
+        }
+        Observers.notify("people-add", person.guid);
+
+        var stop = (new Date).getTime();
+        this.findDupTime += dup - start;
+        this.addTime += stop - dup;
+      }
       this._db.commitTransaction();
 
+      progressFunction("Resolving duplicates");
+
+      for each (aDup in duplicates) {
+        person = aDup[0];
+        dupMatchTargetGUID = aDup[1];
+
+        let dupMatchTargetList = this._find("json", {guid:dupMatchTargetGUID}).map(function(json) JSON.parse(json));
+        let dupMatchTarget = dupMatchTargetList[0];
+        this.mergePerson(dupMatchTarget, person, service);
+        this.update(dupMatchTarget);
+        Observers.notify("people-update", dupMatchTarget.guid); // wonder if this should be add. probably not.
+      }    
     } catch (e) {
       this._log.warn("add failed: " + Utils.exceptionStr(e));
       this._db.rollbackTransaction();
       return {error: "fail", person: person};
-
-    } finally {
-      if (stmt)
-        stmt.reset();
     }
-    Observers.notify("people-add", person.guid);
+    
     return null;
   },
 
@@ -538,8 +627,15 @@ PeopleService.prototype = {
       let alias = "t" + terms;
       joins.push("JOIN " + table + " " + alias + " ON " + alias +
         ".person_id = p.id");
-      wheres.push(alias + ".val LIKE :p" + terms + " ESCAPE '/'");
-      params["/p" + terms] = val;
+
+      // val starting with '=' is equality; anything else is substring
+      if (val.length > 1 && val[0] == '=') {
+        wheres.push(alias + ".val = :p" + terms);      
+        params["p" + terms] = val.slice(1);
+      } else {
+        wheres.push(alias + ".val LIKE :p" + terms + " ESCAPE '/'");
+        params["/p" + terms] = val;
+      }
       terms++;
     };
 
@@ -613,7 +709,34 @@ PeopleService.prototype = {
 							// two arrays, and we need to check for object equality...
 							for (index in val) {
 								var newObj = val[index];
-								var equalObjs = myDoc[attr].filter(function(item, idx, array) {return objectEquals(item, newObj)});
+
+                // Are any of these objects equal?
+                var equalObjs = myDoc[attr].filter(function(item, idx, array) {
+                  if (item.hasOwnProperty("type") && item.hasOwnProperty("value") &&
+                      newObj.hasOwnProperty("type") && newObj.hasOwnProperty("value"))
+                  {
+                    // special-case for type-value pairs.  If the value is identical,
+                    // we may want to discard one of the types.
+                    if (newObj.value == item.value) {
+                      if (newObj.type == item.type) {
+                        return true;
+                      } else if (newObj.type == "internet") {
+                        newObj.type = item.type;
+                        return true;
+                      } else if (item.type == "internet") {
+                        item.type = newObj.type;
+                        return true;
+                      } else {
+                        // Could, potentially, combine the types?
+                        return false;
+                      }
+                    }
+                  }
+                  else
+                  {
+                    return objectEquals(item, newObj)}
+                  }
+                );
 								if (equalObjs.length == 0) { // no match, go ahead...
 									myDoc[attr].push(val[index]);
 								}
@@ -660,11 +783,11 @@ PeopleService.prototype = {
   },
 	
 
-	importFromService: function importFromService(svcName, completionCallback) {
+	importFromService: function importFromService(svcName, completionCallback, progressFunction) {
 
 		// note that this could cause an asynchronous call
 		Cu.import("resource://people/modules/import.js");
-		PeopleImporter.getBackend(svcName).import(completionCallback);
+		PeopleImporter.getBackend(svcName).import(completionCallback, progressFunction);
 
 	},
 	
@@ -713,7 +836,6 @@ PeopleService.prototype = {
 			People._log.warn("Saving permissions: INSERT OR REPLACE INTO site_permissions (url, fields) VALUES ('" + site + "', '" + permissionList + "')");
 			stmt = this._dbCreateStatement("INSERT OR REPLACE INTO site_permissions (url, fields) VALUES (:url, :fields)", params);
       stmt.execute();
-      this._log.info("saving site_permissions for '" + site + "' as " + permissionList);
       this._db.commitTransaction();
 			
     } catch (e) {
@@ -737,7 +859,6 @@ PeopleService.prototype = {
 				stmt = this._dbCreateStatement(query, params);
 				result = Utils.getRows(stmt.statement);
 				if (result && result.length>0) {
-					this._log.info("get site_permissions for " + site + " returning " + result);
 					return result[0].split(',');
 				} else {
 					return null;
@@ -754,7 +875,36 @@ PeopleService.prototype = {
     } finally {
       if (stmt) stmt.reset();
     }
-	}
+	},
+  
+  getAllPermissions: function getAllPermissions() {
+    let stmt = null;
+    var ret = [];
+    try {
+      let query = "SELECT url,fields FROM site_permissions";
+      
+      try {
+        stmt = this._dbCreateStatement(query);
+        stmt.reset();
+        while (stmt.step()) {
+          ret.push({url:stmt.row.url, fields:stmt.row.fields});
+        } 
+        stmt.reset();
+      }
+      catch(ex) {
+        this._log.error("getAllPermissions failed during query: " + Utils.exceptionStr(ex));
+        return null;
+      }
+      
+    } catch (e) {
+      this._log.warn("getAllPermissions failed");
+      throw "getAllPermissions failed: " + Utils.exceptionStr(e);
+    } finally {
+      if (stmt) stmt.reset();
+    }
+    return ret;
+  }
+  
 };
 
 

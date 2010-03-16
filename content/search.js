@@ -1,3 +1,5 @@
+var liveUpdateShowMode = 'inline-block';
+
 jQuery.fn.liveUpdate = function(list){
   list = jQuery(list);
 
@@ -17,9 +19,11 @@ jQuery.fn.liveUpdate = function(list){
   function filter(){
     var term = jQuery.trim( jQuery(this).val().toLowerCase() ), scores = [];
     if ( !term ) {
-      rows.show();
+      //rows.show();
+      rows.css('display', liveUpdateShowMode);
     } else {
-      rows.hide();
+      rows.css('display', 'none');
+      //rows.hide();
 
       cache.each(function(i){
         var score = this.score(term);
@@ -27,7 +31,8 @@ jQuery.fn.liveUpdate = function(list){
       });
 
       jQuery.each(scores.sort(function(a, b){return b[0] - a[0];}), function(){
-        jQuery(rows[ this[1] ]).show();
+//        jQuery(rows[ this[1] ]).show();
+          jQuery(rows[ this[1] ]).css('display', liveUpdateShowMode);
       });
     }
   }
