@@ -44,11 +44,14 @@ const Cu = Components.utils;
 
 Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
+Cu.import("resource://people/modules/ext/md5.js");
 Cu.import("resource://people/modules/people.js");
 
 function PeopleImporterSvc() {
   this._backends = {};
   this._liveBackends = {};
+  this._discoverers = {};
+  this._liveDiscoverers = {};
   this._log = Log4Moz.repository.getLogger("People.Importer");
   this._log.debug("Importer service initialized");
 }
@@ -64,6 +67,19 @@ PeopleImporterSvc.prototype = {
   },
 	getBackends: function ImporterSvc_getBackends() {
 		return this._backends;
+	},
+  
+  getDiscoverer: function ImporterSvc_getDiscoverer(name) {
+    if (!this._liveDiscoverers[name])
+      this._liveDiscoverers[name] = new this._discoverers[name]();
+    return this._liveDiscoverers[name];
+  },
+  registerDiscoverer: function ImporterSvc_registerDiscoverer(disco) {
+    this._log.debug("Registering discoverer for " + disco.prototype.name);
+    this._discoverers[disco.prototype.name] = disco;
+  },
+	getDiscoverers: function ImporterSvc_getDiscoverers() {
+		return this._discoverers;
 	}
 };
 let PeopleImporter = new PeopleImporterSvc();
@@ -79,6 +95,23 @@ ImporterBackend.prototype = {
     this._log.debug("ImporterBackend.import() invoked, base class does nothing");
   }
 };
+
+function DiscovererBackend() {
+  this._log = Log4Moz.repository.getLogger("People.DiscovererBackend");
+  this._log.debug("Initializing discovery backend for " + this.displayName);
+}
+DiscovererBackend.prototype = {
+  get name() "example",
+  get displayName() "Example Discoverer",
+  discover: function Discoverer_discover(person) {
+    this._log.debug("DiscovererBackend.import() invoked, base class does nothing");
+  }
+};
+
+//-------------------------------------------------------
+// Implementations Follow
+// We should move these into another file or files.
+//-------------------------------------------------------
 
 function GmailImporter() {
   this._log = Log4Moz.repository.getLogger("People.GmailImporter");
@@ -418,7 +451,7 @@ TwitterAddressBookImporter.prototype = {
 					completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password (error " + twitLoad.status + ")"});
 				} else {
 					let result = JSON.parse(twitLoad.responseText);
-					that._log.info("Twitter discovery got " + result.length + " persons\n");
+					that._log.info("Twitter discovery got " + result.length + " persons");
 
 					let people = [];
 					for (var i=0; i< result.length;i++) 
@@ -428,7 +461,7 @@ TwitterAddressBookImporter.prototype = {
 						var p = result[i];
 						if (typeof p.screen_name != 'undefined')
 						{
-							that._log.info(" Constructing person for " + p.screen_name + "; display " + p.name + "\n");
+							that._log.info(" Constructing person for " + p.screen_name + "; display " + p.name);
 							try {
 								person = {}
 								person.accounts = [{type:"twitter", value:p.screen_name}]
@@ -467,9 +500,133 @@ TwitterAddressBookImporter.prototype = {
 }
 
 
+
+function GravatarImageImporter() {
+  this._log = Log4Moz.repository.getLogger("People.GravatarImageImporter");
+  this._log.debug("Initializing importer backend for " + this.displayName);
+};
+
+GravatarImageImporter.prototype = {
+  __proto__: ImporterBackend.prototype,
+  get name() "Gravatar",
+  get displayName() "Gravatar Avatar Images",
+	get iconURL() "chrome://people/content/images/gravatar.png",
+
+  import: function NativeAddressBookImporter_import(completionCallback, progressFunction) {
+    this._log.debug("Scanning current People store for Gravatar icons.");
+
+    let emailMap = People.getEmailToGUIDLookup();
+    if (emailMap.__count__ == 0) {
+      progressFunction("You have no contacts with email addresses.  Import some first!");
+      return;
+    }
+    
+    let count = 0;
+    let people = [];
+    for (let email in emailMap)
+    {
+      progressFunction("Scanning -- " + (Math.floor(count * 100.0 / emailMap.__count__)) + "% complete");
+
+      let md5 = hex_md5(email);
+      let gravLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+      gravLoad.open('GET', "http://www.gravatar.com/avatar/" + md5 + "?d=404&s=1", false);
+      gravLoad.send(null);
+      if (gravLoad.status == 200) {
+        person = {}
+        person.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
+        var aPerson = new PoCoPerson(person);
+        aPerson.obj.guid = emailMap[email]; // obviously need to fix this API.
+        people.push(aPerson.obj);
+        this._log.info("Checked " + email + ": found a Gravatar");
+      } else {
+        this._log.info("Checked " + email + ": no Gravatar");
+      }
+      count = count + 1;
+    }
+    this._log.info("Found " + people.length + " Gravatar icons");
+    progressFunction("Complete.  Found " + people.length + " icons.");
+    People.add(people, this, progressFunction);
+    completionCallback(null);
+	}
+}
+
+function FlickrAccountDiscoverer() {
+  this._log = Log4Moz.repository.getLogger("People.FlickrAccountDiscoverer");
+  this._log.debug("Initializing importer backend for " + this.displayName);
+};
+
+FlickrAccountDiscoverer.prototype = {
+  __proto__: ImporterBackend.prototype,
+  get name() "Flickr",
+  get displayName() "Flickr Account",
+	get iconURL() "",
+
+  discover: function FlickrAccountDiscoverer_person(person, completionCallback, progressFunction) {
+    let flickrKey = "c0727ed63fc7eef37d8b46c57eec4b2e";
+    
+    for (let email in person.emails) {
+      progressFunction("Checking address with Flickr.");
+      let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+      load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.findByEmail&api_key=" + flickrKey + "&find_email=" + encodeURIComponent(email.value), false);
+      load.send(null);
+      if (load.status == 200) {
+        let dom = load.responseXML;
+        
+        /* success is <rsp stat="ok"><user id="76283545@N00" nsid="76283545@N00"><username>foo</username></user></rsp>
+        failure is <rsp stat="fail"><err code="1" msg="User not found" /></rsp> */
+        if (dom.documentElement.attributes.stat.value == "ok")
+        {
+          let user = dom.documentElement.getElementsByTagName("user")[0];
+          let nsID = user.attributes.nsid.value;
+
+          progressFunction("Resolving details with Flickr.");
+          load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.getInfo&api_key=" + flickrKey + "&user_id=" + encodeURIComponent(nsID), false);
+          load.send(null);
+          let detail = load.responseXML;
+          if (detail.documentElement.attributes.stat.value == "ok") 
+          {
+            let person = dom.documentElement.getElementsByTagName("person")[0];
+            let username = user.getElementsByTagName("username")[0];
+            let location = user.getElementsByTagName("location")[0];
+            let photosurl = user.getElementsByTagName("photosurl")[0];
+            let realname = user.getElementsByTagName("realname")[0];
+            // let profileurl = user.getElementsByTagName("profileurl")[0];
+
+            person = {};
+            if (username) person.accounts = [{type:"Flickr", value:username.textContent}]
+            if (location) person.location = [{type:"Location", value:location.textContent}]
+            if (photosurl) person.links = [{type:"Flickr", value:photosurl.textContent}]
+            if (realname) {
+              var n = realname.textContent;
+              person.displayName = n;
+									
+              // For now, let's assume European-style givenName familyName+
+              let split = n.split(" ");
+              person.name = {};
+              person.name.givenName = split[0];
+              person.name.familyName = split.splice(1, 1).join(" ");
+            }
+          
+            var aPerson = new PoCoPerson(person);
+            aPerson.obj.guid = person.guid;
+            People.add(people, this, progressFunction);
+          }
+        }
+      }
+    }
+    completionCallback(null);
+  }
+}
+
+
 PeopleImporter.registerBackend(NativeAddressBookImporter);
 PeopleImporter.registerBackend(GmailImporter);
 PeopleImporter.registerBackend(TwitterAddressBookImporter);
+PeopleImporter.registerBackend(GravatarImageImporter);
+
+PeopleImporter.registerDiscoverer(FlickrAccountDiscoverer);
+
+
 
 // See https://wiki.mozilla.org/Labs/Sprints/People for schema
 function Person() {

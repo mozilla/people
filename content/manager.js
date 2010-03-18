@@ -262,6 +262,7 @@ let PeopleManager = {
 
 function selectPerson(guid)
 {
+  PeopleManager.selectedPersonGUID = guid;
   detail = document.getElementById('tabledetailpane');
   detail.innerHTML = "";
 
@@ -327,8 +328,9 @@ function selectPerson(guid)
   addFieldList(identities, id.links, "URL", "http");
   addFieldList(identities, id.location, null, null, "http://maps.google.com/maps?q=");
   detail.appendChild(identities);
-      
 }
+
+
 
 function htmlescape(html) {
 	if (!html) return html;

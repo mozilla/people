@@ -153,7 +153,7 @@ PeopleService.prototype = {
     this._log.debug("Creating Index Tables");
     for each (let index in this._dbSchema.index_tables) {
       this._db.createTable(index, "id INTEGER PRIMARY KEY, " +
-        "person_id INTEGER NOT NULL, val TEXT NOT NULL");
+        "person_id INTEGER NOT NULL, val TEXT NOT NULL COLLATE NOCASE");
       for each (let col in ["person_id", "val"])
         this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS " + index +
           "_" + col + " ON " + index + " (" + col + ")");
@@ -429,6 +429,24 @@ PeopleService.prototype = {
     
 		return null;
 	},
+  
+  getEmailToGUIDLookup: function getEmailToGUIDLookup() {
+    emailLookup = {};
+    var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN emails t0 ON t0.person_id = p.id");
+    try{
+      stmt.reset();
+      while (stmt.step()) {  
+        let guid = stmt.row.guid;  
+        let val = stmt.row.val;  
+        emailLookup[val.toLowerCase()] = guid;
+      }
+      return emailLookup;
+    } catch (e) {
+      this._log.warn("Unable to perform email to GUID lookup: " + e);
+    } finally {
+      stmt.reset();
+    }
+  },
 
   add: function add(person, service, progressFunction) {
     let peopleArray;
@@ -456,7 +474,7 @@ PeopleService.prototype = {
           let guid = stmt.row.guid;  
           let val = stmt.row.val;  
 
-          emailLookup[val] = guid;
+          emailLookup[val.toLowerCase()] = guid;
         }
 
         var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN displayName t0 ON t0.person_id = p.id");
@@ -465,7 +483,7 @@ PeopleService.prototype = {
           let guid = stmt.row.guid;  
           let val = stmt.row.val;  
           
-          displayNameLookup[val] = guid;
+          displayNameLookup[val.toLowerCase()] = guid;
         }
         
         var stop = (new Date).getTime();
@@ -482,16 +500,19 @@ PeopleService.prototype = {
         
         // Check for duplicate, and merge if so.
         let dupMatchTargetGUID;
-        if (emailLookup) {
+        if (person.guid) {
+          // if the caller provided a GUID, we assume they know what they're doing.
+          dupMatchTargetGUID = person.guid;
+        } else if (emailLookup) {
           for each (anEmail in person.emails) {
-            if (emailLookup[anEmail.value]) {
-              dupMatchTargetGUID = emailLookup[anEmail.value];
+            if (emailLookup[anEmail.value.toLowerCase()]) {
+              dupMatchTargetGUID = emailLookup[anEmail.value.toLowerCase()];
               break;
             }
           }
           if (!dupMatchTargetGUID) {
-            if (person.displayName && displayNameLookup[person.displayName]) {
-              dupMatchTargetGUID = displayNameLookup[person.displayName];
+            if (person.displayName && displayNameLookup[person.displayName.toLowerCase()]) {
+              dupMatchTargetGUID = displayNameLookup[person.displayName.toLowerCase()];
             }
           }
         }
@@ -538,9 +559,12 @@ PeopleService.prototype = {
       for each (aDup in duplicates) {
         person = aDup[0];
         dupMatchTargetGUID = aDup[1];
-
+        
         let dupMatchTargetList = this._find("json", {guid:dupMatchTargetGUID}).map(function(json) JSON.parse(json));
         let dupMatchTarget = dupMatchTargetList[0];
+
+        this._log.info("Resolving duplicate " + dupMatchTargetGUID + " (" + dupMatchTarget.displayName + ")");
+
         this.mergePerson(dupMatchTarget, person, service);
         this.update(dupMatchTarget);
         Observers.notify("people-update", dupMatchTarget.guid); // wonder if this should be add. probably not.
@@ -692,12 +716,17 @@ PeopleService.prototype = {
 				return true;
 		}
 
+
+    // TODO: Need to get more sensible approach to cardinality.
+    // e.g. What if we get two displayNames?
+    
 		let otherDoc = source.documents.default;
 		let myDoc = dest.documents.default;
 		for (let attr in otherDoc) {
 			if (otherDoc.hasOwnProperty(attr)) {
 				var val = otherDoc[attr];
 				if (!myDoc.hasOwnProperty(attr)) {
+          // first one wins.
 					myDoc[attr] = val;
 				} 
 				else
@@ -720,7 +749,7 @@ PeopleService.prototype = {
                     if (newObj.value == item.value) {
                       if (newObj.type == item.type) {
                         return true;
-                      } else if (newObj.type == "internet") {
+                      } else if (newObj.type == "internet") {// gross hack for Google email
                         newObj.type = item.type;
                         return true;
                       } else if (item.type == "internet") {
@@ -786,10 +815,16 @@ PeopleService.prototype = {
 	importFromService: function importFromService(svcName, completionCallback, progressFunction) {
 
 		// note that this could cause an asynchronous call
-		Cu.import("resource://people/modules/import.js");
+		Cu.import("resource://people/modules/import.js");    
 		PeopleImporter.getBackend(svcName).import(completionCallback, progressFunction);
 
 	},
+  
+  doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {
+		Cu.import("resource://people/modules/import.js");    
+    var personResultSet = this._find("json", {guid:personGUID}).map(function(json) JSON.parse(json));
+		PeopleImporter.getDiscoverer(svcName).discover(personResultSet[0], completionCallback, progressFunction);
+  },
 	
 	resetSavedPermissions : function resetSavedPermissions() {
 		

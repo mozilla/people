@@ -311,6 +311,19 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   -moz-box-shadow: #bbb 2px 2px 1px; 
 }
 
+.discoverers {
+  position:absolute;
+  font:small-caption;
+  left:16px;
+  top:400px;
+}
+.discovererbadge {
+  font:small-caption;
+}
+.discovererlabel {
+  display:inline
+}
+
 .controls { margin:0;	padding:2px; 	background:#D7D6D5;	height:66px;	border-bottom:1px solid #808080; }
 /* form input {padding:2px; font-size:small; width:100%;} */
 

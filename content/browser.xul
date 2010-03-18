@@ -41,6 +41,7 @@
 <overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
          id="peopleOverlay">
 
+  <script type="application/javascript" src="chrome://people/content/firstrun.js"/>
   <script type="application/javascript" src="chrome://people/content/injector.js"/>
 
   <menupopup id="menu_ToolsPopup">
