@@ -1,0 +1,28 @@
+body { 
+  font-family: sans-serif; 
+  font-size: 11pt; 
+  margin: 0px; 
+  padding: 0px; 
+  background-color: #fff; 
+  height:100%
+}
+
+a {
+  color:#3875D7
+}
+
+.head {
+  width:500px;
+  margin:0px auto;
+  font: bold 18pt sans-serif;
+  padding-top:16px;
+  padding-bottom:16px;
+  
+}
+.dir {
+  width:500px;
+  margin:0px auto;
+  font: small-caption;
+  font-weight: normal;
+}
+
