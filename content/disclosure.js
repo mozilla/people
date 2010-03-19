@@ -111,81 +111,77 @@ let PeopleDisclosure = {
 			
 				for each (let person in peopleStore) {
 					let anyDataVisible = false;
-					let id = person.documents.default;
-					let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					contact.setAttribute("class", "contact");
+          let id = person.documents.default;
+          let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+          try {
+            contact.setAttribute("class", "contact");
 
-					let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					summary.setAttribute("class", "summary");
+            let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+            summary.setAttribute("class", "summary");
 
-					let checkbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
-					checkbox.setAttribute("type", "checkbox");
-					checkbox.setAttribute("name", person.guid);
-					checkbox.setAttribute("class", "disclosureCheckbox");
-					checkbox.setAttribute("onclick", "selectedPeople['" + person.guid + "']=this.checked");
-					if (selectedPeople[person.guid]) checkbox.setAttribute("checked", "true");
-					summary.appendChild(checkbox);
+            let checkbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+            checkbox.setAttribute("type", "checkbox");
+            checkbox.setAttribute("name", person.guid);
+            checkbox.setAttribute("class", "disclosureCheckbox");
+            checkbox.setAttribute("onclick", "selectedPeople['" + person.guid + "']=this.checked");
+            if (selectedPeople[person.guid]) checkbox.setAttribute("checked", "true");
+            summary.appendChild(checkbox);
 
-					let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-					let photoURL = "chrome://people/content/images/person_grey.png"; 
-					for each (let photo in id.photos) {
-						if( photo.type == "thumbnail") {
-							photoURL = photo.value;
-						}
-					}
-					if (photoURL) {
-						img.setAttribute("src", photoURL);
-						photo.setAttribute("class", "photo");
-						photo.appendChild(img);
-						summary.appendChild(photo);
-					}
+            let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+            let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+            let photoURL = "chrome://people/content/images/person_grey.png"; 
+            for each (let photo in id.photos) {
+              if( photo.type == "thumbnail") {
+                photoURL = photo.value;
+              }
+            }
+            if (photoURL) {
+              img.setAttribute("src", photoURL);
+              photo.setAttribute("class", "photo");
+              photo.appendChild(img);
+              summary.appendChild(photo);
+            }
 
-					let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					information.setAttribute("class", "information");
+            let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+            information.setAttribute("class", "information");
 
-					let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					displayName.setAttribute("class", "name");
+            let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+            displayName.setAttribute("class", "name");
 
-					if (fieldActive["displayName"] == true) {
-						displayName.innerHTML = htmlescape(id.displayName);
-						anyDataVisible = true;
-					}
-					information.appendChild(displayName);
+            if (fieldActive["displayName"] == true) {
+              displayName.innerHTML = htmlescape(id.displayName);
+              anyDataVisible = true;
+            }
+            information.appendChild(displayName);
 
-					let description = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					description.setAttribute("class", "description");
-					for each (let organization in id.organizations) {
-						description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
-					}
-					information.appendChild(description);
-						
-					summary.appendChild(information);
-					contact.appendChild(summary);
+            summary.appendChild(information);
+            contact.appendChild(summary);
 
-					let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-					identities.setAttribute("class", "identities");
-					if (fieldActive["emails"]== true) {
-						for each (let email in id.emails) {
-							anyDataVisible = true;
-							let identity = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-							identity.setAttribute("class", "identity");
+            let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+            identities.setAttribute("class", "identities");
+            if (fieldActive["emails"]== true) {
+              for each (let email in id.emails) {
+                anyDataVisible = true;
+                let identity = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+                identity.setAttribute("class", "identity");
 
-							let uri = encodeURIComponent(email.value);
-							appendNameValueBlock(identity, htmlescape(email.type) || "email", 
-																	'<a href="mailto:'+escape(uri)+'">'+htmlescape(email.value)+'</a>');
-							identities.appendChild(identity);
-						 }
-					}
+                let uri = encodeURIComponent(email.value);
+                appendNameValueBlock(identity, htmlescape(email.type) || "email", 
+                                    '<a href="mailto:'+escape(uri)+'">'+htmlescape(email.value)+'</a>');
+                identities.appendChild(identity);
+               }
+            }
 
-					if (fieldActive["phoneNumbers"] == true) anyDataVisible |= addFieldList(identities, id.phoneNumbers);
-					//addFieldList(identities, id.ims);
-					//addFieldList(identities, id.accounts);
-					if (fieldActive["links"] == true) anyDataVisible |= addFieldList(identities, id.links);
-					//addFieldList(identities, id.location);
+            if (fieldActive["phoneNumbers"] == true) anyDataVisible |= addFieldList(identities, id.phoneNumbers);
+            //addFieldList(identities, id.ims);
+            //addFieldList(identities, id.accounts);
+            if (fieldActive["links"] == true) anyDataVisible |= addFieldList(identities, id.links);
+            //addFieldList(identities, id.location);
 
-					contact.appendChild(identities);
-					
+            contact.appendChild(identities);
+          } catch (e) {
+            People._log.error("Error while rendering disclosure " + e);
+          }
 					if (anyDataVisible)
 						results.appendChild(contact);
 				 }
@@ -196,6 +192,8 @@ let PeopleDisclosure = {
 
 
 function htmlescape(html) {
+  if (html == null || html == undefined) return "";
+  
   return html.
     replace(/&/gmi, '&amp;').
     replace(/"/gmi, '&quot;').

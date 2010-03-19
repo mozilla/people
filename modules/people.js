@@ -454,7 +454,7 @@ PeopleService.prototype = {
     if (Utils.isArray(arguments[0])) {
       peopleArray = arguments[0];
     } else {
-      peopleArray = person;
+      peopleArray = [person];
     }
 
     try {
@@ -462,6 +462,7 @@ PeopleService.prototype = {
 
       duplicates = []
       let emailLookup, displayNameLookup;
+      this._log.debug("Beginning People.add");
       
       if (peopleArray.length > 50) { // it's worth it to build a lookup table...
         var start = (new Date).getTime();
@@ -497,6 +498,7 @@ PeopleService.prototype = {
 
         var person = peopleArray[i];
         var start = (new Date).getTime();
+        this._log.debug("Adding person " + i + ": " + person.displayName);
         
         // Check for duplicate, and merge if so.
         let dupMatchTargetGUID;
@@ -534,6 +536,7 @@ PeopleService.prototype = {
             json: JSON.stringify(person)
           };
           stmt = this._dbCreateStatement(query, params);
+          this._log.debug("Inserted new person");
           stmt.execute();
           this._updateIndexed(this._db.lastInsertRowID, person);
           
@@ -555,6 +558,7 @@ PeopleService.prototype = {
       this._db.commitTransaction();
 
       progressFunction("Resolving duplicates");
+      this._log.debug("Resolving duplicates");
 
       for each (aDup in duplicates) {
         person = aDup[0];
@@ -722,6 +726,7 @@ PeopleService.prototype = {
     
 		let otherDoc = source.documents.default;
 		let myDoc = dest.documents.default;
+
 		for (let attr in otherDoc) {
 			if (otherDoc.hasOwnProperty(attr)) {
 				var val = otherDoc[attr];
@@ -780,7 +785,22 @@ PeopleService.prototype = {
 			}
 		}
 		
-		// TODO update convenience fields
+    // Nasty hard-coding of indexed fields here.  Do better,
+    // which means defining cardinality of indexed fields.
+    if (myDoc.displayName)
+      dest.displayName = myDoc.displayName;
+
+    if (myDoc.name) {
+      if (myDoc.name.givenName)
+        dest.givenName = myDoc.name.givenName;
+      if (myDoc.name.familyName)
+        dest.familyName = myDoc.name.familyName;
+    }
+
+    if (dest.emails) dest.emails = [];
+    for each (let e in myDoc.emails) {
+      dest.emails.push({value: e.value, type: e.type});
+    }
 	},
 
 
@@ -823,6 +843,11 @@ PeopleService.prototype = {
   doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {
 		Cu.import("resource://people/modules/import.js");    
     var personResultSet = this._find("json", {guid:personGUID}).map(function(json) JSON.parse(json));
+    this._log.warn("Performing discovery on GUID " + personGUID);
+    this._log.warn("Got result set " + personResultSet + " (length " + personResultSet.length + ")");
+    this._log.warn("Object 0 is " + personResultSet[0]);
+    this._log.warn("Object 0.json is " + JSON.stringify(personResultSet[0]));
+    
 		PeopleImporter.getDiscoverer(svcName).discover(personResultSet[0], completionCallback, progressFunction);
   },
 	
@@ -945,6 +970,6 @@ PeopleService.prototype = {
 
 
 let People = new PeopleService();
+People._log.info("At end of people; created PeopleService");
 
-
-
+Cu.import("resource://people/modules/import.js");

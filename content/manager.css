@@ -217,9 +217,9 @@ A {
 .contacttable > .tabledetailpane > .summary > .information > .description { color: #999; font-size:120%}
 
 .contacttable > .tabledetailpane > .identities {position:absolute;top:80px}
-/*.contacttable > .tabledetailpane > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; }*/
-.contacttable > .tabledetailpane > .identities > .identity > .type { position: absolute; margin-left:2px; color: #999; width: 52px; text-align: right; font-size:90%}
-.contacttable > .tabledetailpane > .identities > .identity > .value { margin-left: 54px; padding-left: 1em; font-size:100% ;}
+.contacttable > .tabledetailpane > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; }
+.contacttable > .tabledetailpane > .identities > .identity > .type { position: absolute; margin-left:2px; color: #999; width: 112px; text-align: right; font-size:90%}
+.contacttable > .tabledetailpane > .identities > .identity > .value { margin-left: 120px; padding-left: 1em; font-size:100% ;}
 .contacttable > .tabledetailpane > .identities > .identity > .value > a {color:#3875D7; text-decoration:none}
 
 

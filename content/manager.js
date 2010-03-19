@@ -34,18 +34,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function appendNameValueBlock(container, name, value)
-// Note that the name and value are not HTML-escaped prior to insertion into the DOM.
+function createDiv(clazz)
 {
-	let typeDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-	typeDiv.setAttribute("class", "type");
+	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+	aDiv.setAttribute("class", clazz);
+  return aDiv;
+}
+
+function appendNameValueBlock(container, name, value)
+{
+  // Note that the name and value are not HTML-escaped prior to insertion into the DOM.
+	let typeDiv = createDiv("type");
 	try {
 		typeDiv.innerHTML = name;
 	} catch (e) {
 		typeDiv.innerHTML = '';	
 	}
-	let valueDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-	valueDiv.setAttribute("class", "value");
+	let valueDiv = createDiv("value");
 	try {
 		valueDiv.innerHTML = value;	
 	} catch (e) {
@@ -58,8 +63,7 @@ function appendNameValueBlock(container, name, value)
 function addFieldList(container, aList, defaultType, valueScheme, contentHandlerURL)
 {
 	for each (let item in aList) {
-		let row = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-		row.setAttribute("class", "identity");
+		let row = createDiv("identity");
 		
 		let label = null;
 		if (item.type) {
@@ -90,6 +94,42 @@ function addFieldList(container, aList, defaultType, valueScheme, contentHandler
 		container.appendChild(row);
 	}
 }
+
+// Produces a list of elements for the "link" field, filtering based on the content-type
+// to avoid displaying those elements that would be uninteresting to humans.  Also,
+// remove duplicates.
+var INTERNAL_LINK_RELS = {
+  "http://portablecontacts.net/spec/1.0":1,
+  "http://specs.openid.net/auth/2.0/provider":1};
+
+function addLinksList(container, aList, defaultType, valueScheme, contentHandlerURL)
+{
+  var already = {};
+	for each (let item in aList) {
+    var ctype= item["content-type"];
+    if (ctype != undefined) {
+      if (ctype == "text/html" || ctype == "application/atom+xml" || ctype == "text/plain") { // what about rdf+xml?  Google serves FOAF like that.  Hrm.
+        // good to go
+      } else {
+        continue; // skip it.
+      }
+    }
+    if (already[item.type + item.value] != undefined) continue;
+    if (item.rel != undefined && INTERNAL_LINK_RELS[item.rel] != undefined) continue;
+		let row = createDiv("identity");
+		let label = null;
+		if (item.type) {
+			label = htmlescape(item.type);
+		} else {
+			label = defaultType;
+		}
+    value = '<a target="_blank" href="' + item.value + '">' + htmlescape(item.value) + '</a>';
+		appendNameValueBlock(row, label, value);
+		container.appendChild(row);
+    already[item.type + item.value] = 1;
+	}
+}
+
 
 let PeopleManager = {
   onLoad: function() {
@@ -124,13 +164,20 @@ let PeopleManager = {
          return -1;
        } else if (b.familyName) {
          return 1;
-       } else {
+       } else if (a.displayName && b.displayName) {
          return a.displayName.localeCompare(b.displayName);
+       } else if (a.displayName) {
+        return -1;
+       } else if (b.displayName) {
+        return 1;
+       } else {
+        return a.guid.localeCompare(b.guid);
        }
       });
       
       if (contactDisplayMode == 'table') {
         PeopleManager.renderTable(peopleStore);        
+        if (PeopleManager.selectedPersonGUID) selectPerson(PeopleManager.selectedPersonGUID);
       } else if (contactDisplayMode == 'cards') {
         PeopleManager.renderContactCards(peopleStore);
       }
@@ -146,14 +193,10 @@ let PeopleManager = {
     for each (let person in peopleStore) {
       try {
         let id = person.documents.default;
-        let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        contact.setAttribute("class", "contact");
-        let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        summary.setAttribute("class", "summary");
+        let contact = createDiv("contact");
+        let summary = createDiv("summary");
 
-        let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        photo.setAttribute("class", "photo");
-
+        let photo = createDiv("photo");
         let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
         let photoURL = "chrome://people/content/images/person.png"; 
         for each (let photo in id.photos) {
@@ -165,15 +208,12 @@ let PeopleManager = {
         photo.appendChild(img);
         summary.appendChild(photo);
 
-        let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        information.setAttribute("class", "information");
-        let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        displayName.setAttribute("class", "name");
+        let information = createDiv("information");
+        let displayName = createDiv("name");
         displayName.innerHTML = htmlescape(id.displayName);
         information.appendChild(displayName);
 
-        let description = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        description.setAttribute("class", "description");
+        let description = createDiv("description");
         for each (let organization in id.organizations) {
           description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
         }
@@ -182,8 +222,7 @@ let PeopleManager = {
         summary.appendChild(information);
         contact.appendChild(summary);
 
-        let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        identities.setAttribute("class", "identities");
+        let identities = createDiv("identities");
         addFieldList(identities, id.emails, "email", "mailto");
         addFieldList(identities, id.phoneNumbers, "phone");
         addFieldList(identities, id.ims);
@@ -209,22 +248,19 @@ let PeopleManager = {
     var i =0;
     results.setAttribute("class", "contacttable");
 
-    let contactList = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let contactList = createDiv("contactlist");
     contactList.setAttribute("id", "contactlist");
-    contactList.setAttribute("class", "contactlist");
     results.appendChild(contactList);
 
-    let detail = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let detail = createDiv("tabledetailpane");
     detail.setAttribute("id", "tabledetailpane");
-    detail.setAttribute("class", "tabledetailpane");
     results.appendChild(detail);
 
     for each (let person in peopleStore) {
       try {
         
         let id = person.documents.default;
-        let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        contact.setAttribute("class", "contact");
+        let contact =  createDiv("contact");
 
         let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
         img.setAttribute("width", "16");
@@ -239,8 +275,7 @@ let PeopleManager = {
         contact.appendChild(a);
 
         // hidden div for name
-        let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-        displayName.setAttribute("class", "name");
+        let displayName = createDiv("name");
         displayName.setAttribute("style", "display:none");
         displayName.innerHTML = htmlescape(id.displayName);
         contact.appendChild(displayName);
@@ -255,9 +290,6 @@ let PeopleManager = {
     }
     $('#searchbox').liveUpdate($("#contactlist")).focus();
   }
-  
-    
-    
 };
 
 function selectPerson(guid)
@@ -285,11 +317,8 @@ function selectPerson(guid)
   //    type
   //    value
     
-  let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-  summary.setAttribute("class", "summary");
-
-  let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-  photo.setAttribute("class", "photo");
+  let summary = createDiv("summary");
+  let photo = createDiv("photo");
 
   let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
   let photoURL = "chrome://people/content/images/person.png"; 
@@ -302,15 +331,12 @@ function selectPerson(guid)
   photo.appendChild(img);
   summary.appendChild(photo);
 
-  let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-  information.setAttribute("class", "information");
-  let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-  displayName.setAttribute("class", "name");
+  let information = createDiv("information");
+  let displayName = createDiv("name");
   displayName.innerHTML = htmlescape(id.displayName);
   information.appendChild(displayName);
 
-  let description = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-  description.setAttribute("class", "description");
+  let description = createDiv("description");
   for each (let organization in id.organizations) {
     description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
   }
@@ -319,17 +345,80 @@ function selectPerson(guid)
   summary.appendChild(information);
   detail.appendChild(summary);
 
-  let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-  identities.setAttribute("class", "identities");
+  let identities = createDiv("identities");
   addFieldList(identities, id.emails, "email", "mailto");
   addFieldList(identities, id.phoneNumbers, "phone");
   addFieldList(identities, id.ims);
   addFieldList(identities, id.accounts);
-  addFieldList(identities, id.links, "URL", "http");
+  addLinksList(identities, id.links);
   addFieldList(identities, id.location, null, null, "http://maps.google.com/maps?q=");
   detail.appendChild(identities);
+
+  let allDiscoverers = createDiv("discoverers");
+  allDiscoverers.appendChild(document.createTextNode("Search for additional content:"));
+  let discoverers = PeopleImporter.getDiscoverers();
+  for (let disco in discoverers) {
+    let discoverer = PeopleImporter.getDiscoverer(disco);
+    let dDiv = createDiv("discovererbadge");
+    
+    if (discoverer.iconURL && discoverer.iconURL.length) {
+      let dImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+      dImg.setAttribute("src", discoverer.iconURL);
+      dImg.setAttribute("id", disco+"-badge");
+      dDiv.appendChild(dImg);
+    }
+    
+    let dLabel = createDiv("discovererlabel");
+    dLabel.appendChild(document.createTextNode(discoverer.displayName));
+    dDiv.appendChild(dLabel);
+
+    let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+    dButton.setAttribute("type", "submit");
+    dButton.setAttribute("onclick", "javascript:doDiscovery('" + disco + "')");
+    dButton.setAttribute("class", "discovererbutton");
+    dButton.setAttribute("value", "Find");
+    dDiv.appendChild(dButton);
+
+    let dProgress = createDiv("discovererprogress");
+    dProgress.setAttribute("id", "discoverer" + disco + "progress");
+    dProgress.appendChild(document.createTextNode(""));
+    dDiv.appendChild(dProgress);
+    allDiscoverers.appendChild(dDiv);
+  }
+  detail.appendChild(allDiscoverers);
+
 }
 
+function doDiscovery(service)
+{
+  try {
+    updateDiscoveryProgress(service, "Working...");
+    People.doDiscovery(service, PeopleManager.selectedPersonGUID, function(error) {discoveryComplete(error, service)}, function(val) {updateDiscoveryProgress(service, val);});
+  } catch (e) {
+    updateDiscoveryProgress(service, e.message);
+  }
+}
+
+function updateDiscoveryProgress(service, msg)
+{
+  if (msg == null) {
+    document.getElementById('discoverer' + service + 'progress').style.display = 'none';     
+    document.getElementById('discoverer' + service + 'progress').innerHTML = "";
+  } else {
+    document.getElementById('discoverer' + service + 'progress').style.display = 'block'; 
+    document.getElementById('discoverer' + service + 'progress').innerHTML = msg;
+  }
+}
+
+function discoveryComplete(error, service) 
+{
+  if (error) {
+    updateDiscoveryProgress(service, error.message);
+  } else {
+    updateDiscoveryProgress(service, null);
+    navigator.people.find( {}, null, PeopleManager.render);
+  }
+}
 
 
 function htmlescape(html) {
