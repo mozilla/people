@@ -77,6 +77,8 @@ NativeAddressBookImporter.prototype = {
 				
 				if (!fname && !lname) continue; // skip anonymous cards for now
 				
+        this._log.info("Got lname " + lname);
+        
 				if (fname && lname) {
 					person.displayName = fname + " " + lname;
 				} else if (lname) {

@@ -204,22 +204,24 @@ A {
 }
 
 .contacttable > .tabledetailpane {
-  position:absolute;left:200px;top:0px;width:350px;
+  position:absolute;left:200px;top:0px;width:550px;
   padding-top:12px;padding-left:16px;
   border-left:1px solid #D0D0D0;height:100%
 }
-.contacttable > .tablecontentpane {position:absolute;left:500px;top:0px;width:400px;border:none;height:100%}
+.contacttable > .tablecontentpane {position:absolute;left:500px;top:0px;width:600px;border:none;height:100%}
 
+.contacttable > .tabledetailpane > .summary { min-height:80px }
 .contacttable > .tabledetailpane > .summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
 .contacttable > .tabledetailpane > .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
 .contacttable > .tabledetailpane > .summary > .information { margin-left: 54px; padding-left: 1em; }
 .contacttable > .tabledetailpane > .summary > .information > .name { color: #222; font-weight: bold; font-size: 120%;}
 .contacttable > .tabledetailpane > .summary > .information > .description { color: #999; font-size:120%}
 
-.contacttable > .tabledetailpane > .identities {position:absolute;top:80px}
-.contacttable > .tabledetailpane > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; }
-.contacttable > .tabledetailpane > .identities > .identity > .type { position: absolute; margin-left:2px; color: #999; width: 112px; text-align: right; font-size:90%}
-.contacttable > .tabledetailpane > .identities > .identity > .value { margin-left: 120px; padding-left: 1em; font-size:100% ;}
+.contacttable > .tabledetailpane > .identities {}
+.contacttable > .tabledetailpane > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; height:1.5em }
+.contacttable > .tabledetailpane > .identities > .identity > .type > .favicon { margin-left:2px; }
+.contacttable > .tabledetailpane > .identities > .identity > .type { position: absolute; vertical-align:top; margin-left:2px; color: #999; width: 112px; text-align: right; font-size:80%}
+.contacttable > .tabledetailpane > .identities > .identity > .value { margin-left: 120px; padding-left: 1em; font-size:90% ;}
 .contacttable > .tabledetailpane > .identities > .identity > .value > a {color:#3875D7; text-decoration:none}
 
 
@@ -312,10 +314,9 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 }
 
 .discoverers {
-  position:absolute;
   font:small-caption;
   left:16px;
-  top:400px;
+  margin-top:100px;
 }
 .discovererbadge {
   font:small-caption;

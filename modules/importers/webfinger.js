@@ -174,7 +174,7 @@ WebfingerDiscoverer.prototype = {
           }*/
           
           
-          // Many XRDs included duplicated links that map to the same user concept.
+          // Many XRDs include duplicated links that map to the same user concept.
           for (var i=0;i<linkList.length;i++)
           {
             var link = linkList[i];

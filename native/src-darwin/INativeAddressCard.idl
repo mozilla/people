@@ -48,15 +48,15 @@ interface INativeAddressCard : nsISupports
 	* source has an extensive scriptable addressbook model, which is almost
 	* certainly a better place to start. */
 
-  string getProperty(in string name);
+  wstring getProperty(in string name);
 	
   void getPropertyListLabels(in string name,
 														 out unsigned long count,
-														[retval, array, size_is(count)] out string labels);
+														[retval, array, size_is(count)] out wstring labels);
 
   void getPropertyListValues(in string name, 
 														 out unsigned long count,
-														[retval, array, size_is(count)] out string values);
+														[retval, array, size_is(count)] out wstring values);
 
 };
 

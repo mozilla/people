@@ -535,6 +535,9 @@ PeopleService.prototype = {
             guid: person.guid,
             json: JSON.stringify(person)
           };
+          
+          this._log.info("Stringified as "+ params.json);
+          
           stmt = this._dbCreateStatement(query, params);
           this._log.debug("Inserted new person");
           stmt.execute();
@@ -750,10 +753,13 @@ PeopleService.prototype = {
                       newObj.hasOwnProperty("type") && newObj.hasOwnProperty("value"))
                   {
                     // special-case for type-value pairs.  If the value is identical,
-                    // we may want to discard one of the types.
+                    // we may want to discard one of the types -- unless they have
+                    // different rels.
                     if (newObj.value == item.value) {
                       if (newObj.type == item.type) {
-                        return true;
+                        if (newObj.rel == item.rel) {
+                          return true;
+                        }
                       } else if (newObj.type == "internet") {// gross hack for Google email
                         newObj.type = item.type;
                         return true;

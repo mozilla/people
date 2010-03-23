@@ -104,6 +104,8 @@ var INTERNAL_LINK_RELS = {
 
 function addLinksList(container, aList, defaultType, valueScheme, contentHandlerURL)
 {
+  var faviconService = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
+
   var already = {};
 	for each (let item in aList) {
     var ctype= item["content-type"];
@@ -123,7 +125,16 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
 		} else {
 			label = defaultType;
 		}
+    let favicon = null;
+    try {
+      var IOService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+      favicon = faviconService.getFaviconImageForPage(IOService.newURI(item.value, null, null));
+    } catch (e) {
+      // that's okay
+    }
+
     value = '<a target="_blank" href="' + item.value + '">' + htmlescape(item.value) + '</a>';
+    if (favicon) value = "<img src='" + favicon.spec + "'/> " + value;
 		appendNameValueBlock(row, label, value);
 		container.appendChild(row);
     already[item.type + item.value] = 1;
@@ -368,16 +379,17 @@ function selectPerson(guid)
       dDiv.appendChild(dImg);
     }
     
-    let dLabel = createDiv("discovererlabel");
-    dLabel.appendChild(document.createTextNode(discoverer.displayName));
-    dDiv.appendChild(dLabel);
-
     let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
     dButton.setAttribute("type", "submit");
     dButton.setAttribute("onclick", "javascript:doDiscovery('" + disco + "')");
     dButton.setAttribute("class", "discovererbutton");
     dButton.setAttribute("value", "Find");
     dDiv.appendChild(dButton);
+
+    let dLabel = createDiv("discovererlabel");
+    dLabel.appendChild(document.createTextNode(" " + discoverer.displayName));
+    dDiv.appendChild(dLabel);
+
 
     let dProgress = createDiv("discovererprogress");
     dProgress.setAttribute("id", "discoverer" + disco + "progress");

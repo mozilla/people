@@ -45,9 +45,9 @@ NativeAddressBook::~NativeAddressBook()
 
 static const char *extractCFStringPtr(CFStringRef stringRef, char *buffer, unsigned int bufferSize)
 {
-	const char *ptr = CFStringGetCStringPtr(stringRef, kCFStringEncodingUTF8);
+	const char *ptr = CFStringGetCStringPtr(stringRef, kCFStringEncodingUTF16);
 	if (ptr == NULL) {
-			if (CFStringGetCString(stringRef, buffer, bufferSize, kCFStringEncodingUTF8)) ptr = buffer;
+			if (CFStringGetCString(stringRef, buffer, bufferSize, kCFStringEncodingUTF16)) ptr = buffer;
 	}
 	return ptr;
 }
@@ -99,57 +99,79 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
 		ABPersonRef person = (ABPersonRef)CFArrayGetValueAtIndex(peopleFound, i);
 		CFTypeRef firstName = ABRecordCopyValue (person, kABFirstNameProperty);
 		CFTypeRef lastName = ABRecordCopyValue (person, kABLastNameProperty);
+		//CFTypeRef firstNamePhonetic = ABRecordCopyValue (person, kABFirstNamePhoneticProperty);
+		//CFTypeRef lastNamePhonetic = ABRecordCopyValue (person, kABLastNamePhoneticProperty);
+		//CFTypeRef org = ABRecordCopyValue (person, kABOrganizationProperty);
+		//CFTypeRef title = ABRecordCopyValue (person, kABJobTitleProperty);
 		CFTypeRef emails = ABRecordCopyValue (person, kABEmailProperty);// kABMultiStringProperty
 		CFTypeRef phones = ABRecordCopyValue (person, kABPhoneProperty);// kABMultiStringProperty
-
+//	CFTypeRef addresses = ABRecordCopyValue (person, kABAddressProperty);// multi-dictionary
 		CFTypeRef homePage = ABRecordCopyValue (person, kABHomePageProperty);// string - deprecated since 10.4
 		CFTypeRef urls = ABRecordCopyValue (person, kABURLsProperty);// kABMultiStringProperty
 
-		char valueBuffer[BUFSIZE]; // used when CFStringGetCStringPtr fails
-		char labelBuffer[BUFSIZE]; // used when CFStringGetCStringPtr fails
-
 		if (firstName) {
-			card->setFirstName(extractCFStringPtr((CFStringRef)firstName, valueBuffer, BUFSIZE));
+			card->setFirstName((CFStringRef)firstName);
 		}
 
 		if (lastName) {
-			card->setLastName(extractCFStringPtr((CFStringRef)lastName, valueBuffer, BUFSIZE));
+			card->setLastName((CFStringRef)lastName);
 		}
 
+/*		if (org) {
+			card->setOrganization(extractCFStringPtr((CFStringRef)org, valueBuffer, BUFSIZE));
+		}
+		if (title) {
+			card->setTitle(extractCFStringPtr((CFStringRef)title, valueBuffer, BUFSIZE));
+		}
+*/
 		if (emails) {
 			for (j=0;j<ABMultiValueCount((ABMultiValueRef)emails);j++) {
 				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)emails, j);
 				CFStringRef email = (CFStringRef)ABMultiValueCopyValueAtIndex ((ABMultiValueRef)emails, j);
-
-				const char *labelPtr = deriveLabelFromString(label, labelBuffer, BUFSIZE);
-				const char *valuePtr = extractCFStringPtr(email, valueBuffer, BUFSIZE);
-				
-				card->setEmail(labelPtr, valuePtr);
+				card->setEmail(label, email);
 			}
 		}
 
+/*
+		if (addresses) {
+			for (j=0;j<ABMultiValueCount((ABMultiValueRef)addresses);j++) {
+				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)addresses, j);
+				CFDictionaryRef anAddress = (CFDictionaryRef)ABMultiValueCopyValueAtIndex ((ABMultiValueRef)addresses, j);
+        
+        CFStringRef aStreet = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressStreetKey);
+        CFStringRef aCity = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressCityKey);
+        CFStringRef aZip = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressZIPKey);
+        CFStringRef aCountry = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressCountryKey);
+        CFStringRef aCountryCode = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressCountryCodeKey);
+
+        const char *labelPtr = deriveLabelFromString(label, labelBuffer, BUFSIZE);
+
+				const char *streetPtr = aStreet ? extractCFStringPtr(aStreet, valueBuffer, BUFSIZE) : NULL;
+				const char *cityPtr = aCity ? extractCFStringPtr(aCity, valueBuffer2, BUFSIZE) : NULL;
+				const char *zipPtr = aZip ? extractCFStringPtr(aZip, valueBuffer3, BUFSIZE) : NULL;
+				const char *countryPtr = aCountry ? extractCFStringPtr(aCountry, valueBuffer4, BUFSIZE) : NULL;
+				const char *countryCodePtr = aCountryCode ? extractCFStringPtr(aCountryCode, valueBuffer5, BUFSIZE) : NULL;
+				
+				card->setAddress(labelPtr, streetPtr, cityPtr, zipPtr, countryPtr, countryCodePtr);
+			}
+		}
+*/
 		if (phones) {
 			for (j=0;j<ABMultiValueCount((ABMultiValueRef)phones);j++) {
 				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)phones, j);
 				CFStringRef phone = (CFStringRef)ABMultiValueCopyValueAtIndex ((ABMultiValueRef)phones, j);
-
-				const char *labelPtr = deriveLabelFromString(label, labelBuffer, BUFSIZE);
-				const char *valuePtr = extractCFStringPtr(phone, valueBuffer, BUFSIZE);
-				card->setPhone(labelPtr, valuePtr);
+				card->setPhone(label, phone);
 			}
 		}
 
 		if (homePage) {
-			card->setURL("homepage", extractCFStringPtr((CFStringRef)firstName, valueBuffer, BUFSIZE));		
+			card->setURL(CFStringCreateWithCString(NULL, "homepage", kCFStringEncodingUTF16), (CFStringRef)homePage);
 		}
 		if (urls) {
 			for (j=0;j<ABMultiValueCount((ABMultiValueRef)urls);j++) {
 				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)urls, j);
 				CFStringRef url = (CFStringRef)ABMultiValueCopyValueAtIndex ((ABMultiValueRef)urls, j);
-
-				const char *labelPtr = deriveLabelFromString(label, labelBuffer, BUFSIZE);
-				const char *valuePtr = extractCFStringPtr(url, valueBuffer, BUFSIZE);
-				card->setURL(labelPtr, valuePtr);
+				card->setURL(label, url);
 			}
 		}
 

@@ -42,6 +42,7 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 Cu.import("resource://people/modules/ext/Sync.js");
+Cu.import("resource://people/modules/ext/log4moz.js");
 
 let Utils = {
   getRows: function getRows(stmt) {
@@ -71,6 +72,18 @@ let Utils = {
       return dest[prop] = func.call(dest);
     });
   },
+  // like lazy, but rather than new'ing the 3rd arg we use its return value
+  lazy2: function Weave_lazy2(dest, prop, fn) {
+    delete dest[prop];
+    dest.__defineGetter__(prop, Utils.lazyCb2(dest, prop, fn));
+  },
+  lazyCb2: function Weave_lazyCb2(dest, prop, fn) {
+    return function() {
+      delete dest[prop];
+      return dest[prop] = fn();
+    };
+  },
+
 
   mapCall: function mapCall(self, args) {
     let array = args[0];
@@ -129,6 +142,24 @@ let Utils = {
 
     return "No traceback available";
   },
+
+  makeURI: function Weave_makeURI(URIString) {
+    if (!URIString)
+      return null;
+    try {
+      return Svc.IO.newURI(URIString, null, null);
+    } catch (e) {
+      let log = Log4Moz.repository.getLogger("Service.Util");
+      log.debug("Could not create URI (" + URIString + "): " + Utils.exceptionStr(e));
+      return null;
+    }
+  },
+
+  makeURL: function Weave_makeURL(URIString) {
+    let url = Utils.makeURI(URIString);
+    url.QueryInterface(Ci.nsIURL);
+    return url;
+  },
 	
   xpath: function Weave_xpath(xmlDoc, xpathString) {
     let root = xmlDoc.ownerDocument == null ?
@@ -151,11 +182,15 @@ let Utils = {
       return undefined;
     }
   },
+  bind2: function Async_bind2(object, method) {
+    return function innerBind() { return method.apply(object, arguments); };
+  },
 
 };
 
 let Svc = {};
 [["Directory", "file/directory_service", "nsIProperties"],
+ ["IO", "network/io-service", "nsIIOService"],
  ["Observer", "observer-service", "nsIObserverService"],
  ["Storage", "storage/service", "mozIStorageService"],
  ["UUIDGen", "uuid-generator", "nsIUUIDGenerator"]

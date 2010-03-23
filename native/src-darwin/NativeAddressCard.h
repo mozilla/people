@@ -1,11 +1,24 @@
+#include <CoreFoundation/CFString.h>
 #include "INativeAddressCard.h"
 
 class TaggedField 
 {
 	public:
-		TaggedField(const char *type, const char *value);
-		char *mType;
-		char *mValue;
+		TaggedField(const CFStringRef type, const CFStringRef value);
+		CFStringRef mType;
+		CFStringRef mValue;
+};
+
+class AddressField 
+{
+	public:
+		AddressField(const CFStringRef type, const CFStringRef street, const CFStringRef city, const CFStringRef zip, const CFStringRef country, const CFStringRef countryCode);
+		CFStringRef mType;
+		CFStringRef mStreet;
+		CFStringRef mCity;
+		CFStringRef mZip;
+		CFStringRef mCountry;
+		CFStringRef mCountryCode;
 };
 
 /* Header file */
@@ -18,18 +31,25 @@ public:
   NativeAddressCard();
 
 
-	void setFirstName(const char *name);
-	void setLastName(const char *name);
-	void setEmail(const char *type, const char *email);
-	void setPhone(const char *type, const char *phone);
-	void setURL(const char *type, const char *url);
+	void setFirstName(const CFStringRef name);
+	void setLastName(const CFStringRef name);
+	void setOrganization(const CFStringRef org);
+	void setTitle(const CFStringRef title);
+	void setEmail(const CFStringRef type, const CFStringRef email);
+	void setPhone(const CFStringRef type, const CFStringRef phone);
+	void setURL(const CFStringRef type, const CFStringRef url);
+	void setAddress(const CFStringRef type, const CFStringRef streetPtr, const CFStringRef cityPtr, 
+                  const CFStringRef zipPtr, const CFStringRef countryPtr, const CFStringRef countryCodePtr);
+  
 private:
   ~NativeAddressCard();
 
 protected:
   /* additional members */
-	char *mFirstName;
-	char *mLastName;
+	CFStringRef mFirstName;
+	CFStringRef mLastName;
+	CFStringRef mOrganization;
+	CFStringRef mTitle;
 	
 	TaggedField **mEmails;
 	int mNumEmails, mEmailsSize;
@@ -39,4 +59,7 @@ protected:
 
 	TaggedField **mURLs;
 	int mNumURLs, mURLsSize;
+
+	AddressField **mAddresses;
+	int mNumAddresses, mAddressesSize;
 };
