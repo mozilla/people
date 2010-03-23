@@ -52,34 +52,6 @@ static const char *extractCFStringPtr(CFStringRef stringRef, char *buffer, unsig
 	return ptr;
 }
 
-// TODO: Replace this with a proper localization strategy.
-static const char *deriveLabelFromString(CFStringRef stringRef, char *buffer, unsigned int bufferSize)
-{
-	if (CFStringCompare(stringRef, kABWorkLabel, 0) == 0) {
-		return "work";
-	} else if (CFStringCompare(stringRef, kABHomeLabel, 0) == 0) {
-		return "home";
-	} else if (CFStringCompare(stringRef, kABOtherLabel, 0) == 0) {
-		return "other";
-	} else if (CFStringCompare(stringRef, kABPhoneMobileLabel, 0) == 0) {
-		return "mobile";
-	} else if (CFStringCompare(stringRef, kABPhoneHomeFAXLabel, 0) == 0) {
-		return "home fax";
-	} else if (CFStringCompare(stringRef, kABPhoneWorkFAXLabel, 0) == 0) {
-		return "work fax";
-	} else if (CFStringCompare(stringRef, kABPhonePagerLabel, 0) == 0) {
-		return "pager";
-	} else if (CFStringCompare(stringRef, kABPhoneWorkLabel, 0) == 0) {
-		return "work";
-	} else if (CFStringCompare(stringRef, kABPhoneHomeLabel, 0) == 0) {
-		return "home";
-	} else if (CFStringCompare(stringRef, kABPhoneMainLabel, 0) == 0) {
-		return "main";
-	} else {
-		return extractCFStringPtr(stringRef, buffer, bufferSize);
-	}
-}
-
 /* void getCards (out unsigned long count, [array, retval, size_is (count)] out INativeAddressCard cards); */
 NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAddressCard ***cards NS_OUTPARAM)
 {
