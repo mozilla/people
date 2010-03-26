@@ -103,15 +103,15 @@ NativeAddressBookImporter.prototype = {
 					person.phoneNumbers.push({value:phoneValues[j], type:phoneLabels[j]});
 				}
 
-	/*			person.links = []
+	/*			person.urls = []
 				let urlLabels = allCards[i].getPropertyListLabels("urls", []);
 				let urlValues = allCards[i].getPropertyListValues("urls", []);
 				for (let j=0;j<urlLabels.length;j++) {
-					person.links.push({value:urlValues[j], type:urlLabels[j]});
+					person.urls.push({value:urlValues[j], type:urlLabels[j]});
 				}
 	*/
 
-				people.push(new PoCoPerson(person).obj);
+				people.push(person);
 			}
 			this._log.info("Adding " + people.length + " Native address book contacts to People store");
       People.add(people, this, progressFunction);

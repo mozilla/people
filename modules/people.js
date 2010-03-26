@@ -97,7 +97,8 @@ PeopleService.prototype = {
               "guid TEXT UNIQUE NOT NULL, " +
               "json TEXT NOT NULL"
     },
-    index_tables: ["displayName", "givenName", "familyName", "emails"]
+    index_tables: ["displayName", "givenName", "familyName", "emails"],
+    index_fields: ["displayName", "name/givenName", "name/familyName", "emails"]
   },
 
   get _dbFile() {
@@ -291,6 +292,11 @@ PeopleService.prototype = {
       }
     return wrappedStmt;
   },
+  
+  
+  //------------------------------------------------------------------------------------
+  // Begin access methods:
+  //------------------------------------------------------------------------------------
 
   changeGUID: function changeGUID(from, to) {
     let people = this.find({guid: from});
@@ -374,11 +380,17 @@ PeopleService.prototype = {
     }
   },
 
-  _updateIndexed: function _updateIndexed(person_id, person) {
-    for each (let idx in this._dbSchema.index_tables) {
-      this._clearIndexed(person_id, idx);
-      if (idx in person)
-        this._addIndexed(person[idx], idx, person_id);
+  /** Note that person_id is the database person_id, not a GUID.
+   * personObj must be a Person, not a raw document. */
+  _updateIndexed: function _updateIndexed(person_id, personObj) {
+    for (let idx in this._dbSchema.index_tables) {
+      var tableIndex = this._dbSchema.index_tables[idx];
+      var field = this._dbSchema.index_fields[idx];
+      this._clearIndexed(person_id, tableIndex);
+      let val = personObj.getProperty(field);
+      if (val) {
+        this._addIndexed(val, tableIndex, person_id);
+      }
     }
   },
 	
@@ -406,30 +418,7 @@ PeopleService.prototype = {
     }
 	},
 
-	findDuplicateGUID: function findDuplicate(person) {
-    // TODO: This is much slower than I would like.  Are the indices working properly?
-    
-    var start = (new Date).getTime();
-
-		// Try email:
-		if (person.emails && person.emails.length > 0 && person.emails[0].value) {
-			match = this._find("guid", {emails: "=" + person.emails[0].value});
-			if (match && match.length > 0) {
-				return match[0];
-			}
-		}
-		
-		// Now try full name match:
-		if (person.displayName && person.displayName != "undefined" && person.displayName != "null") {
-			match = this._find("guid", {displayName: "=" + person.displayName});
-			if (match && match.length > 0) {
-				return match[0];
-			}
-		}
-    
-		return null;
-	},
-  
+  /* Returns a map from lowercased email addresses to GUIDs for all records */
   getEmailToGUIDLookup: function getEmailToGUIDLookup() {
     emailLookup = {};
     var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN emails t0 ON t0.person_id = p.id");
@@ -448,144 +437,246 @@ PeopleService.prototype = {
     }
   },
 
-  add: function add(person, service, progressFunction) {
-    let peopleArray;
+  /* Returns a map from lowercased displayNames to GUIDs for all records */
+  getDisplayNameToGUIDLookup: function getDisplayNameToGUIDLookup() {
+    displayNameLookup = {};
+    var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN displayName t0 ON t0.person_id = p.id");
+    try{
+      stmt.reset();
+      while (stmt.step()) {  
+        let guid = stmt.row.guid;  
+        let val = stmt.row.val;  
+        displayNameLookup[val.toLowerCase()] = guid;
+      }
+      return displayNameLookup;
+    } catch (e) {
+      this._log.warn("Unable to perform displayName to GUID lookup: " + e);
+    } finally {
+      stmt.reset();
+    }
+  },
+  
+	_searchForMergeTarget: function _searchForMergeTarget(personDoc) {
+    // TODO: This is much slower than I would like.  Are the indices working properly?
     
+		// Try all emails:
+		if (personDoc.emails && personDoc.emails.length > 0) {
+      for each (let anEmail in personDoc.emails) {
+        if (anEmail.value) {
+          match = this._find("guid", {emails: "=" + anEmail.value});
+          if (match && match.length > 0) {
+            return match[0];
+          }
+        }
+			}
+		}
+		
+		// Now try full name match:
+		if (personDoc.displayName && personDoc.displayName != "undefined" && personDoc.displayName != "null") {
+			match = this._find("guid", {displayName: "=" + personDoc.displayName});
+			if (match && match.length > 0) {
+				return match[0];
+			}
+		}
+    
+		return null;
+	},
+
+
+  /** TODO: Need a way to specify a GUID on new person doc add *****/
+  
+  _createMergeFinder: function _createMergeFinder(sizeHint) {
+    var finder = {
+      people: this,
+      
+      findMergeTarget: function findMergeTarget(aPersonDoc) {
+
+        if (this.emailLookup) {
+          for each (anEmail in aPersonDoc.emails) {
+            if (this.emailLookup[anEmail.value.toLowerCase()]) {
+              return emailLookup[anEmail.value.toLowerCase()];
+            }
+          }
+        }
+
+        if (this.displayNameLookup) {
+          if (aPersonDoc.displayName && this.displayNameLookup[aPersonDoc.displayName.toLowerCase()]) {
+            return this.displayNameLookup[aPersonDoc.displayName.toLowerCase()];
+          }
+          // If we have a lookup and we didn't find a match, don't fall
+          // through to the database search; just return.
+          return null;
+        }
+        return this.people._searchForMergeTarget(aPersonDoc);
+      },
+      
+      addPerson: function addPerson(aPersonDoc, guid) {
+        if (this.displayNameLookup && aPersonDoc.displayName) 
+          this.displayNameLookup[aPersonDoc.displayName.toLowerCase()] = guid;
+
+        if (this.emailLookup && aPersonDoc.emails) {
+          for each (anEmail in aPersonDoc.emails) {
+            if (anEmail.value) {
+              this.emailLookup[anEmail.value.toLowerCase()] = guid;
+            }
+          }
+        }      
+      }
+    }
+    if (sizeHint > 50) { // it's worth it to build a lookup table...
+      finder.emailLookup = this.getEmailToGUIDLookup();
+      finder.displayNameLookup = this.getDisplayNameToGUIDLookup();
+    }
+    return finder;
+  },
+  
+  add: function add(document, service, progressFunction) {
+    let docArray;
     if (Utils.isArray(arguments[0])) {
-      peopleArray = arguments[0];
+      docArray = arguments[0];
     } else {
-      peopleArray = [person];
+      docArray = [document];
     }
 
     try {
       this._db.beginTransaction();
 
-      duplicates = []
-      let emailLookup, displayNameLookup;
+      merges = []
       this._log.debug("Beginning People.add");
+      let mergeFinder = this._createMergeFinder(docArray.length);
       
-      if (peopleArray.length > 50) { // it's worth it to build a lookup table...
-        var start = (new Date).getTime();
-        emailLookup = {};
-        displayNameLookup = {};
-        
-        var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN emails t0 ON t0.person_id = p.id");
-        stmt.reset();
-        while (stmt.step()) {  
-          let guid = stmt.row.guid;  
-          let val = stmt.row.val;  
-
-          emailLookup[val.toLowerCase()] = guid;
-        }
-
-        var stmt = this._dbCreateStatement("SELECT guid, val FROM people p JOIN displayName t0 ON t0.person_id = p.id");
-        stmt.reset();
-        while (stmt.step()) {  
-          let guid = stmt.row.guid;  
-          let val = stmt.row.val;  
-          
-          displayNameLookup[val.toLowerCase()] = guid;
-        }
-        
-        var stop = (new Date).getTime();
-      }
-      
-      
-      for (var i=0;i<peopleArray.length;i++) {
+      for (var i=0;i<docArray.length;i++) {
         if (progressFunction) {
-          progressFunction("Adding; " + Math.floor(i * 100 / peopleArray.length) + "%");
+          progressFunction("Adding; " + Math.floor(i * 100 / docArray.length) + "%");
         }
 
-        var person = peopleArray[i];
-        var start = (new Date).getTime();
-        this._log.debug("Adding person " + i + ": " + person.displayName);
+        var personDoc = docArray[i];
+        this._log.debug("Adding person " + i + ": " + personDoc.displayName);
         
-        // Check for duplicate, and merge if so.
-        let dupMatchTargetGUID;
-        if (person.guid) {
-          // if the caller provided a GUID, we assume they know what they're doing.
-          dupMatchTargetGUID = person.guid;
-        } else if (emailLookup) {
-          for each (anEmail in person.emails) {
-            if (emailLookup[anEmail.value.toLowerCase()]) {
-              dupMatchTargetGUID = emailLookup[anEmail.value.toLowerCase()];
-              break;
-            }
-          }
-          if (!dupMatchTargetGUID) {
-            if (person.displayName && displayNameLookup[person.displayName.toLowerCase()]) {
-              dupMatchTargetGUID = displayNameLookup[person.displayName.toLowerCase()];
-            }
-          }
-        }
-        else dupMatchTargetGUID = this.findDuplicateGUID(person);
-
-        if (dupMatchTargetGUID) {
-          duplicates.push([person, dupMatchTargetGUID]);
+        // Check for merge:
+        let mergeTargetGUID = mergeFinder.findMergeTarget(personDoc);
+        if (mergeTargetGUID) {
+          merges.push([personDoc, mergeTargetGUID]);
           continue;
         }
-        var dup = (new Date).getTime();
 
-        // Not a duplicate: put it into the database
-        person.guid = person.guid || Utils.makeGUID();
+        // No, perform insert:
+        let guid = Utils.makeGUID();
+
         let stmt;
         try {
           let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
-          let params = {
-            guid: person.guid,
-            json: JSON.stringify(person)
+
+          // Object as defined by https://wiki.mozilla.org/Labs/Weave/Contacts/SchemaV2
+          let documents = {};
+          documents[service.name] = personDoc;
+          let obj = {
+            guid: guid,
+            documents: documents,
+            schema: "http://labs.mozilla.com/schemas/people/2"
           };
-          
-          this._log.info("Stringified as "+ params.json);
-          
+          let params = {
+            guid: guid,
+            json: JSON.stringify(obj)
+          };
           stmt = this._dbCreateStatement(query, params);
-          this._log.debug("Inserted new person");
           stmt.execute();
-          this._updateIndexed(this._db.lastInsertRowID, person);
+          this._updateIndexed(this._db.lastInsertRowID, new Person(obj));
+          mergeFinder.addPerson(personDoc, guid);
           
         } catch (e) {
           this._log.warn("add failed: " + Utils.exceptionStr(e));
-          // this._db.rollbackTransaction();
-          // return {error: "fail", person: person};
-
         } finally {
           if (stmt)
             stmt.reset();
         }
-        Observers.notify("people-add", person.guid);
-
-        var stop = (new Date).getTime();
-        this.findDupTime += dup - start;
-        this.addTime += stop - dup;
+        Observers.notify("people-add", guid);
       }
       this._db.commitTransaction();
 
-      progressFunction("Resolving duplicates");
-      this._log.debug("Resolving duplicates");
+      progressFunction("Resolving merges");
+      this._log.debug("Resolving merges");
 
-      for each (aDup in duplicates) {
-        person = aDup[0];
-        dupMatchTargetGUID = aDup[1];
+      for each (aMerge in merges) {
+        personDoc = aMerge[0];
+        mergeTargetGUID = aMerge[1];
         
-        let dupMatchTargetList = this._find("json", {guid:dupMatchTargetGUID}).map(function(json) JSON.parse(json));
+        let dupMatchTargetList = this._find("json", {guid:mergeTargetGUID}).map(function(json) JSON.parse(json));
         let dupMatchTarget = dupMatchTargetList[0];
 
-        this._log.info("Resolving duplicate " + dupMatchTargetGUID + " (" + dupMatchTarget.displayName + ")");
+        this._log.info("Resolving merge " + mergeTargetGUID + " (" + personDoc.displayName + ")");
 
-        this.mergePerson(dupMatchTarget, person, service);
-        this.update(dupMatchTarget);
+        // Blow away the existing service record?  Merging could be nice...
+        if (dupMatchTarget.documents[service.name]) {
+          this.mergeDocuments(dupMatchTarget.documents[service.name], personDoc);
+        } else {
+          dupMatchTarget.documents[service.name] = personDoc;
+        }
+
+        // this.mergeIntoRecord(dupMatchTarget, personDoc, service);
+        this._update(dupMatchTarget);
         Observers.notify("people-update", dupMatchTarget.guid); // wonder if this should be add. probably not.
-      }    
+      }
     } catch (e) {
       this._log.warn("add failed: " + Utils.exceptionStr(e));
       this._db.rollbackTransaction();
-      return {error: "fail", person: person};
+      return {error: "fail", person: personDoc};
     }
+    this._log.debug("Finished People.add");
     
     return null;
   },
 
-  update: function update(person) {
+  update: function update(guid, service, document) {
+  
+    let stmt;
+    try {
+      this._db.beginTransaction();
+
+      let query = "SELECT * FROM people WHERE guid = :guid";
+      let params = {
+        guid: guid
+      };
+      stmt = this._dbCreateStatement(query, params);
+
+      let oldJson, id;
+      while (stmt.step()) {
+        id = stmt.row.id;
+        oldJson = stmt.row.json;
+      }
+      if (!oldJson)
+        throw "no object for guid " + guid;
+      stmt.reset();
+
+      let person = JSON.parse(oldJson);
+      person.documents[service.name] = document;
+
+      query = "UPDATE people SET json = :json WHERE id = :id";
+      params = {
+        id: id,
+        json: JSON.stringify(person)
+      };
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+
+      this._updateIndexed(id, new Person(person));
+      this._db.commitTransaction();
+
+    } catch (e) {
+      this._log.warn("update failure: " + Utils.exceptionStr(e));
+      this._db.rollbackTransaction();
+      return {error: e.message, person: person};
+
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
+
+    Observers.notify("people-update", guid);
+    return null;
+  },
+
+  _update: function _update(person) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
 
@@ -618,12 +709,12 @@ PeopleService.prototype = {
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
 
-      this._updateIndexed(id, person);
+      this._updateIndexed(id, new Person(person));
 
       this._db.commitTransaction();
 
     } catch (e) {
-      this._log.warn("update failure: " + Utils.exceptionStr(e));
+      this._log.warn("_update failure: " + Utils.exceptionStr(e));
       this._db.rollbackTransaction();
       return {error: e.message, person: person};
 
@@ -697,6 +788,8 @@ PeopleService.prototype = {
 			
 			let matchSet = []
 			for (let obj in result) {
+
+        //////// TODO: Need to traverse all documents here
 				if (obj.attr == val) {
 					matchSet.push(obj);
 				}
@@ -706,7 +799,7 @@ PeopleService.prototype = {
 		return result;
   },
 
-	mergePerson: function merge(dest, source, service) {
+	mergeDocuments: function merge(destDocument, sourceDocument) {
 		function objectEquals(obj1, obj2) {
 				for (var i in obj1) {
 						if (obj1.hasOwnProperty(i)) {
@@ -727,28 +820,26 @@ PeopleService.prototype = {
     // TODO: Need to get more sensible approach to cardinality.
     // e.g. What if we get two displayNames?
     
-		let otherDoc = source.documents.default;
-		let myDoc = dest.documents.default;
-
-		for (let attr in otherDoc) {
-			if (otherDoc.hasOwnProperty(attr)) {
-				var val = otherDoc[attr];
-				if (!myDoc.hasOwnProperty(attr)) {
-          // first one wins.
-					myDoc[attr] = val;
+		for (let attr in sourceDocument) {
+			if (sourceDocument.hasOwnProperty(attr)) {
+				var val = sourceDocument[attr];
+        
+				if (!destDocument.hasOwnProperty(attr)) {
+          // TODO right now, first one wins.  Need a more sensible approach.
+					destDocument[attr] = val;
 				} 
 				else
 				{
 					if (Utils.isArray(val))
 					{
-						if (Utils.isArray(myDoc[attr]))
+						if (Utils.isArray(destDocument[attr]))
 						{
 							// two arrays, and we need to check for object equality...
 							for (index in val) {
 								var newObj = val[index];
 
                 // Are any of these objects equal?
-                var equalObjs = myDoc[attr].filter(function(item, idx, array) {
+                var equalObjs = destDocument[attr].filter(function(item, idx, array) {
                   if (item.hasOwnProperty("type") && item.hasOwnProperty("value") &&
                       newObj.hasOwnProperty("type") && newObj.hasOwnProperty("value"))
                   {
@@ -778,7 +869,7 @@ PeopleService.prototype = {
                   }
                 );
 								if (equalObjs.length == 0) { // no match, go ahead...
-									myDoc[attr].push(val[index]);
+									destDocument[attr].push(val[index]);
 								}
 							}
 						}
@@ -790,23 +881,6 @@ PeopleService.prototype = {
 				}
 			}
 		}
-		
-    // Nasty hard-coding of indexed fields here.  Do better,
-    // which means defining cardinality of indexed fields.
-    if (myDoc.displayName)
-      dest.displayName = myDoc.displayName;
-
-    if (myDoc.name) {
-      if (myDoc.name.givenName)
-        dest.givenName = myDoc.name.givenName;
-      if (myDoc.name.familyName)
-        dest.familyName = myDoc.name.familyName;
-    }
-
-    if (dest.emails) dest.emails = [];
-    for each (let e in myDoc.emails) {
-      dest.emails.push({value: e.value, type: e.type});
-    }
 	},
 
 
@@ -834,7 +908,7 @@ PeopleService.prototype = {
   },
 
   find: function find(attrs) {
-    return this._find("json", attrs).map(function(json) JSON.parse(json));
+    return this._find("json", attrs).map(function(json) {let p = JSON.parse(json); return new Person(p);});
   },
 	
 
@@ -848,13 +922,14 @@ PeopleService.prototype = {
   
   doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {
 		Cu.import("resource://people/modules/import.js");    
-    var personResultSet = this._find("json", {guid:personGUID}).map(function(json) JSON.parse(json));
+    var personResultSet = this._find("json", {guid:personGUID}).map(function(json) {return new Person(JSON.parse(json));});
     this._log.warn("Performing discovery on GUID " + personGUID);
-    this._log.warn("Got result set " + personResultSet + " (length " + personResultSet.length + ")");
-    this._log.warn("Object 0 is " + personResultSet[0]);
-    this._log.warn("Object 0.json is " + JSON.stringify(personResultSet[0]));
     
-		PeopleImporter.getDiscoverer(svcName).discover(personResultSet[0], completionCallback, progressFunction);
+    let discoverer = PeopleImporter.getDiscoverer(svcName);
+    if (discoverer) {
+      let newDoc = PeopleImporter.getDiscoverer(svcName).discover(personResultSet[0], completionCallback, progressFunction);
+      if (newDoc) this.update(personGUID, discoverer, newDoc);
+    }
   },
 	
 	resetSavedPermissions : function resetSavedPermissions() {
@@ -973,6 +1048,146 @@ PeopleService.prototype = {
   
 };
 
+// Method to bind to person objects after they are pulled from the database:
+// See https://wiki.mozilla.org/Labs/Sprints/People for schema
+function Person(obj) {
+  this._init(obj);
+}
+Person.prototype = {
+
+  _init: function Person__init(obj) {
+    this.obj = obj;
+    this.guid = obj.guid;
+    this.displayName = this.getProperty("displayName");
+  },
+  
+  // Traverse all the documents of this person,
+  // collecting values of aProperty.
+  
+  // The value of aProperty may contain limited XPath-like
+  // syntax.  Specifically, it may contain:
+  // * slashes, to indicate subproperties, e.g. "name/givenName"
+  // * NOT IMPLEMENTED: [<test>], to indicate subfield selection, e.g. "accounts[domain='twitter.com']"  
+
+  getProperty: function getProperty(aProperty) {
+    let terms = aProperty.split('/');
+    if (terms.length == 1) { // easy case
+      return this._searchCollection(aProperty, this.obj.documents, "");
+    }
+    
+    let currentSet = [];
+    for each (let d in this.obj.documents) currentSet.push(d);
+    let currentPrefix = "";
+    for each (let term in terms)
+    {
+      if (!Utils.isArray(currentSet)) currentSet = [currentSet];
+      currentSet = this._searchCollection(term, currentSet, currentPrefix);
+      if (currentSet == null) break;
+      currentPrefix = currentPrefix + "/" + term;
+    }
+    return currentSet;
+  },
+
+  // Internal function: given an array of field-addressible objects,
+  // searches for the given property in all of them.
+  _searchCollection: function _searchCollection(property, collection, propertyNameContext)
+  {
+    let returnValue = null;
+    for (anIndex in collection)
+    {
+      let anObject = collection[anIndex];
+      if (anObject[property]) {
+        if (returnValue) {
+					returnValue = this._mergeFields(propertyNameContext + property, returnValue, anObject[property]);
+        } else {
+          if (Utils.isArray(anObject[property])) {
+            // need to make a shallow copy of the array, so we can merge into it later...
+            returnValue = anObject[property].slice(0);
+          } else {
+            returnValue = anObject[property];
+          }
+        }
+      }
+    }
+    return returnValue;  
+  },
+  
+  // Given two values, returns their union according to the rules of <fieldName>.
+  _mergeFields: function mergeFields(fieldName, currentValue, newValue) {
+    // TODO: We should be prescriptive about cardinality here.
+    // For now we just merge lists.
+    if (Utils.isArray(currentValue))
+    {
+      if (Utils.isArray(newValue))
+      {
+        // two arrays, and we need to check for object equality...
+        for (index in newValue) {
+          var newObj = newValue[index];
+
+          // Do any of the objects in newValue match newObj?
+          var equalObjs = currentValue.filter(function(item, idx, array) 
+          {
+            if (item.hasOwnProperty("type") && item.hasOwnProperty("value") &&
+                newObj.hasOwnProperty("type") && newObj.hasOwnProperty("value"))
+            {
+              // special-case for type-value pairs.  If the value is identical,
+              // we may want to discard one of the types -- unless they have
+              // different rels.
+              if (newObj.value == item.value) {
+                if (newObj.type == item.type) {
+                  if (newObj.rel == item.rel) {
+                    return true;
+                  }
+                } else if (newObj.type == "internet") {// gross hack for VCard email
+                  newObj.type = item.type;
+                  return true;
+                } else if (item.type == "internet") {
+                  item.type = newObj.type;
+                  return true;
+                } else {
+                  // Could, potentially, combine the types?
+                  return false;
+                }
+              }
+            }
+            else
+            {
+              return objectEquals(item, newObj)}
+            }
+          );
+
+          if (equalObjs.length == 0) { // no match, go ahead...
+            currentValue.push(newObj);
+          }
+        }
+      }
+      else
+      {
+        People._log.info("Cardinality error: property " + fieldName + " is a list in one document, and a field in another");
+      }
+    }
+    
+    // If it's not a list, first one wins.  TODO: Do better than that.
+    return currentValue;
+  }
+  
+};
+
+function objectEquals(obj1, obj2) {
+  for (var i in obj1) {
+      if (obj1.hasOwnProperty(i)) {
+          if (!obj2.hasOwnProperty(i)) return false;
+          if (obj1[i] != obj2[i]) return false;
+      }
+  }
+  for (var i in obj2) {
+      if (obj2.hasOwnProperty(i)) {
+          if (!obj1.hasOwnProperty(i)) return false;
+          if (obj1[i] != obj2[i]) return false;
+      }
+  }
+  return true;
+}
 
 
 let People = new PeopleService();

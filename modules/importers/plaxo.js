@@ -34,8 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let EXPORTED_SYMBOLS = [];
-
+let EXPORTED_SYMBOLS = ["PlaxoImporter"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -43,47 +42,24 @@ const Cu = Components.utils;
 
 Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
-Cu.import("resource://people/modules/ext/md5.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
+Cu.import("resource://people/modules/ext/resource.js");
+Cu.import("resource://people/modules/importers/genericpoco.js");
 
-function GravatarImageDiscoverer() {
-  this._log = Log4Moz.repository.getLogger("People.GravatarImageImporter");
+
+function PlaxoImporter() {
+  this._log = Log4Moz.repository.getLogger("People.PlaxoImporter");
   this._log.debug("Initializing importer backend for " + this.displayName);
+  this.provider = "http://www.plaxo.com";
+}
+PlaxoImporter.prototype = {
+  __proto__: GenericPoCoImporter.prototype,
+  get name() "Plaxo",
+  get displayName() "Plaxo Contacts",
+  get iconURL() "chrome://people/content/images/plaxo.png",
 };
 
-GravatarImageDiscoverer.prototype = {
-  __proto__: DiscovererBackend.prototype,
-  get name() "Gravatar",
-  get displayName() "Gravatar Avatar Images",
-	get iconURL() "chrome://people/content/images/gravatar.png",
-
-  discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Scanning current People store for Gravatar icons.");
-
-    let newPerson = null;
-    for each (let email in forPerson.getProperty("emails")) {
-      try {
-        let md5 = hex_md5(email.value);
-        let gravLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-        gravLoad.open('GET', "http://www.gravatar.com/avatar/" + md5 + "?d=404&s=1", false);
-        gravLoad.send(null);
-        if (gravLoad.status == 200) {
-          newPerson= {}
-          newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
-          this._log.info("Checked " + email + ": found a Gravatar");
-          break;
-        } else {
-          this._log.info("Checked " + email + ": no Gravatar");
-        }
-      } catch (e) {
-        this._log.info("Gravatar import error: " + e);
-      }
-    }
-    completionCallback(null);
-    return newPerson;
-  }
-}
 
 
-PeopleImporter.registerDiscoverer(GravatarImageDiscoverer);
+PeopleImporter.registerBackend(PlaxoImporter);

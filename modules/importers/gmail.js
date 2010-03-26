@@ -228,7 +228,7 @@ GmailImporter.prototype = {
           fencepost = !fencepost;
           continue;
         } else {
-          people.push(new PoCoPerson(cur).obj);
+          people.push(cur);
           cur = {};
           continue;
         }

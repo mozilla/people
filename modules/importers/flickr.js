@@ -54,7 +54,7 @@ function FlickrAccountDiscoverer() {
 };
 
 FlickrAccountDiscoverer.prototype = {
-  __proto__: ImporterBackend.prototype,
+  __proto__: DiscovererBackend.prototype,
   get name() "Flickr",
   get displayName() "Flickr Account",
 	get iconURL() "",
@@ -62,9 +62,12 @@ FlickrAccountDiscoverer.prototype = {
   discover: function FlickrAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
     let flickrKey = "c0727ed63fc7eef37d8b46c57eec4b2e";
     
+    let newPerson;
+    
     this._log.debug("Discovering Flickr account for " + forPerson.displayName);
-    for each (let email in forPerson.emails) {
+    for each (let email in forPerson.getProperty("emails")) {
       progressFunction("Checking address with Flickr.");
+      
       let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
       load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.findByEmail&api_key=" + flickrKey + "&find_email=" + encodeURIComponent(email.value), false);
       load.send(null);
@@ -91,10 +94,19 @@ FlickrAccountDiscoverer.prototype = {
             let realname = personDOM.getElementsByTagName("realname")[0];
             // let profileurl = personDOM.getElementsByTagName("profileurl")[0];
 
-            newPerson = {};
-            if (username) newPerson.accounts = [{type:"Flickr", value:username.textContent}]
-            if (location) newPerson.location = [{type:"Location", value:location.textContent}]
-            if (photosurl) newPerson.links = [{type:"Flickr", value:photosurl.textContent}]
+            if (!newPerson) newPerson = {};
+            if (username) {
+              if (!newPerson.accounts) newPerson.accounts = [];
+              newPerson.accounts.push({domain:"flickr.com", type:"Flickr", username:username.textContent, userid:nsID});
+            }
+            if (location) {
+              if (!newPerson.location) newPerson.location = [];
+              newPerson.location.push({type:"Location", value:location.textContent});
+            }
+            if (photosurl) {
+              if (!newPerson.urls) newPerson.urls = [];
+              newPerson.urls.push({type:"Flickr", value:photosurl.textContent});
+            }
             if (realname) {
               var n = realname.textContent;
               newPerson.displayName = n;
@@ -105,11 +117,6 @@ FlickrAccountDiscoverer.prototype = {
               newPerson.name.givenName = split[0];
               newPerson.name.familyName = split.splice(1, 1).join(" ");
             }
-          
-            this._log.debug("Found Flickr account for " + email.value);
-            var pocoPerson = new PoCoPerson(newPerson);
-            pocoPerson.obj.guid = forPerson.guid;
-            People.add(pocoPerson.obj, this, progressFunction);
           }
         }
       } else {
@@ -117,6 +124,7 @@ FlickrAccountDiscoverer.prototype = {
       }
     }
     completionCallback(null);
+    return newPerson;
   }
 }
 

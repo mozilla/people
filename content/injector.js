@@ -239,6 +239,7 @@ let PeopleInjector = {
 					} else {
 						People._log.warn("selecting all people");
 					}
+
 					let outputSet = [];
 					for each (p in people) {
 						if (peopleGuidMap == null || peopleGuidMap[p.guid]) {
@@ -247,19 +248,15 @@ let PeopleInjector = {
 							// to a simple, flat, single-schema representation:
 							let newPerson = {}
 							for each (f in fields) {
-								// find that field in the person... for now we just look in the default document
-								if (p.documents.default[f] != undefined) {
-									newPerson[f] = p.documents.default[f];
-								}
-							}
-							outputSet.push(newPerson);
+                p.getProperty(f);
+              }
+							outputSet.push(p);
 						}
 					}
 					people = outputSet;
 				}
 				else
 				{
-					
 					people = People.find(attrs);
 					// FIXME: detect errors finding people and call the failure callback.
 				}

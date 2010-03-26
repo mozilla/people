@@ -3,6 +3,7 @@
     xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
     version="-//W3C//DTD XHTML 1.1//EN" xml:lang="en">
 <head>
+  <title>Contacts</title>
  <link rel="stylesheet"
       href="chrome://people/content/manager.css"
       type="text/css" />
@@ -45,7 +46,7 @@ function importerComplete(error, service)
     updateImportProgress(service, error.message);
   } else {
     updateImportProgress(service, null);
-    navigator.people.find( {}, null, PeopleManager.render);
+    navigator.people.find( {}, null, PeopleManager.loadComplete);
   }
 }
 
@@ -58,13 +59,13 @@ function resetSavedPerms()
 function deleteAll()
 {
   People.deleteAll();
-  navigator.people.find( {}, null, PeopleManager.render);
+  navigator.people.find( {}, null, PeopleManager.loadComplete);
 }
 
 function setContactDisplayMode(mode)
 {
  contactDisplayMode = mode;
-  navigator.people.find( {}, null, PeopleManager.render);
+ PeopleManager.render();
 }
 
 function renderPermissions()
@@ -88,11 +89,15 @@ function renderPermissions()
 
     permissionTable.appendChild(aDiv);
   }
-  
-
 }
 
+/*function resize()
+{
+  PeopleManager.render();
+}*/
+
 $(document).ready(function(){
+  // window.onresize = resize;
   selectPane("contact");
   Components.utils.import("resource://people/modules/import.js");
   Components.utils.import("resource://people/modules/people.js");
@@ -133,6 +138,7 @@ $(document).ready(function(){
   }
   renderPermissions();
 });
+
 function setsrc(id, u)
 {
   document.getElementById(id).src = u;
@@ -141,6 +147,9 @@ function setsrc(id, u)
 var contactDisplayMode = "table";  
 var PANES = ["contact", "service", "permission"];
 function selectPane(pane) {
+  document.getElementById("contacts").style.display= (pane == "contact"?"block":"none");
+  document.getElementById("contactdetail").style.display=(pane == "contact"?"block":"none");
+
   for each (var p in PANES) {
     if (p == pane) {
       document.getElementById(p + "pane").style.display="block";
@@ -154,136 +163,108 @@ function selectPane(pane) {
 </script>
 
 <body id="body">
-  <div class="controlbar">
+<div class="controlbar">
 
-    <div id="contactpaneswitch" class="controlbutton" onclick="selectPane('contact')">
-      <img src="images/people.png"/><br/>
-      Contacts
-    </div>
-    <div id="servicepaneswitch" class="controlbutton" onclick="selectPane('service')">
-      <img src="images/services.png"/><br/>
-      <div class="controlbuttonlabel">Services</div>
-    </div>
-    <div id="permissionpaneswitch" class="controlbutton" onclick="selectPane('permission')">
-      <img src="images/lock.png"/><br/>
-      Permissions
-    </div>
-
-    <div id="message"></div>
-
+  <div id="contactpaneswitch" class="controlbutton" onclick="selectPane('contact')">
+    <img src="images/people.png"/><br/>
+    Contacts
+  </div>
+  <div id="servicepaneswitch" class="controlbutton" onclick="selectPane('service')">
+    <img src="images/services.png"/><br/>
+    <div class="controlbuttonlabel">Services</div>
+  </div>
+  <div id="permissionpaneswitch" class="controlbutton" onclick="selectPane('permission')">
+    <img src="images/lock.png"/><br/>
+    Permissions
   </div>
 
-  <div style="display:none" id="contactpane">
+</div>
 
+<div style="display:none" id="contactpane">
   <div class="contactcontrols">
-	<div class="searchframe">Search:
+  <div class="searchframe">Search:
     <div class="searchbubble">
-		 <input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
-		<img align="top" src="chrome://people/content/images/search-textbox.png"/>
+     <input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
+    <img align="top" src="chrome://people/content/images/search-textbox.png"/>
     </div>
-	</div>
-  
+  </div>
+
   <div id="contactdisplaymodes">
-  <div onclick="setContactDisplayMode('cards')" class="contactdisplaymode"><img src="images/cards.png"/></div>
-  <div onclick="setContactDisplayMode('table')" class="contactdisplaymode"><img src="images/table.png"/></div>
+    <div onclick="setContactDisplayMode('cards')" class="contactdisplaymode"><img src="images/cards.png"/></div>
+    <div onclick="setContactDisplayMode('table')" class="contactdisplaymode"><img src="images/table.png"/></div>
   </div>
   </div>
+</div>
 
-  <div id="contacts"></div>
+<div style="display:none" id="servicepane">
 
-  </div>
-  <div style="display:none" id="servicepane">
+<a target="_blank" href="http://mozillalabs.com/browser-contacts"><img style="position:absolute;left:850px;top:20px" src="images/experiment.png"/></a>
+<p style="color:#505050;font-weight:normal">
+This is a <b>Mozilla Labs Experiment</b>.  It is NOT production-quality code.  It
+may crash, generate incorrect output, or contain security bugs.  Please do not use it
+on Firefox profile you cannot afford to lose.  If you do not know what a Firefox Profile
+is, you may want to read about them <a href="http://support.mozilla.com/en-US/kb/Managing+profiles?bl=n&amp;s=profile&amp;as=q">here</a>;
+they are a good way to experiment with Firefox addons without putting your data at risk.
+</p>
 
-  <a target="_blank" href="http://mozillalabs.com/browser-contacts"><img style="position:absolute;left:850px;top:20px" src="images/experiment.png"/></a>
-  <p style="color:#505050;font-weight:normal">
-  This is a <b>Mozilla Labs Experiment</b>.  It is NOT production-quality code.  It
-  may crash, generate incorrect output, or contain security bugs.  Please do not use it
-  on Firefox profile you cannot afford to lose.  If you do not know what a Firefox Profile
-  is, you may want to read about them <a href="http://support.mozilla.com/en-US/kb/Managing+profiles?bl=n&amp;s=profile&amp;as=q">here</a>;
-  they are a good way to experiment with Firefox addons without putting your data at risk.
-  </p>
+<p>
+<b>Firefox Contacts</b> reads your contact information from any website or program
+on your computer, and uses it to enhance your web browsing experience.
+</p>
 
-  <p>
-  <b>Firefox Contacts</b> reads your contact information from any website or program
-  on your computer, and uses it to enhance your web browsing experience.
-  </p>
+<p>
+Contacts will try to connect contacts that probably represent the same person by
+looking at email addresses and full names.
+</p>
 
-  <p>
-  Contacts will try to connect contacts that probably represent the same person by
-  looking at email addresses and full names.
-  </p>
+<div class="controlsubhead">Contact Services</div>
+<p>
+<div style="float:right">
+  <input type="submit" 
+    onclick="javascript:window.open('directory.xhtml', '_blank')" value="Find More Services"/></div>
+These are services that Firefox can load your contacts from.
+</p>
 
-  <div class="controlsubhead">Contact Services</div>
-  <p>
-  <div style="float:right">
-    <input type="submit" 
-      onclick="javascript:window.open('directory.xhtml', '_blank')" value="Find More Services"/></div>
-  These are services that Firefox can load your contacts from.
-  </p>
+<div id="importerbadges">
+</div>
 
-	<div id="importerbadges">
+<p style="color:#808080"><i>
+We haven't implemented "Refresh" yet - if you change the data in your services, you
+can empty your address book and import it again.</i></p>
+
+<div class="controlsubhead">Contact Database Management</div>
+
+<p id="contactCount"></p>
+
+<p>
+<div style="float:right"><input type="submit" onclick="javascript:deleteAll()" value="Empty Address Book"/></div>
+Remove all contacts (you can import them again)
+</p>
+
+</div>
+
+<div style="display:none" id="permissionpane">
+<div style="float:right;padding-left:16px"><input type="submit" onclick="javascript:resetSavedPerms()" value="Reset Saved Permissions"/></div>
+
+When web pages request access to your Contacts, you will be asked whether you want
+to give them permission.  This table shows which pages you have granted contact access
+to.
+
+<div id='permissionsTable'>
+
+  <div class="permissionsTableHead">
+    <div class="sitehead">Site</div>
+    <div class="fieldhead">Data Fields</div>
   </div>
   
-  <p style="color:#808080"><i>
-  We haven't implemented "Refresh" yet - if you change the data in your services, you
-  can empty your address book and import it again.</i></p>
-  
-  <div class="controlsubhead">Contact Database Management</div>
+  <div id='permissionsTableBody' class='permissionsTableBody'></div>
+</div>
 
-  <p id="contactCount"></p>
-  
-  <p>
-  <div style="float:right"><input type="submit" onclick="javascript:deleteAll()" value="Empty Address Book"/></div>
-  Remove all contacts (you can import them again)
-  </p>
+</div>
 
-  </div>
-
-  <div style="display:none" id="permissionpane">
-  <div style="float:right;padding-left:16px"><input type="submit" onclick="javascript:resetSavedPerms()" value="Reset Saved Permissions"/></div>
-
-  When web pages request access to your Contacts, you will be asked whether you want
-  to give them permission.  This table shows which pages you have granted contact access
-  to.
-
-  <div id='permissionsTable'>
-  
-    <div class="permissionsTableHead">
-      <div class="sitehead">Site</div>
-      <div class="fieldhead">Data Fields</div>
-    </div>
-    
-    <div id='permissionsTableBody' class='permissionsTableBody'></div>
-  </div>
-
-  </div>
-
-<!--
-
-
-	<form class="controls" method="get">
-
-	<div style="float:left;font-size:16pt;font-weight:bold; margin-left:8px;margin-top:8px">
-		Contacts
-	</div>
-	<div class="searchframe">
-		<input type="text" name="search" class="searchbox" id="searchbox" autocomplete="off"/>
-		<img align="top" src="chrome://people/content/images/search-textbox.png"/>
-	</div>
-
-	<div id="importerbadges"><div id="importerprogressbox"><div id="importerprogressmsg">Import progress:</div><div style="background-color:black;opacity:0.5;height:16px" id="importerprogress"></div></div>Import from:<br/></div>
-	<div id="controllinks">
-		<a class="ctllink" href="javascript:resetSavedPerms()">reset saved permissions</a><br/>
-		<a class="ctllink" href="javascript:deleteAll()">empty addressbook</a><br/>
-	</div>
-	</form>
-
-		<a class="ctllink" href="javascript:resetSavedPerms()">reset saved permissions</a><br/>
-
-	<div id="message" class="message"></div>
-	<div id="results"></div>
-
--->
+<!-- vertical-scrolling elements at top-level for proper 100% height sizing -->
+<div id="contacts"></div>
+<div id="contactdetail"></div>
 
 </body>
 </html>

@@ -43,7 +43,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
-Cu.import("resource://people/modules/ext/md5.js");
 Cu.import("resource://people/modules/ext/resource.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
@@ -54,7 +53,7 @@ function HCardDiscoverer() {
 };
 
 HCardDiscoverer.prototype = {
-  __proto__: ImporterBackend.prototype,
+  __proto__: DiscovererBackend.prototype,
   get name() "HCardProfile",
   get displayName() "HCard Profile Discovery",
 	get iconURL() "",
@@ -62,7 +61,8 @@ HCardDiscoverer.prototype = {
   discover: function HCardDiscoverer_discover(forPerson, completionCallback, progressFunction) {
     this._log.debug("Discovering HCard profiles for " + forPerson.displayName);
 
-    for each (let link in forPerson.documents.default.links) {
+    let newPerson;
+    for each (let link in forPerson.getProperty("urls")) {
       try {
         this._log.debug("Checking link " + link.type + ": " + JSON.stringify(link));
       
@@ -73,7 +73,7 @@ HCardDiscoverer.prototype = {
           let dom = hcardResource.get().dom;
 
           let relMeIterator = Utils.xpath(dom, "//*[@rel='me']");
-          newPerson = {};
+          if (newPerson == null) newPerson = {};
           let anElement;
           this._log.debug("relMeIterator.resultType " + relMeIterator.resultType);
 
@@ -106,8 +106,8 @@ HCardDiscoverer.prototype = {
                   value: href
                 };
                 
-                if (newPerson.links == undefined) newPerson.links = [];
-                newPerson.links.push(aLink);
+                if (newPerson.urls == undefined) newPerson.urls = [];
+                newPerson.urls.push(aLink);
               } else {
                 this._log.debug("Found a link with rel=me but it had no href: " + anElement);
               }
@@ -115,11 +115,6 @@ HCardDiscoverer.prototype = {
               this._log.debug("Got a rel=me on a non-link: " + anElement);
             }
           }
-          
-          var pocoPerson = new PoCoPerson(newPerson);
-          pocoPerson.obj.guid = forPerson.guid;
-          this._log.debug("New person going in: " + JSON.stringify(pocoPerson.obj));
-          People.add(pocoPerson.obj, this, progressFunction);
         }
       } catch (e) {
         this._log.warn("Error while handling HCardDiscoverer lookup: " + e);
@@ -127,6 +122,7 @@ HCardDiscoverer.prototype = {
       }
     }
     completionCallback(null);
+    return newPerson;
   }
 }
 

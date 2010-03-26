@@ -95,6 +95,34 @@ function addFieldList(container, aList, defaultType, valueScheme, contentHandler
 	}
 }
 
+function addAccountsList(container, aList)
+{
+	for each (let item in aList) {
+		let row = createDiv("identity");
+		
+		let label = null;
+		if (item.domain) {
+			label = htmlescape(item.domain);
+		} else {
+			label = defaultType;
+		}
+    let value;
+    
+    if (item.username) {
+      value = htmlescape(item.username);
+    } else if (item.userid) {
+      value = htmlescape(item.userid);
+    } else {
+      value = "(no username)";
+    }
+		appendNameValueBlock(row, label, value);
+		container.appendChild(row);
+	}
+}
+
+
+
+
 // Produces a list of elements for the "link" field, filtering based on the content-type
 // to avoid displaying those elements that would be uninteresting to humans.  Also,
 // remove duplicates.
@@ -144,17 +172,17 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
 
 let PeopleManager = {
   onLoad: function() {
-    navigator.people.find( {}, null, PeopleManager.render);
+    navigator.people.find( {}, null, PeopleManager.loadComplete);
   },
 
-	render: function(peopleStore) {
+	loadComplete: function(peopleStore) {
     PeopleManager.resultSet = peopleStore;
-    let results = document.getElementById("contacts");
+/*    let results = document.getElementById("contacts");
     let parent = results.parentNode;
     parent.removeChild(results);
     results = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     results.setAttribute("id", "contacts");
-    parent.appendChild(results);
+    parent.appendChild(results);*/
     
     if (peopleStore.length == 0) {
       document.getElementById('contactCount').innerHTML = "You have no contacts loaded.  Activate a Contact Service to make them available to Firefox.";
@@ -162,38 +190,55 @@ let PeopleManager = {
     }
     else
     {
+      for each (p in peopleStore) {
+        p.givenName = p.getProperty("name/givenName");
+        p.familyName = p.getProperty("name/familyName");
+      }
       document.getElementById('contactCount').innerHTML = "There are " + peopleStore.length + " people in your contacts.  Click 'Contacts', at the top right, to see them.";
       peopleStore.sort(function(a,b) {
-       if (a.familyName && b.familyName) {
-         var ret= a.familyName.localeCompare(b.familyName);
-         if (ret == 0) {
-           return a.givenName.localeCompare(b.givenName);
+       try {
+         if (a.familyName && b.familyName) {
+           var ret= a.familyName.localeCompare(b.familyName);
+           if (ret == 0) {
+             return a.givenName.localeCompare(b.givenName);
+           } else {
+             return ret;
+           }
+         } else if (a.familyName) {
+           return -1;
+         } else if (b.familyName) {
+           return 1;
+         } else if (a.displayName && b.displayName) {
+           return a.displayName.localeCompare(b.displayName);
+         } else if (a.displayName) {
+          return -1;
+         } else if (b.displayName) {
+          return 1;
          } else {
-           return ret;
+          return a.guid.localeCompare(b.guid);
          }
-       } else if (a.familyName) {
-         return -1;
-       } else if (b.familyName) {
-         return 1;
-       } else if (a.displayName && b.displayName) {
-         return a.displayName.localeCompare(b.displayName);
-       } else if (a.displayName) {
-        return -1;
-       } else if (b.displayName) {
-        return 1;
-       } else {
-        return a.guid.localeCompare(b.guid);
-       }
+        } catch (e) {
+          People._log.warn("Sort error: " + e + "; a.familyName is " + a.familyName + ", b.familyName is " + b.familyName);
+          return -1;
+        }
       });
       
-      if (contactDisplayMode == 'table') {
-        PeopleManager.renderTable(peopleStore);        
-        if (PeopleManager.selectedPersonGUID) selectPerson(PeopleManager.selectedPersonGUID);
-      } else if (contactDisplayMode == 'cards') {
-        PeopleManager.renderContactCards(peopleStore);
-      }
+      PeopleManager.render();
     }
 	},
+  
+  render: function render()
+  {
+    document.getElementById("contacts").innerHTML = "";
+    document.getElementById("contactdetail").innerHTML = "";
+
+    if (contactDisplayMode == 'table') {
+      PeopleManager.renderTable(PeopleManager.resultSet);        
+      if (PeopleManager.selectedPersonGUID) selectPerson(PeopleManager.selectedPersonGUID);
+    } else if (contactDisplayMode == 'cards') {
+      PeopleManager.renderContactCards(PeopleManager.resultSet);
+    }  
+  },
 
 	renderContactCards : function(peopleStore)
 	{
@@ -203,14 +248,14 @@ let PeopleManager = {
     results.setAttribute("class", "contactcards");
     for each (let person in peopleStore) {
       try {
-        let id = person.documents.default;
+        // let id = person.documents.default;
         let contact = createDiv("contact");
         let summary = createDiv("summary");
 
         let photo = createDiv("photo");
         let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
         let photoURL = "chrome://people/content/images/person.png"; 
-        for each (let photo in id.photos) {
+        for each (let photo in person.getProperty("photos")) {
           if( photo.type == "thumbnail") {
             photoURL = photo.value;
           }
@@ -221,11 +266,11 @@ let PeopleManager = {
 
         let information = createDiv("information");
         let displayName = createDiv("name");
-        displayName.innerHTML = htmlescape(id.displayName);
+        displayName.innerHTML = htmlescape(person.getProperty("displayName"));
         information.appendChild(displayName);
 
         let description = createDiv("description");
-        for each (let organization in id.organizations) {
+        for each (let organization in person.getProperty("organizations")) {
           description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
         }
         information.appendChild(description);
@@ -234,12 +279,12 @@ let PeopleManager = {
         contact.appendChild(summary);
 
         let identities = createDiv("identities");
-        addFieldList(identities, id.emails, "email", "mailto");
-        addFieldList(identities, id.phoneNumbers, "phone");
-        addFieldList(identities, id.ims);
-        addFieldList(identities, id.accounts);
-        addFieldList(identities, id.links, "URL", "http");
-        addFieldList(identities, id.location);
+        addFieldList(identities, person.getProperty("emails"), "email", "mailto");
+        addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
+        addFieldList(identities, person.getProperty("ims"));
+        addAccountsList(identities, person.getProperty("accounts"));
+        addFieldList(identities, person.getProperty("urls"), "URL", "http");
+        addFieldList(identities, person.getProperty("location"));
 
         contact.appendChild(identities);
         results.appendChild(contact);
@@ -263,14 +308,15 @@ let PeopleManager = {
     contactList.setAttribute("id", "contactlist");
     results.appendChild(contactList);
 
+    // Create the detail area:
     let detail = createDiv("tabledetailpane");
     detail.setAttribute("id", "tabledetailpane");
-    results.appendChild(detail);
+    document.getElementById("contactdetail").appendChild(detail);
 
     for each (let person in peopleStore) {
       try {
         
-        let id = person.documents.default;
+        // let id = person.documents.default;
         let contact =  createDiv("contact");
 
         let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
@@ -282,13 +328,13 @@ let PeopleManager = {
         let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
         a.setAttribute("class", "clink");
         a.setAttribute("href", "javascript:selectPerson('" + person.guid + "')");
-        a.appendChild(document.createTextNode(id.displayName));
+        a.appendChild(document.createTextNode(person.getProperty("displayName")));
         contact.appendChild(a);
 
         // hidden div for name
         let displayName = createDiv("name");
         displayName.setAttribute("style", "display:none");
-        displayName.innerHTML = htmlescape(id.displayName);
+        displayName.innerHTML = htmlescape(person.getProperty("displayName"));
         contact.appendChild(displayName);
         
         contactList.appendChild(contact);
@@ -306,18 +352,26 @@ let PeopleManager = {
 function selectPerson(guid)
 {
   PeopleManager.selectedPersonGUID = guid;
-  detail = document.getElementById('tabledetailpane');
-  detail.innerHTML = "";
 
-  let id = null;
-  for each (let person in PeopleManager.resultSet) {
-    if (person.guid == guid) {
-      id = person.documents.default;
+  let person = null;
+  for each (let aPerson in PeopleManager.resultSet) {
+    if (aPerson.guid == guid) {
+      person = aPerson;
       break;
     }
   }
-  if (!id) return;
-    
+  if (!person) return;
+
+  PeopleManager.selectedPerson = person;
+  renderDetailPane();
+}
+
+function renderDetailPane()
+{
+  let person = PeopleManager.selectedPerson;
+  let container = document.getElementById('tabledetailpane');
+  container.innerHTML = "";
+
   // summary
   //  photo
   //  information
@@ -331,9 +385,16 @@ function selectPerson(guid)
   let summary = createDiv("summary");
   let photo = createDiv("photo");
 
+  let controls = createDiv("detailcontrols");
+  let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+  link.setAttribute("href", "javascript:renderDetailAttributionPane()");
+  link.appendChild(document.createTextNode("Where did this information come from?"));
+  controls.appendChild(link);
+  summary.appendChild(controls);
+
   let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
   let photoURL = "chrome://people/content/images/person.png"; 
-  for each (let photo in id.photos) {
+  for each (let photo in person.getProperty("photos")) {
     if( photo.type == "thumbnail") {
       photoURL = photo.value;
     }
@@ -344,94 +405,224 @@ function selectPerson(guid)
 
   let information = createDiv("information");
   let displayName = createDiv("name");
-  displayName.innerHTML = htmlescape(id.displayName);
+  displayName.innerHTML = htmlescape(person.getProperty("displayName"));
   information.appendChild(displayName);
 
   let description = createDiv("description");
-  for each (let organization in id.organizations) {
+  for each (let organization in person.getProperty("organizations")) {
     description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
   }
   information.appendChild(description);
     
   summary.appendChild(information);
-  detail.appendChild(summary);
+  container.appendChild(summary);
 
   let identities = createDiv("identities");
-  addFieldList(identities, id.emails, "email", "mailto");
-  addFieldList(identities, id.phoneNumbers, "phone");
-  addFieldList(identities, id.ims);
-  addFieldList(identities, id.accounts);
-  addLinksList(identities, id.links);
-  addFieldList(identities, id.location, null, null, "http://maps.google.com/maps?q=");
-  detail.appendChild(identities);
+  addFieldList(identities, person.getProperty("emails"), "mailto");
+  addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
+  addFieldList(identities, person.getProperty("ims"));
+  addAccountsList(identities, person.getProperty("accounts"));
+  addLinksList(identities, person.getProperty("urls"));
+  addFieldList(identities, person.getProperty("location"), null, null, "http://maps.google.com/maps?q=");
+  container.appendChild(identities);
 
-  let allDiscoverers = createDiv("discoverers");
-  allDiscoverers.appendChild(document.createTextNode("Search for additional content:"));
+  
+  let discovery = createDiv("discoverers");
+  discovery.appendChild(document.createTextNode("Find " + person.getProperty("displayName") + " on the web: "));
+
+  let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+  dButton.setAttribute("type", "submit");
+  dButton.setAttribute("onclick", "javascript:doDiscovery()");
+  dButton.setAttribute("class", "discovererbutton");
+  dButton.setAttribute("value", "Search");
+  discovery.appendChild(dButton);
+
+  let dProgress = createDiv("discovererprogress");
+  dProgress.setAttribute("id", "discovererprogress");
+  discovery.appendChild(dProgress);
+
+  container.appendChild(discovery);
+}
+
+
+function renderDetailAttributionPane()
+{
+  let person = PeopleManager.selectedPerson;
+  container = document.getElementById('tabledetailpane');
+  container.innerHTML = "";
+
+  let controls = createDiv("detailcontrols");
+  let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+  link.setAttribute("href", "javascript:renderDetailPane()");
+  link.appendChild(document.createTextNode("Back to the summary"));
+  controls.appendChild(link);
+  container.appendChild(controls);
+
+  let svcbox = createDiv("servicedetail");
+  for (let aService in person.obj.documents)
+  {
+    let aDoc = person.obj.documents[aService];
+
+    let header = createDiv("header");
+    let svc = PeopleImporter.getService(aService);
+    
+    header.appendChild(document.createTextNode(svc.explainString()));
+    svcbox.appendChild(header);
+
+    traverseRender(aDoc, svcbox);
+  }
+  container.appendChild(svcbox);
+}
+
+function traverseRender(anObject, container)
+{
+  for (let aKey in anObject)
+  {
+    if (isArray(anObject[aKey]))
+    {
+      let subhead = createDiv("subhead");
+      subhead.appendChild(document.createTextNode(aKey));
+      for each (let anItem in anObject[aKey])
+      {
+        if (typeof anItem == "string") 
+        {
+          let item = createDiv("item");
+          let slot = createDiv("slot");
+          let label = createDiv("svcdetaillabel");
+          let value = createDiv("svcdetailvalue");
+          value.appendChild(document.createTextNode(anItem));
+          slot.appendChild(label);
+          slot.appendChild(value);
+          item.appendChild(slot);
+          subhead.appendChild(item);
+        }
+        else if (anItem.hasOwnProperty("type") && anItem.hasOwnProperty("value"))
+        {
+          let item = createDiv("item");
+          let slot = createDiv("slot");
+          let label = createDiv("svcdetaillabel");
+          let value = createDiv("svcdetailvalue");
+          label.appendChild(document.createTextNode(anItem.type));
+          value.appendChild(document.createTextNode(anItem.value));
+          slot.appendChild(label);
+          slot.appendChild(value);
+          item.appendChild(slot);
+          if (anItem.rel && anItem.rel != anItem.type) {
+            let rel = createDiv("svcdetailvaluerel");
+            rel.appendChild(document.createTextNode("rel: " + anItem.rel));
+            value.appendChild(rel);
+          }
+          subhead.appendChild(item);
+        }
+        else if (anItem.hasOwnProperty("domain")) // specialcase for accounts
+        {
+          let item = createDiv("item");
+          let slot = createDiv("slot");
+          let label = createDiv("svcdetaillabel");
+          let value = createDiv("svcdetailvalue");
+          label.appendChild(document.createTextNode(anItem.domain));
+          var username = anItem.username;
+          var userid = anItem.userid;
+          var un;
+          if (username && userid) {
+            un = username + " (" + userid + ")";
+          } else if (username) un = username;
+          else if (userid) un = userid;
+          
+          if (un) {
+            value.appendChild(document.createTextNode(un));
+          } else {
+            value.appendChild(document.createTextNode("(No username)"));
+          }
+          slot.appendChild(label);
+          slot.appendChild(value);
+          item.appendChild(slot);
+          subhead.appendChild(item);
+        }
+        else 
+        {
+          let item = createDiv("counteditem");
+          //item.appendChild(document.createTextNode("Entry:"))
+          for (let aSlot in anItem)
+          {
+            let slot = createDiv("slot");
+            let label = createDiv("svcdetaillabel");
+            let value = createDiv("svcdetailvalue");
+            label.appendChild(document.createTextNode(aSlot));
+            value.appendChild(document.createTextNode(anItem[aSlot]));
+            slot.appendChild(label);
+            slot.appendChild(value);
+            item.appendChild(slot);
+          }
+          subhead.appendChild(item);
+        }
+      }
+      container.appendChild(subhead);
+    }
+    else if (typeof anObject[aKey] == 'object') 
+    {
+      let subhead = createDiv("subhead");
+      subhead.appendChild(document.createTextNode(aKey));
+      let nestbox = createDiv("nestbox");
+      subhead.appendChild(nestbox);
+      traverseRender(anObject[aKey], nestbox);
+      container.appendChild(subhead);
+    }
+    else
+    {
+      let slot = createDiv("slot");
+      let label = createDiv("svcdetaillabel");
+      let value = createDiv("svcdetailvalue");
+      label.appendChild(document.createTextNode(aKey));
+      value.appendChild(document.createTextNode(anObject[aKey]));
+      slot.appendChild(label);
+      slot.appendChild(value);
+      container.appendChild(slot);
+    }
+  }
+}
+
+
+
+function doDiscovery()
+{
   let discoverers = PeopleImporter.getDiscoverers();
   for (let disco in discoverers) {
-    let discoverer = PeopleImporter.getDiscoverer(disco);
-    let dDiv = createDiv("discovererbadge");
-    
-    if (discoverer.iconURL && discoverer.iconURL.length) {
-      let dImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-      dImg.setAttribute("src", discoverer.iconURL);
-      dImg.setAttribute("id", disco+"-badge");
-      dDiv.appendChild(dImg);
+    try {
+      let discoverer = PeopleImporter.getDiscoverer(disco);
+      updateDiscoveryProgress("Working...");
+      People.doDiscovery(disco, PeopleManager.selectedPersonGUID, function(error) {discoveryComplete(error)}, function(val) {updateDiscoveryProgress(discoverer.name + ": " + val);});
+    } catch (e) {
+      updateDiscoveryProgress(e.message);
     }
-    
-    let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
-    dButton.setAttribute("type", "submit");
-    dButton.setAttribute("onclick", "javascript:doDiscovery('" + disco + "')");
-    dButton.setAttribute("class", "discovererbutton");
-    dButton.setAttribute("value", "Find");
-    dDiv.appendChild(dButton);
-
-    let dLabel = createDiv("discovererlabel");
-    dLabel.appendChild(document.createTextNode(" " + discoverer.displayName));
-    dDiv.appendChild(dLabel);
-
-
-    let dProgress = createDiv("discovererprogress");
-    dProgress.setAttribute("id", "discoverer" + disco + "progress");
-    dProgress.appendChild(document.createTextNode(""));
-    dDiv.appendChild(dProgress);
-    allDiscoverers.appendChild(dDiv);
   }
-  detail.appendChild(allDiscoverers);
-
+  navigator.people.find( {}, null, PeopleManager.loadComplete);
 }
 
-function doDiscovery(service)
-{
-  try {
-    updateDiscoveryProgress(service, "Working...");
-    People.doDiscovery(service, PeopleManager.selectedPersonGUID, function(error) {discoveryComplete(error, service)}, function(val) {updateDiscoveryProgress(service, val);});
-  } catch (e) {
-    updateDiscoveryProgress(service, e.message);
-  }
-}
-
-function updateDiscoveryProgress(service, msg)
+function updateDiscoveryProgress(msg)
 {
   if (msg == null) {
-    document.getElementById('discoverer' + service + 'progress').style.display = 'none';     
-    document.getElementById('discoverer' + service + 'progress').innerHTML = "";
+    document.getElementById('discovererprogress').style.display = 'none';     
+    document.getElementById('discovererprogress').innerHTML = "";
   } else {
-    document.getElementById('discoverer' + service + 'progress').style.display = 'block'; 
-    document.getElementById('discoverer' + service + 'progress').innerHTML = msg;
+    document.getElementById('discovererprogress').style.display = 'block'; 
+    document.getElementById('discovererprogress').innerHTML = msg;
   }
 }
 
-function discoveryComplete(error, service) 
+function discoveryComplete(error) 
 {
   if (error) {
-    updateDiscoveryProgress(service, error.message);
+    updateDiscoveryProgress(error.message);
   } else {
-    updateDiscoveryProgress(service, null);
-    navigator.people.find( {}, null, PeopleManager.render);
+    updateDiscoveryProgress(null);
   }
 }
 
+
+function isArray(obj) {
+  return obj != null && obj.constructor.toString() == Array;
+}
 
 function htmlescape(html) {
 	if (!html) return html;
@@ -461,10 +652,10 @@ function htmlescape(html) {
 		{type:"type",value:"user@somewhere"}
 	],
 	accounts: [
-		{type:"type",value:"value"},
-		{type:"type",value:"value"}
+		{domain:"domain.com",username:"value",userid:"1234"},
+		{domain:"domain.com",username:"value",userid:"1234"}
 	],
-	links: [
+	urls: [
 		{type:"type",value:"value"},
 		{type:"type",value:"value"}
 	]

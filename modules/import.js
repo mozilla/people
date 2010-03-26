@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-let EXPORTED_SYMBOLS = ["PeopleImporter", "ImporterBackend", "DiscovererBackend", "Person", "PoCoPerson"];
+let EXPORTED_SYMBOLS = ["PeopleImporter", "ImporterBackend", "DiscovererBackend", "PoCoPerson"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -80,7 +80,15 @@ PeopleImporterSvc.prototype = {
   },
 	getDiscoverers: function ImporterSvc_getDiscoverers() {
 		return this._discoverers;
-	}
+	},
+  
+  getService: function getService(name) {
+    let s = this._backends[name];
+    if (s) return this.getBackend(name);
+    s = this._discoverers[name];
+    if (s) return this.getDiscoverer(name);
+    return null;
+  }
 };
 let PeopleImporter = new PeopleImporterSvc();
 
@@ -91,6 +99,10 @@ function ImporterBackend() {
 ImporterBackend.prototype = {
   get name() "example",
   get displayName() "Example Contacts",
+  
+  explainString : function explainString() {
+    return "From importing your \"" + this.name + "\" contacts:";
+  },
   import: function Backend_import() {
     this._log.debug("ImporterBackend.import() invoked, base class does nothing");
   }
@@ -103,28 +115,17 @@ function DiscovererBackend() {
 DiscovererBackend.prototype = {
   get name() "example",
   get displayName() "Example Discoverer",
+
+ explainString : function explainString() {
+    return "From searching for this contact with " + this.name;
+  },
+
   discover: function Discoverer_discover(person) {
     this._log.debug("DiscovererBackend.import() invoked, base class does nothing");
   }
 };
 
-
-// See https://wiki.mozilla.org/Labs/Sprints/People for schema
-function Person() {
-  this._init();
-}
-Person.prototype = {
-  get obj() this._obj,
-  get json() JSON.stringify(this._obj),
-  _init: function Person__init() {
-    this._obj = {
-      schema: "http://labs.mozilla.com/schemas/people/1",
-      documents: {},
-      documentSchemas: {}
-    };
-  }
-};
-
+/*
 function PoCoPerson(contact) {
   this._init();
   if (contact)
@@ -156,7 +157,7 @@ PoCoPerson.prototype = {
     }
   }
 	
-};
+};*/
 
 //function getYahooContacts( callback ){
 //  var url = "http://us.mg1.mail.yahoo.com/yab";
@@ -196,8 +197,11 @@ Cu.import("resource://people/modules/importers/native.js");
 Cu.import("resource://people/modules/importers/gmail.js");
 Cu.import("resource://people/modules/importers/twitter.js");
 Cu.import("resource://people/modules/importers/linkedin.js");
+Cu.import("resource://people/modules/importers/plaxo.js");
 
 Cu.import("resource://people/modules/importers/gravatar.js");
 Cu.import("resource://people/modules/importers/flickr.js");
+Cu.import("resource://people/modules/importers/yelp.js");
 Cu.import("resource://people/modules/importers/webfinger.js");
 Cu.import("resource://people/modules/importers/hcard.js");
+Cu.import("resource://people/modules/importers/amazon.js");

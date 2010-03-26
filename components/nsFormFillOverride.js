@@ -51,23 +51,29 @@ PeopleAutoCompleteSearch.prototype = {
     People.find({ displayName: string }).forEach(function(person) {
       // Might not have an email for some reason... ?
       try {
-        let email = person.documents.default.emails[0].value;
-        let data = JSON.stringify(person);
-        data = person.displayName + " <" + email + ">";
-				
-				let img = null;
-				if (person.documents.default.photos) {
-					if (person.documents.default.photos[0] && person.documents.default.photos[0].value)	{
-						img = person.documents.default.photos[0].value.replace(/\\:/g, ":");
-					}
-				}
-				/*email = null;
-				if (person.document.default.organizations) {
-					if (person.documents.default.organizations[0] && person.documents.default.organizations[0].title) {
-						email = person.documents.default.organizations[0].title;
-					}
-				}*/
-        result.appendMatch(email, data, img, "people");
+          _("findPeople", "Person " + person.getProperty("displayName"));
+      
+        let emails = person.getProperty("emails");
+        let photos = person.getProperty("photos");
+        let thumb;
+
+        for each (let photo in photos)
+        {
+          if (photo.type == "thumbnail") {
+            thumb = photo.value;
+            break;
+          }
+        }
+        
+        let dupCheck = {};
+        for each (let email in emails)
+        {
+          if (dupCheck[email.value]) continue;
+          dupCheck[email.value] = 1;
+
+          data = person.displayName + " <" + email.value + ">";
+          result.appendMatch(email.value, data, thumb, "people");
+        }
       }
       catch(ex) {
 		    _("findPeople error", ex);

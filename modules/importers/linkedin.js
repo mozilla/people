@@ -226,7 +226,7 @@ LinkedInImporter.prototype = {
 
     if (/captchaText-exportSettingsForm/.test(req.responseText)) {
       throw {error:"Need CAPTCHA", 
-						 message:"LinkedIn requires you to answer a security question.  Please <a href='http://www.linkedin.com/addressBookExport'>click here</a>, answer the question, and cancel the download, and then return here and click again."};
+						 message:"LinkedIn requires you to answer a security question.  Please <a target='_blank' href='http://www.linkedin.com/addressBookExport'>click here</a>, answer the question, and cancel the download, and then return here and click again."};
     }
     
 
@@ -251,7 +251,7 @@ LinkedInImporter.prototype = {
           fencepost = !fencepost;
           continue;
         } else {
-          people.push(new PoCoPerson(cur).obj);
+          people.push(cur);
           cur = {};
           continue;
         }

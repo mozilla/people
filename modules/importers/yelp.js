@@ -46,38 +46,60 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/ext/md5.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
+Cu.import("resource://people/modules/ext/resource.js");
 
-function GravatarImageDiscoverer() {
-  this._log = Log4Moz.repository.getLogger("People.GravatarImageImporter");
+
+function YelpAccountDiscoverer() {
+  this._log = Log4Moz.repository.getLogger("People.YelpAccountDiscoverer");
   this._log.debug("Initializing importer backend for " + this.displayName);
 };
 
-GravatarImageDiscoverer.prototype = {
+YelpAccountDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
-  get name() "Gravatar",
-  get displayName() "Gravatar Avatar Images",
-	get iconURL() "chrome://people/content/images/gravatar.png",
+  get name() "Yelp",
+  get displayName() "Yelp Account Discoverer",
+	get iconURL() "",
 
-  discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Scanning current People store for Gravatar icons.");
-
-    let newPerson = null;
+  discover: function YelpAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
+    let newPerson;
+    this._log.debug("Discovering Yelp account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
+      this._log.debug("Checking address " + email.value + " with Yelp");
+      progressFunction("Checking address " + email.value + " with Yelp.");
+
       try {
-        let md5 = hex_md5(email.value);
-        let gravLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-        gravLoad.open('GET', "http://www.gravatar.com/avatar/" + md5 + "?d=404&s=1", false);
-        gravLoad.send(null);
-        if (gravLoad.status == 200) {
-          newPerson= {}
-          newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
-          this._log.info("Checked " + email + ": found a Gravatar");
-          break;
+        let yelpResource = new Resource("http://www.yelp.com/member_search?action_search=Search&query=" + encodeURIComponent(email.value));
+        let dom = yelpResource.get().dom;
+        let resultIterator = Utils.xpath(dom, "//div[@class='result-text']//a");
+        if (resultIterator) {
+          let elem = resultIterator.iterateNext();
+          if (elem) {
+            var attrs = elem.attributes, href;
+            for(i=attrs.length-1; i>=0; i--) {
+              if (attrs[i].name == "href") {
+                href = attrs[i].value;
+                break;
+              }
+            }
+            if (href) {
+              if (!newPerson) newPerson = {};
+
+              // href is of the form "/user_details?userid=Dk2IkchUjADbrC05sdsAVQ"
+              if (/^\/user_details\?userid=(.+)$/i.test(href)) {
+                let userid = RegExp.$1;
+                if (!newPerson.accounts) newPerson.accounts = [];
+                newPerson.accounts.push({domain:"yelp.com", type:"Yelp", userid:userid});
+              }
+              if (!newPerson.urls) newPerson.urls = [];
+              newPerson.urls.push({type:"Yelp", value:"http://www.yelp.com" + href});
+              break; // we take the first match and don't keep looking
+            }
+          }
         } else {
-          this._log.info("Checked " + email + ": no Gravatar");
+          this._log.warn("Account check with Yelp returned status code " + load.status + "\n" + load.responseText);
         }
       } catch (e) {
-        this._log.info("Gravatar import error: " + e);
+        this._log.debug("Address " + email.value + " got error from Yelp: " + e);
       }
     }
     completionCallback(null);
@@ -85,5 +107,4 @@ GravatarImageDiscoverer.prototype = {
   }
 }
 
-
-PeopleImporter.registerDiscoverer(GravatarImageDiscoverer);
+PeopleImporter.registerDiscoverer(YelpAccountDiscoverer);

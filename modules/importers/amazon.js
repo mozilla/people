@@ -46,38 +46,53 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/ext/md5.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
+Cu.import("resource://people/modules/ext/resource.js");
 
-function GravatarImageDiscoverer() {
-  this._log = Log4Moz.repository.getLogger("People.GravatarImageImporter");
+
+function AmazonAccountDiscoverer() {
+  this._log = Log4Moz.repository.getLogger("People.AmazonAccountDiscoverer");
   this._log.debug("Initializing importer backend for " + this.displayName);
 };
 
-GravatarImageDiscoverer.prototype = {
+AmazonAccountDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
-  get name() "Gravatar",
-  get displayName() "Gravatar Avatar Images",
-	get iconURL() "chrome://people/content/images/gravatar.png",
+  get name() "Amazon",
+  get displayName() "Amazon Account Discoverer",
+	get iconURL() "",
 
-  discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Scanning current People store for Gravatar icons.");
-
-    let newPerson = null;
+  discover: function AmazonAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
+    let newPerson;
+    this._log.debug("Discovering Amazon account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
+      this._log.debug("Checking address " + email.value + " with Amazon");
+      progressFunction("Checking address " + email.value + " with Amazon.");
+
       try {
-        let md5 = hex_md5(email.value);
-        let gravLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-        gravLoad.open('GET', "http://www.gravatar.com/avatar/" + md5 + "?d=404&s=1", false);
-        gravLoad.send(null);
-        if (gravLoad.status == 200) {
-          newPerson= {}
-          newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
-          this._log.info("Checked " + email + ": found a Gravatar");
-          break;
+        let yelpResource = new Resource("http://www.amazon.com/gp/pdp/search?ie=UTF8&flatten=1&keywords=" + encodeURIComponent(email.value) + "&delta=0");
+        let dom = yelpResource.get().dom;
+        let canonicalLinkIterator = Utils.xpath(dom, "//link[@rel='canonical']");
+        
+        if (canonicalLinkIterator) {
+          let elem = canonicalLinkIterator.iterateNext();
+          if (elem) {
+            var attrs = elem.attributes, href;
+            for(i=attrs.length-1; i>=0; i--) {
+              if (attrs[i].name == "href") {
+                href = attrs[i].value;
+                break;
+              }
+            }
+            if (href) {
+              // great, found one!  We could pull other information out of the page as well...
+              newPerson = {urls:[{type:"Amazon", value:href}]};
+              break; // we take the first match and don't keep looking
+            }
+          }
         } else {
-          this._log.info("Checked " + email + ": no Gravatar");
+          this._log.warn("Account check with Amazon returned status code " + load.status + "\n" + load.responseText);
         }
       } catch (e) {
-        this._log.info("Gravatar import error: " + e);
+        this._log.debug("Address " + email.value + " got error from Amazon: " + e);
       }
     }
     completionCallback(null);
@@ -85,5 +100,4 @@ GravatarImageDiscoverer.prototype = {
   }
 }
 
-
-PeopleImporter.registerDiscoverer(GravatarImageDiscoverer);
+PeopleImporter.registerDiscoverer(AmazonAccountDiscoverer);

@@ -65,7 +65,7 @@ function WebfingerDiscoverer() {
 };
 
 WebfingerDiscoverer.prototype = {
-  __proto__: ImporterBackend.prototype,
+  __proto__: DiscovererBackend.prototype,
   get name() "Webfinger",
   get displayName() "Webfinger Service Discovery",
 	get iconURL() "",
@@ -73,7 +73,8 @@ WebfingerDiscoverer.prototype = {
   discover: function WebfingerDiscoverer_discover(forPerson, completionCallback, progressFunction) {
     this._log.debug("Discovering Webfinger services for " + forPerson.displayName);
 
-    for each (let email in forPerson.emails) {
+    let newPerson = null;
+    for each (let email in forPerson.getProperty("emails")) {
       try {
         progressFunction("Checking for webfinger for address " + email.value);
         this._log.debug("Checking for webfinger for address " + email.value);
@@ -164,7 +165,7 @@ WebfingerDiscoverer.prototype = {
           var aliasList = dom.documentElement.getElementsByTagName("Alias");
           var linkList = dom.documentElement.getElementsByTagName("Link");
 
-          newPerson = {};
+          if (newPerson == undefined) newPerson = {};
           
           // not sure how useful this is.
           /*for (var alias in aliasList)
@@ -178,7 +179,7 @@ WebfingerDiscoverer.prototype = {
           for (var i=0;i<linkList.length;i++)
           {
             var link = linkList[i];
-            if (newPerson.links == undefined) newPerson.links =[];
+            if (newPerson.urls == undefined) newPerson.urls =[];
             var rel = link.attributes.rel;
             if (rel.value in REL_DICTIONARY) {
 
@@ -191,16 +192,13 @@ WebfingerDiscoverer.prototype = {
                 obj['content-type'] = link.attributes.type.value;
               }
 
-              this._log.debug("Pushing " + obj);
-              newPerson.links.push(obj);
+              this._log.debug("Pushing " + obj.type + ":" + obj.value);
+              newPerson.urls.push(obj);
             } else {
               this._log.debug("Unknown rel " + rel.value);
             }
           }
-          var pocoPerson = new PoCoPerson(newPerson);
-          pocoPerson.obj.guid = forPerson.guid;
-          this._log.debug("New person going in: " + JSON.stringify(pocoPerson.obj));
-          People.add(pocoPerson.obj, this, progressFunction);
+          
         } else {
           this._log.debug("Received error (" + xrdLoader.status + " while loading service page for " + email.value);
           progressFunction("Received error (" + xrdLoader.status + " while loading service page for " + email.value);
@@ -211,6 +209,8 @@ WebfingerDiscoverer.prototype = {
       }
     }
     completionCallback(null);
+    return newPerson;
+    
   }
 }
 

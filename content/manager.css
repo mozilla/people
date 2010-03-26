@@ -4,7 +4,7 @@ html {
 body { 
   font-family: sans-serif; 
   font-size: 11pt; 
-  margin: 0px; 
+  margin: 0px;
   padding: 0px; 
   background-color: #fff; 
   height:100%
@@ -18,7 +18,6 @@ A {
   margin:0;	
   padding:0px;
   background: -moz-linear-gradient(top, #CECECE, #A8A8A8);
-  /*  #D7D6D5;*/
   height:58px;
   border-bottom:1px solid #808080; 
   padding-left:32px;
@@ -26,13 +25,11 @@ A {
 
 .controlbutton {
   display:inline-block;
-
   width:84px;
   height:49px;
   padding-top:8px;
   padding-left:1px;
   padding-right:1px;
-
   font: small-caption;
   font-weight: normal;
   text-align:center;
@@ -41,15 +38,12 @@ A {
 
 .controlbutton_selected {
   display:inline-block;
-
   width:84px;
   height:49px;
   padding-top:8px;
-  
   font: small-caption;
   font-weight: normal;
   text-align:center;
-
   border-left:1px solid #909090;
   border-right:1px solid #909090;
   background: -moz-linear-gradient(left, #A8A8A8, #909090, #A8A8A8);
@@ -63,12 +57,7 @@ A {
   margin-right:32px;
 }
 
-#contactpane {
-  height:85%
-}
-#contacts {
-  height:100%
-}
+/******* Contacts Display: Controls Bar ******/
 
 .contactcontrols {
   width:100%;
@@ -81,6 +70,265 @@ A {
 .controlsubhead {
   border-bottom:1px inset #808080;
 }
+
+.searchframe {
+	display:inline-block;
+  margin-top:6px;
+  margin-left:32px;
+  font: small-caption;
+}
+
+.searchbubble {
+  padding:4px;
+	display:inline-block;
+  font: small-caption;
+  background-color:white;
+  -moz-border-radius: 1em; 
+  -moz-box-shadow: #bbb 2px 2px 1px; 
+}
+
+.searchbox {
+  border:none;
+  width:160px;
+}
+
+#contactdisplaymodes {
+  display:inline-block;
+  margin-left:40px;
+} 
+.contactdisplaymode {
+  display:inline-block;
+  border-top:1px solid white;
+  border-left:1px solid white;
+  border-right:1px solid #A0A0A0;
+  border-bottom:1px solid #A0A0A0;
+  padding-top:2px;
+}
+
+
+#contacts {
+  position:absolute;height:auto;
+  bottom:0;left:0;top:0;right:0;
+  margin-top:92px;width:200px
+}
+
+/******* Contacts Display: Table View ******/
+.contacttable {}
+
+#contactdetail {
+  position:absolute;height:auto;
+  bottom:0;left:0;top:0;right:0;
+  margin-top:92px;margin-left:200px;
+}
+
+.contacttable > .contactlist { 
+  background-color:#F8F8F8;
+  width:200px;
+  height:100%;
+  overflow-y:scroll;
+  overflow-x:hidden;
+}
+.contacttable > .contactlist > .contact {
+  display:block;
+}
+
+.tabledetailpane {
+  width:auto;
+  height:100%;
+  padding-left:16px;
+/*  padding-top:16px;*/
+  overflow-y: auto;
+  overflow-x: hidden;
+
+}
+.tablecontentpane {position:absolute;left:500px;top:0px;width:600px;border:none;/*height:100%*/}
+
+.tabledetailpane > .summary { min-height:80px }
+.tabledetailpane > .summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
+.tabledetailpane > .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
+.tabledetailpane > .summary > .information { margin-left: 54px; padding-left: 1em; }
+.tabledetailpane > .summary > .information > .name { color: #222; font-weight: bold; font-size: 120%;}
+.tabledetailpane > .summary > .information > .description { color: #999; font-size:120%}
+
+.tabledetailpane > .identities > .identity {white-space: nowrap; overflow: hidden}
+.tabledetailpane > .identities > .identity > .type > .favicon { margin-left:2px; }
+.tabledetailpane > .identities > .identity > .type { white-space: nowrap; overflow: hidden; height:1.2em; display:inline-block;margin-left:2px; color: #999; width: 112px; text-align: right; font-size:80%}
+.tabledetailpane > .identities > .identity > .value { white-space: nowrap; overflow: hidden; height:1.2em; display:inline-block;padding-left: 1em; font-size:90% ;}
+.tabledetailpane > .identities > .identity > .value > a {color:#3875D7; text-decoration:none;vertical-align:4px; }
+
+
+.contacttable > .contactlist > .contact {font:small-caption;line-height:1.3em;padding-left:4px;}
+.contacttable > .contactlist > .contact > .clink {text-decoration:none;color:black;}
+.contacttable > .contactlist > .contact > .clink:hover {text-decoration:underline;color:#3875D7;}
+.contacttable > .contactlist > .contact > .photocolumn {width:16px;height:16px;display:inline-block;}
+.contacttable > .contactlist > .contact > .column {margin-left:2px;width:160px;height:13px;display:inline-block;;overflow:hidden}
+
+
+/******* Contact Cards *******/
+
+.contactcards > .contact {
+  border: 1px outset #999; 
+  -moz-border-radius: 0.5em; 
+  padding: 0.5em; 
+  margin: 0.5em; 
+  width: 20em; 
+  -moz-box-shadow: #bbb 2px 2px 1px; 
+  display:inline-block;
+	vertical-align:top;
+}
+
+.contactcards > .contact { min-height: 52px; }
+.contactcards > .contact > .summary { position: relative;  /*min-height: 52px;*/}
+
+.contactcards > .contact > .summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
+.contactcards > .contact > .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
+.contactcards > .contact > .summary > .information { margin-left: 54px; padding-left: 1em; }
+.contactcards > .contact > .summary > .information > .name { color: #222; font-weight: bold; font-size: 90%; overflow: hidden; white-space: nowrap; }
+.contactcards > .contact > .summary > .information > .description { color: #999; font-size:80%}
+
+.contactcards > .contact > .contact > .identities { /*margin-top: 1em; border-top: 1px solid #ddd; padding-top: 0.5em;*/ }
+
+.contactcards > .contact > .identities > .identity > .identity { position: relative; margin-bottom: 0.2em; }
+
+.contactcards > .contact > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; }
+.contactcards > .contact > .identities > .identity > .type { position: absolute; margin-left:54px; color: #999; width: 52px; text-align: right; font-size:80%}
+.contactcards > .contact > .identities > .identity > .value { margin-left: 106px; padding-left: 1em; font-size:80% }
+
+.photo {max-width: 100px;}
+.identity {}
+img { margin: 0em; padding: 0em; border: none; }
+.disclosureCheckbox { float:left}
+ol{ list-style: none; padding: 0; font-size: 8.5pt; color: #222;}
+ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
+
+.discoverers {
+  font:small-caption;
+  left:16px;
+  margin-top:100px;
+}
+.discovererbadge {
+  font:small-caption;
+}
+.discovererlabel {
+  display:inline
+}
+
+.controls { margin:0;	padding:2px; 	background:#D7D6D5;	height:66px;	border-bottom:1px solid #808080; }
+/* form input {padding:2px; font-size:small; width:100%;} */
+
+.servicedetail {
+}
+.detailcontrols {
+  text-align:right;
+  padding-top:16px;
+  padding-right:32px;
+  font:small-caption;
+  font-weight:normal;
+} 
+.detailcontrols a {
+  color:#3875D7
+}
+
+.servicedetail > .header {
+  font:small-caption;
+  border-bottom:1px solid #808080;
+  margin-top:16px;
+}
+.servicedetail > .subhead {
+  font:small-caption;
+}
+.servicedetail > .subhead > .nestbox {
+  margin-left:16px;
+}
+
+.servicedetail > .subhead > .item {
+  margin-left:16px;
+}
+.servicedetail > .slot > .svcdetaillabel {
+  width:116px;
+}
+.servicedetail > .subhead > .nestbox > .slot > .svcdetaillabel {
+  width:100px;
+}
+.counteditem {
+  display:inline-block;
+  border:1px solid #E0E0E0;
+  margin-left:116px;
+}
+
+.svcdetaillabel {
+  font:small-caption;
+  width:100px;
+  display:inline-block;
+  overflow:hidden;
+  white-space:nowrap;
+  vertical-align:top
+}
+.svcdetailvalue {
+  padding-left:6px;
+  display:inline-block;
+  font:small-caption;
+  width:400px;
+  font-weight:normal;
+  display:inline-block;
+  overflow:hidden;
+  white-space:nowrap;
+}
+
+.svcdetailvaluerel {
+  font-style:italic
+}
+
+
+/***** Services *****/
+
+
+#servicepane {
+  position:relative;
+  padding-left:32px;
+  padding-top:12px;
+  width:800px;
+  font:small-caption;
+}
+
+#servicepane > a { color:#3875D7 }
+#servicepane > P { padding-left:6px; }
+
+
+
+
+.importerbadge { 
+  position:relative;
+  display:block; 
+  padding-left:8px; 
+  padding-right:8px;
+  -moz-user-select:none;
+}
+
+.importerlabel {
+  position:absolute;
+  left:44px;
+  top:12px;
+  display:inline;
+  margin-bottom:6px;
+}
+.importerbutton {
+  position:absolute;
+  left:450px;
+  margin-top:8px
+}
+.importerprogress {
+  position:absolute;
+  left:520px;
+  top:8px;
+  font-weight:normal;
+}
+
+
+
+
+/***** Permissions *****/
+
 #permissionpane {
   font:small-caption;
   width:610px;
@@ -123,208 +371,4 @@ A {
   overflow:hidden;
   display:inline-block;
 }
-
-.searchframe {
-	display:inline-block;
-  margin-top:6px;
-  margin-left:32px;
-  font: small-caption;
-}
-
-.searchbubble {
-  padding:4px;
-	display:inline-block;
-  font: small-caption;
-  background-color:white;
-  -moz-border-radius: 1em; 
-  -moz-box-shadow: #bbb 2px 2px 1px; 
-}
-
-.searchbox {
-  border:none;
-  width:160px;
-}
-
-#contactdisplaymodes {
-  display:inline-block;
-  margin-left:40px;
-} 
-.contactdisplaymode {
-  display:inline-block;
-  border-top:1px solid white;
-  border-left:1px solid white;
-  border-right:1px solid #A0A0A0;
-  border-bottom:1px solid #A0A0A0;
-  padding-top:2px;
-}
-
-#servicepane {
-  position:relative;
-  padding-left:32px;
-  padding-top:12px;
-  width:800px;
-  font:small-caption;
-}
-
-#servicepane > a {
-  color:#3875D7
-}
-
-#servicepane > P {
-  padding-left:6px;
-}
-
-
-
-.contactcards > .contact {
-  border: 1px outset #999; 
-  -moz-border-radius: 0.5em; 
-  padding: 0.5em; 
-  margin: 0.5em; 
-  width: 20em; 
-  -moz-box-shadow: #bbb 2px 2px 1px; 
-  display:inline-block;
-/*  display:block;
-  position:absolute;
-  left:150px;
-  top:150px;*/
-	vertical-align:top;
-
-}
-.contacttable {position:relative;height:100%}
-
-.contacttable > .contactlist { 
-  background-color:#F8F8F8;
-  width:200px;
-  height:100%;
-  overflow:scroll;
-}
-.contacttable > .contactlist > .contact {
-  display:block;
-}
-
-.contacttable > .tabledetailpane {
-  position:absolute;left:200px;top:0px;width:550px;
-  padding-top:12px;padding-left:16px;
-  border-left:1px solid #D0D0D0;height:100%
-}
-.contacttable > .tablecontentpane {position:absolute;left:500px;top:0px;width:600px;border:none;height:100%}
-
-.contacttable > .tabledetailpane > .summary { min-height:80px }
-.contacttable > .tabledetailpane > .summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
-.contacttable > .tabledetailpane > .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
-.contacttable > .tabledetailpane > .summary > .information { margin-left: 54px; padding-left: 1em; }
-.contacttable > .tabledetailpane > .summary > .information > .name { color: #222; font-weight: bold; font-size: 120%;}
-.contacttable > .tabledetailpane > .summary > .information > .description { color: #999; font-size:120%}
-
-.contacttable > .tabledetailpane > .identities {}
-.contacttable > .tabledetailpane > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; height:1.5em }
-.contacttable > .tabledetailpane > .identities > .identity > .type > .favicon { margin-left:2px; }
-.contacttable > .tabledetailpane > .identities > .identity > .type { position: absolute; vertical-align:top; margin-left:2px; color: #999; width: 112px; text-align: right; font-size:80%}
-.contacttable > .tabledetailpane > .identities > .identity > .value { margin-left: 120px; padding-left: 1em; font-size:90% ;}
-.contacttable > .tabledetailpane > .identities > .identity > .value > a {color:#3875D7; text-decoration:none}
-
-
-.contacttable > .contactlist > .contact {font:small-caption;line-height:1.3em;padding-left:4px;}
-.contacttable > .contactlist > .contact > .clink {text-decoration:none;color:black;}
-.contacttable > .contactlist > .contact > .clink:hover {text-decoration:underline;color:#3875D7;}
-.contacttable > .contactlist > .contact > .photocolumn {width:16px;height:16px;display:inline-block;}
-.contacttable > .contactlist > .contact > .column {margin-left:2px;width:160px;height:13px;display:inline-block;;overflow:hidden}
-
-.contactcards > .contact { min-height: 52px; }
-.contactcards > .contact > .summary { position: relative;  /*min-height: 52px;*/}
-
-.contactcards > .contact > .summary > .photo { width: 52px; height: 52px; position: absolute; border: 1px solid #aaa; }
-.contactcards > .contact > .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
-.contactcards > .contact > .summary > .information { margin-left: 54px; padding-left: 1em; }
-.contactcards > .contact > .summary > .information > .name { color: #222; font-weight: bold; font-size: 90%; overflow: hidden; white-space: nowrap; }
-.contactcards > .contact > .summary > .information > .description { color: #999; font-size:80%}
-
-.contactcards > .contact > .contact > .identities { /*margin-top: 1em; border-top: 1px solid #ddd; padding-top: 0.5em;*/ }
-
-.contactcards > .contact > .identities > .identity > .identity { position: relative; margin-bottom: 0.2em; }
-
-.contactcards > .contact > .identities > .identity > .type, .identity > .value { white-space: nowrap; overflow: hidden; }
-.contactcards > .contact > .identities > .identity > .type { position: absolute; margin-left:54px; color: #999; width: 52px; text-align: right; font-size:80%}
-.contactcards > .contact > .identities > .identity > .value { margin-left: 106px; padding-left: 1em; font-size:80% }
-
-.photo {max-width: 100px;}
-.identity {}
-img { margin: 0em; padding: 0em; border: none; }
-.disclosureCheckbox { float:left}
-ol{ list-style: none; padding: 0; font-size: 8.5pt; color: #222;}
-ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
-
-
-#importerbadges {
- font:small-caption;
- padding-left:8px; 
- padding-top:4px; 
- padding-bottom:12px;
- background-color:white; 
- -moz-border-radius: 0.5em;  
- vertical-align:top;
- width:800px;
-}
-
-.importerbadge { 
-  position:relative;
-  display:block; 
-  padding-left:8px; 
-  padding-right:8px;
-  -moz-user-select:none;
-}
-
-.importerlabel {
-  position:absolute;
-  left:44px;
-  top:12px;
-  display:inline;
-  margin-bottom:6px;
-  vertical-align:center;
-}
-.importerbutton {
-  position:absolute;
-  left:450px;
-  margin-top:8px
-}
-.importerprogress {
-  position:absolute;
-  left:520px;
-  top:8px;
-  font-weight:normal;
-}
-
-#importerprogressbox {
-  position:absolute;
-  display:none;
-  left:0px;
-  top:16px;
-  background-color:white;
-  border:1px solid black;
-  opacity:0.9;
-  width:128px;
-  margin-left:16px;
-  margin-right:16px;
-  padding-top:4px;
-  padding-left:4px;
-  height:32px;
-  -moz-border-radius: 0.5em; 
-  -moz-box-shadow: #bbb 2px 2px 1px; 
-}
-
-.discoverers {
-  font:small-caption;
-  left:16px;
-  margin-top:100px;
-}
-.discovererbadge {
-  font:small-caption;
-}
-.discovererlabel {
-  display:inline
-}
-
-.controls { margin:0;	padding:2px; 	background:#D7D6D5;	height:66px;	border-bottom:1px solid #808080; }
-/* form input {padding:2px; font-size:small; width:100%;} */
 

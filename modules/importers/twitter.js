@@ -86,7 +86,11 @@ TwitterAddressBookImporter.prototype = {
 
     let twitLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
       .createInstance(Components.interfaces.nsIXMLHttpRequest);
+    // The XHR object only sends username/password if it sees a 401.  That's a problem in our case, because
+    // twitter performs IP-level quota tracking for unauthenticated requests.  So we have to hard-code an
+    // authentication header.
 		twitLoad.open('GET', "http://twitter.com/statuses/friends.json", true, aLogin.username, aLogin.password);
+    twitLoad.setRequestHeader('Authorization',  'Basic ' + btoa(aLogin.username + ':' + aLogin.password));
 
 		let that = this;
 		twitLoad.onreadystatechange = function (aEvt) {  
@@ -98,7 +102,7 @@ TwitterAddressBookImporter.prototype = {
 					completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password"});
 
 				} else if (twitLoad.status != 200) {
-					that._log.error("Error " + twitLoad.status + " while accessing Twitter.");
+					that._log.error("Error " + twitLoad.status + " while accessing Twitter: " + twitLoad.responseText);
 					completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password (error " + twitLoad.status + ")"});
 				} else {
 					let result = JSON.parse(twitLoad.responseText);
@@ -115,25 +119,29 @@ TwitterAddressBookImporter.prototype = {
 							that._log.info(" Constructing person for " + p.screen_name + "; display " + p.name);
 							try {
 								person = {}
-								person.accounts = [{type:"twitter", value:p.screen_name}]
+								person.accounts = [{type:"twitter", username:p.screen_name, domain:"twitter.com"}]
 
 								if (p.name) {
 									person.displayName = p.name;
 									
 									// For now, let's assume European-style givenName familyName+
 									let split = p.name.split(" ");
-									person.name = {};
-									person.name.givenName = split[0];
-									person.name.familyName = split.splice(1, 1).join(" ");
+                  
+                  if (split.length == 2 && split[0].length > 0 && split[1].length > 0)
+                  {
+                    person.name = {};
+                    person.name.givenName = split[0];
+                    person.name.familyName = split.splice(1, 1).join(" ");
+                  }
 								}
 								if (p.profile_image_url) 
 									person.photos = [{type:"thumbnail", value:p.profile_image_url}];
-								if (p.location) 
+								if (p.location && p.location.length > 0) 
 									person.location = [{type:"Location", value:p.location}] //???
 								if (p.url) 
-									person.links = [{type:"URL", value:p.url}]
+									person.urls = [{type:"URL", value:p.url}]
 								
-								people.push(new PoCoPerson(person).obj);
+								people.push(person);
 								
 							} catch (e) {
 								that._log.error("Twitter import error " + e + "\n");
