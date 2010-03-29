@@ -194,7 +194,7 @@ let PeopleManager = {
         p.givenName = p.getProperty("name/givenName");
         p.familyName = p.getProperty("name/familyName");
       }
-      document.getElementById('contactCount').innerHTML = "There are " + peopleStore.length + " people in your contacts.  Click 'Contacts', at the top right, to see them.";
+      document.getElementById('contactCount').innerHTML = "There are " + peopleStore.length + " people in your contacts.  Click 'Contacts', at the top left, to see them.";
       peopleStore.sort(function(a,b) {
        try {
          if (a.familyName && b.familyName) {
@@ -246,6 +246,7 @@ let PeopleManager = {
     let results = document.getElementById("contacts");
     var i =0;
     results.setAttribute("class", "contactcards");
+    results.style.width = "100%";
     for each (let person in peopleStore) {
       try {
         // let id = person.documents.default;
@@ -301,6 +302,7 @@ let PeopleManager = {
   {
     liveUpdateShowMode = 'block';  
     let results = document.getElementById("contacts");
+    results.style.width = "200px";
     var i =0;
     results.setAttribute("class", "contacttable");
 
@@ -421,15 +423,28 @@ function renderDetailPane()
   addFieldList(identities, person.getProperty("emails"), "mailto");
   addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
   addFieldList(identities, person.getProperty("ims"));
-  addAccountsList(identities, person.getProperty("accounts"));
-  addLinksList(identities, person.getProperty("urls"));
   addFieldList(identities, person.getProperty("location"), null, null, "http://maps.google.com/maps?q=");
+
+  var urls = person.getProperty("urls");
+  if (urls && urls.length > 0) {
+    let header = createDiv("fieldheader");
+    header.innerHTML = "Links:";
+    identities.appendChild(header);
+    addLinksList(identities, urls);
+  }
+
+  var accounts = person.getProperty("accounts");
+  if (accounts && accounts.length > 0) {
+    let header = createDiv("fieldheader");
+    header.innerHTML = "Accounts:";
+    identities.appendChild(header);
+    addAccountsList(identities, accounts);
+  }
   container.appendChild(identities);
 
-  
+
   let discovery = createDiv("discoverers");
   discovery.appendChild(document.createTextNode("Find " + person.getProperty("displayName") + " on the web: "));
-
   let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
   dButton.setAttribute("type", "submit");
   dButton.setAttribute("onclick", "javascript:doDiscovery()");
@@ -480,6 +495,7 @@ function traverseRender(anObject, container)
   {
     if (isArray(anObject[aKey]))
     {
+      let count = 1;
       let subhead = createDiv("subhead");
       subhead.appendChild(document.createTextNode(aKey));
       for each (let anItem in anObject[aKey])
@@ -541,10 +557,22 @@ function traverseRender(anObject, container)
         }
         else 
         {
+          // generic item; use 'name' if it is present
           let item = createDiv("counteditem");
-          //item.appendChild(document.createTextNode("Entry:"))
+          
+          let textLabel;
+          if (anItem.name) textLabel = anItem.name;
+          else textLabel = "Item #" + count;
+
+          let slot = createDiv("slot");
+          let label = createDiv("svcitemlabel");
+          label.appendChild(document.createTextNode(textLabel));
+          slot.appendChild(label);
+          item.appendChild(slot);
+
           for (let aSlot in anItem)
           {
+            if (aSlot == "name") continue;
             let slot = createDiv("slot");
             let label = createDiv("svcdetaillabel");
             let value = createDiv("svcdetailvalue");
@@ -555,6 +583,7 @@ function traverseRender(anObject, container)
             item.appendChild(slot);
           }
           subhead.appendChild(item);
+          count = count + 1;
         }
       }
       container.appendChild(subhead);

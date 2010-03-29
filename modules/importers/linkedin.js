@@ -212,6 +212,7 @@ LinkedInImporter.prototype = {
     req.send("exportNetwork=Export&outputType=vcard");
 
     if (req.status != 200) {
+      this._log.debug("LinkedIn: HTTP error");
       this._log.warn("Could not download contacts from LinkedIn " +
                      "(status " + req.status + ")");
       throw {error:"Unable to get contacts from LinkedIn", 
@@ -219,18 +220,20 @@ LinkedInImporter.prototype = {
     }
     
     if (req.responseText.indexOf("Sign In to LinkedIn") >= 0) {
+      this._log.debug("LinkedIn: need session");
+
       this._log.warn("Could not download contacts from LinkedIn: no current session");
       throw {error:"Unable to get contacts from LinkedIn", 
 						 message:"Please <a href='http://www.linkedin.com'>sign in</a> to LinkedIn before importing."};
     }
 
-    if (/captchaText-exportSettingsForm/.test(req.responseText)) {
+    if (/captchaText-exportSettingsForm/.test(req.responseText)) {    
+      this._log.debug("LinkedIn: need CAPTCHA.");
       throw {error:"Need CAPTCHA", 
-						 message:"LinkedIn requires you to answer a security question.  Please <a target='_blank' href='http://www.linkedin.com/addressBookExport'>click here</a>, answer the question, and cancel the download, and then return here and click again."};
+						 message:"LinkedIn requires you to answer a security question.  Please <a target='_blank' href='http://www.linkedin.com/addressBookExport'>click here</a>, answer the question, and cancel the download, and then return here and click 'Connect' again."};
     }
-    
 
-    this._log.warn("http://www.linkedin.com/addressBookExport?exportNetworkRedirect=&outputType=vcard");
+    this._log.debug("Performing LinkedIn download.");
     req.open('GET', 'http://www.linkedin.com/addressBookExport?exportNetworkRedirect=&outputType=vcard', false);
     req.send(null);
 

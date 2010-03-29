@@ -43,7 +43,7 @@ stage_dir=$(objdir)/stage
 xpi_dir=$(objdir)/xpi
 error=exit 1
 
-contacts_version := 0.0.1
+contacts_version := 0.2
 
 ifeq ($(release_build),)
   xpi_type := dev

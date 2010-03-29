@@ -14,9 +14,24 @@
 
 
 <script type="text/javascript;version=1.8">
-let allFieldList = ["displayName", "emailhash", "emails", "phoneNumbers", "links"];
-let fieldLabels = {displayName:"Name", emailhash: "Unique Identifier (based on email, but not addressible)", emails: "Email Addresses", phoneNumbers: "Phone Numbers", links: "URLs (web site addresses)"};
-let fieldActive = {displayName:true, familyName:true, givenName:true, emailhash:true, emails:true, phoneNumbers:true, links:true}
+let allFieldList = ["displayName", "emailhash", "emails", "phoneNumbers", "urls", "name/givenName", "name/familyName"];
+let fieldLabels = {displayName:"Name", 
+                    emailhash: "Unique Identifier (based on email, but not addressible)", 
+                    emails: "Email Addresses", 
+                    phoneNumbers: "Phone Numbers", 
+                    urls: "URLs (web site addresses)", 
+                    "name/givenName":"Given Name", 
+                    "name/familyName":"Family Name"
+                  };
+let fieldActive = {
+                displayName:true, 
+                "name/familyName":true, 
+                "name/givenName":true, 
+                emailhash:true, 
+                emails:true, 
+                phoneNumbers:true, 
+                urls:true,
+                }
 let fieldList = allFieldList; // by default, ask for all fields
 let selectedPeople = {}
 let remember = {};

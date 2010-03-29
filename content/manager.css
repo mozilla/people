@@ -68,6 +68,7 @@ A {
 }
 
 .controlsubhead {
+  padding-top:8px;
   border-bottom:1px inset #808080;
 }
 
@@ -156,6 +157,7 @@ A {
 .tabledetailpane > .identities > .identity > .value { white-space: nowrap; overflow: hidden; height:1.2em; display:inline-block;padding-left: 1em; font-size:90% ;}
 .tabledetailpane > .identities > .identity > .value > a {color:#3875D7; text-decoration:none;vertical-align:4px; }
 
+.tabledetailpane > .identities > .fieldheader {width:112px;margin-left:40px;text-align:left;font-size:80%;font-weight:bold;padding-top:8px;border-bottom:1px solid #F8F8F8}
 
 .contacttable > .contactlist > .contact {font:small-caption;line-height:1.3em;padding-left:4px;}
 .contacttable > .contactlist > .contact > .clink {text-decoration:none;color:black;}
@@ -235,6 +237,7 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   margin-top:16px;
 }
 .servicedetail > .subhead {
+  vertical-align:top;
   font:small-caption;
 }
 .servicedetail > .subhead > .nestbox {
@@ -251,9 +254,20 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   width:100px;
 }
 .counteditem {
+  margin-left:16px;
+}
+.counteditem > .slot > .svcdetaillabel {
+  margin-left:8px;
+  width:92px;
+}
+
+.svcitemlabel {
+  font:small-caption;
+  width:100px;
   display:inline-block;
-  border:1px solid #E0E0E0;
-  margin-left:116px;
+  overflow:hidden;
+  white-space:nowrap;
+  vertical-align:top
 }
 
 .svcdetaillabel {
@@ -317,11 +331,18 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   left:450px;
   margin-top:8px
 }
+.importersubbutton {
+  position:absolute;
+  top:8px;
+  left:735px;
+}
 .importerprogress {
   position:absolute;
-  left:520px;
+  left:535px;
+  width:265px;
   top:8px;
   font-weight:normal;
+  color:#909090;
 }
 
 

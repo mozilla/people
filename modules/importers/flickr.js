@@ -99,7 +99,7 @@ FlickrAccountDiscoverer.prototype = {
               if (!newPerson.accounts) newPerson.accounts = [];
               newPerson.accounts.push({domain:"flickr.com", type:"Flickr", username:username.textContent, userid:nsID});
             }
-            if (location) {
+            if (location && location.textContent.length > 0) {
               if (!newPerson.location) newPerson.location = [];
               newPerson.location.push({type:"Location", value:location.textContent});
             }
@@ -112,10 +112,12 @@ FlickrAccountDiscoverer.prototype = {
               newPerson.displayName = n;
 									
               // For now, let's assume European-style givenName familyName+
-              let split = n.split(" ");
-              newPerson.name = {};
-              newPerson.name.givenName = split[0];
-              newPerson.name.familyName = split.splice(1, 1).join(" ");
+              let split = n.split(" ", 1);
+              if (split.len == 2 && split[0].length > 0 && split[1].length > 0) {
+                newPerson.name = {};
+                newPerson.name.givenName = split[0];
+                newPerson.name.familyName = split.splice(1, 1).join(" ");
+              }
             }
           }
         }

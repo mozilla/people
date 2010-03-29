@@ -6,7 +6,7 @@
   <Description about="urn:mozilla:install-manifest">
     <em:id>contacts@labs.mozilla.com</em:id>
     <em:name>Contacts</em:name>
-    <em:version>0.1</em:version>
+    <em:version>0.2</em:version>
     <em:homepageURL>http://labs.mozilla.com/projects/people/</em:homepageURL>
 
     <em:description>A Mozilla Labs Experiment: Adds a database of information about people to Firefox.</em:description>

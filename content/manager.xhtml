@@ -19,23 +19,44 @@
 
 
 <script type="text/javascript;version=1.8">
-function doServiceImport(service)
+function doServiceConnect(service)
 {
   try {
     updateImportProgress(service, "Working...");
-    People.importFromService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);});
+    People.connectService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);});
   } catch (e) {
     updateImportProgress(service, e.message);
+    displayServices();  
+  }
+}
+
+function doServiceDisconnect(service)
+{
+  try {
+    People.disconnectService(service);
+    navigator.people.find( {}, null, PeopleManager.loadComplete);    
+  } catch (e) {
+    updateImportProgress(service, e.message);
+  }
+  displayServices();  
+}
+
+function doServiceRefresh(service)
+{
+  try {
+    updateImportProgress(service, "Working...");
+    People.refreshService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);});
+  } catch (e) {
+    updateImportProgress(service, e.message);
+    displayServices();  
   }
 }
 
 function updateImportProgress(service, msg)
 {
   if (msg == null) {
-    document.getElementById('importer' + service + 'progress').style.display = 'none';     
     document.getElementById('importer' + service + 'progress').innerHTML = "";
   } else {
-    document.getElementById('importer' + service + 'progress').style.display = 'block'; 
     document.getElementById('importer' + service + 'progress').innerHTML = msg;
   }
 }
@@ -48,6 +69,7 @@ function importerComplete(error, service)
     updateImportProgress(service, null);
     navigator.people.find( {}, null, PeopleManager.loadComplete);
   }
+  displayServices();  
 }
 
 function resetSavedPerms()
@@ -60,6 +82,7 @@ function deleteAll()
 {
   People.deleteAll();
   navigator.people.find( {}, null, PeopleManager.loadComplete);
+  displayServices();  
 }
 
 function setContactDisplayMode(mode)
@@ -91,20 +114,49 @@ function renderPermissions()
   }
 }
 
-/*function resize()
-{
-  PeopleManager.render();
-}*/
-
 $(document).ready(function(){
-  // window.onresize = resize;
   selectPane("contact");
   Components.utils.import("resource://people/modules/import.js");
   Components.utils.import("resource://people/modules/people.js");
   PeopleManager.onLoad();
-  let services = PeopleImporter.getBackends();
-  
+  renderServices();
+  displayServices();  
+  renderPermissions();
+});
+
+function displayServices()
+{
+  let services = PeopleImporter.getBackends();  
+  let connected = People.connectedServices();
+  for (let service in services) {
+    if (connected[service]) {
+      var delta = (new Date().getTime() - connected[service].refresh ) / 1000; // seconds
+      var str;
+      if (delta &lt; 3600*24) {
+        str = "at " + connected[service].refresh.toLocaleTimeString();
+      } else {
+        str = "on " + connected[service].refresh.toLocaleDateString();      
+      }
+      document.getElementById("importer" + service + "action").value = "Refresh";
+      document.getElementById("importer" + service + "progress").innerHTML = "Updated " + str;
+      document.getElementById("importer" + service + "progress").style.width = "200px";
+      document.getElementById("importer" + service + "disconnect").style.display = 'block';
+    } else {
+      document.getElementById("importer" + service + "action").value = "Connect";
+      document.getElementById("importer" + service + "progress").style.width = "265px";
+      // document.getElementById("importer" + service + "progress").innerHTML = "";
+      document.getElementById("importer" + service + "disconnect").style.display = 'none';
+    }
+  }
+}
+
+function renderServices()
+{
+  let services = PeopleImporter.getBackends();  
   let importers = document.getElementById('importerbadges');
+  importers.innerHTML = "";
+  let connected = People.connectedServices();
+  
   for (let service in services) {
     let importer = PeopleImporter.getBackend(service);
 
@@ -122,10 +174,11 @@ $(document).ready(function(){
     svcDiv.appendChild(svcLabel);
 
     let svcButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+    svcButton.setAttribute("id", "importer" + service + "action");
     svcButton.setAttribute("type", "submit");
-    svcButton.setAttribute("onclick", "javascript:doServiceImport('" + service + "')");
     svcButton.setAttribute("class", "importerbutton");
-    svcButton.setAttribute("value", "Import");
+    svcButton.setAttribute("onclick", "javascript:doServiceRefresh('" + service + "')");
+    svcButton.setAttribute("value", "Connect");
     svcDiv.appendChild(svcButton);
 
     let svcProgress = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
@@ -133,11 +186,18 @@ $(document).ready(function(){
     svcProgress.setAttribute("id", "importer" + service + "progress");
     svcProgress.appendChild(document.createTextNode(""));
     svcDiv.appendChild(svcProgress);
-    
+
+    let disconButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+    disconButton.setAttribute("id", "importer" + service + "disconnect");
+    disconButton.setAttribute("type", "submit");
+    disconButton.setAttribute("class", "importersubbutton");
+    disconButton.setAttribute("onclick", "javascript:doServiceDisconnect('" + service + "')");
+    disconButton.setAttribute("value", "Disconnect");
+    svcDiv.appendChild(disconButton);
+
     importers.appendChild(svcDiv);
   }
-  renderPermissions();
-});
+}
 
 function setsrc(id, u)
 {
@@ -227,10 +287,6 @@ These are services that Firefox can load your contacts from.
 
 <div id="importerbadges">
 </div>
-
-<p style="color:#808080"><i>
-We haven't implemented "Refresh" yet - if you change the data in your services, you
-can empty your address book and import it again.</i></p>
 
 <div class="controlsubhead">Contact Database Management</div>
 

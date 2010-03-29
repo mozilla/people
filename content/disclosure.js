@@ -111,7 +111,6 @@ let PeopleDisclosure = {
 			
 				for each (let person in peopleStore) {
 					let anyDataVisible = false;
-          let id = person.documents.default;
           let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
           try {
             contact.setAttribute("class", "contact");
@@ -130,7 +129,7 @@ let PeopleDisclosure = {
             let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
             let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
             let photoURL = "chrome://people/content/images/person_grey.png"; 
-            for each (let photo in id.photos) {
+            for each (let photo in person.getProperty("photos")) {
               if( photo.type == "thumbnail") {
                 photoURL = photo.value;
               }
@@ -149,7 +148,7 @@ let PeopleDisclosure = {
             displayName.setAttribute("class", "name");
 
             if (fieldActive["displayName"] == true) {
-              displayName.innerHTML = htmlescape(id.displayName);
+              displayName.innerHTML = htmlescape(person.getProperty("displayName"));
               anyDataVisible = true;
             }
             information.appendChild(displayName);
@@ -160,7 +159,7 @@ let PeopleDisclosure = {
             let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
             identities.setAttribute("class", "identities");
             if (fieldActive["emails"]== true) {
-              for each (let email in id.emails) {
+              for each (let email in person.getProperty("emails")) {
                 anyDataVisible = true;
                 let identity = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
                 identity.setAttribute("class", "identity");
@@ -172,10 +171,10 @@ let PeopleDisclosure = {
                }
             }
 
-            if (fieldActive["phoneNumbers"] == true) anyDataVisible |= addFieldList(identities, id.phoneNumbers);
+            if (fieldActive["phoneNumbers"] == true) anyDataVisible |= addFieldList(identities, person.getProperty("phoneNumbers"));
             //addFieldList(identities, id.ims);
             //addFieldList(identities, id.accounts);
-            if (fieldActive["links"] == true) anyDataVisible |= addFieldList(identities, id.links);
+            if (fieldActive["links"] == true) anyDataVisible |= addFieldList(identities, person.getProperty("urls"));
             //addFieldList(identities, id.location);
 
             contact.appendChild(identities);

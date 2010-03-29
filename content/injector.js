@@ -248,9 +248,9 @@ let PeopleInjector = {
 							// to a simple, flat, single-schema representation:
 							let newPerson = {}
 							for each (f in fields) {
-                p.getProperty(f);
+                newPerson[f] = p.getProperty(f);
               }
-							outputSet.push(p);
+							outputSet.push(newPerson);
 						}
 					}
 					people = outputSet;

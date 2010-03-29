@@ -41,7 +41,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const DB_VERSION = 1; // The database schema version
+const DB_VERSION = 2; // The database schema version
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -161,8 +161,12 @@ PeopleService.prototype = {
     }
 
 		this._db.createTable("site_permissions", "id INTEGER PRIMARY KEY, " +
-			"url TEXT NOT NULL, fields TEXT NOT NULL");
+			"url TEXT UNIQUE NOT NULL, fields TEXT NOT NULL");
 		this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS site_permissions_url ON site_permissions (url)");
+
+		this._db.createTable("service_metadata", "id INTEGER PRIMARY KEY, " +
+			"servicename TEXT UNIQUE NOT NULL, refresh INTEGER NOT NULL");
+
     this._db.schemaVersion = DB_VERSION;
   },
 
@@ -207,6 +211,19 @@ PeopleService.prototype = {
     this._db.schemaVersion = DB_VERSION;
     this._db.commitTransaction();
     this._log.debug("DB migration completed.");
+  },
+
+  _dbMigrateToVersion2 : function _dbMigrateToVersion2() {
+    for each (var key in ["displayName", "emails", "familyName", "givenName"]) {
+      for each (var idx in ["person_id", "val"]) {
+        this._db.createStatement("DROP INDEX " + key + "_" + idx).execute();
+      }
+      this._db.createStatement("DROP TABLE " + key).execute();
+    }
+    this._db.createStatement("DROP TABLE people").execute();
+    this._db.createStatement("DROP INDEX site_permissions_url").execute();
+    this._db.createStatement("DROP TABLE site_permissions").execute();
+    this._dbCreate();
   },
 
   /*
@@ -260,6 +277,23 @@ PeopleService.prototype = {
     // Close the connection, ignore 'already closed' error
     try { this._db.close(); } catch(e) {}
     this._dbFile.remove(false);
+  },
+
+  /*
+   * _dbVacuum
+   *
+   * Cleans up deleted records from the database.
+   */
+  _dbVacuum : function () {
+    this._log.debug("Vacuuming DB file");
+    let stmt;
+    try {
+      stmt = this._dbCreateStatement("vacuum");
+      stmt.execute();
+    } finally {
+      if (stmt) stmt.reset();
+    }
+    this._log.debug("Finished vacuuming DB file");
   },
 
   /*
@@ -406,6 +440,11 @@ PeopleService.prototype = {
 			let query = "DELETE FROM people";
 			stmt = this._dbCreateStatement(query);
 			stmt.execute();
+
+			query = "DELETE FROM service_metadata";
+			stmt = this._dbCreateStatement(query);
+			stmt.execute();
+
       this._db.commitTransaction();
 
     } catch (e) {
@@ -416,6 +455,7 @@ PeopleService.prototype = {
       if (stmt)
         stmt.reset();
     }
+    this._dbVacuum();
 	},
 
   /* Returns a map from lowercased email addresses to GUIDs for all records */
@@ -676,6 +716,10 @@ PeopleService.prototype = {
     return null;
   },
 
+  /** Given a raw person (object with documents slot), or array of same
+   *objects, update the database so that all the entries in the DB whose
+   * GUIDs match those of the given Person records have the
+   * same JSON value. */
   _update: function _update(person) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
@@ -687,18 +731,14 @@ PeopleService.prototype = {
 
       this._db.beginTransaction();
 
+      // Find the row ID for this person by searching on GUID
       let query = "SELECT * FROM people WHERE guid = :guid";
-      let params = {
-        guid: person.guid
-      };
+      let params = { guid: person.guid };
       stmt = this._dbCreateStatement(query, params);
 
       let id;
-      while (stmt.step()) {
-        id = stmt.row.id;
-      }
-      if (!id)
-        throw "no object for guid " + person.guid;
+      while (stmt.step()) { id = stmt.row.id; }
+      if (!id) throw "no object for guid " + person.guid;
       stmt.reset();
 
       query = "UPDATE people SET json = :json WHERE id = :id";
@@ -710,7 +750,6 @@ PeopleService.prototype = {
       stmt.execute();
 
       this._updateIndexed(id, new Person(person));
-
       this._db.commitTransaction();
 
     } catch (e) {
@@ -889,6 +928,11 @@ PeopleService.prototype = {
       return Utils.mapCall(this, arguments);
 
     let guids = this._find("guid", attrs);
+    this.removeGUIDs(guids);
+    return guids.length;
+  },
+  
+  removeGUIDs: function remove(guids) {
     guids.forEach(function(guid) {
       let param = { guid: guid };
       Observers.notify("people-before-remove", guid);
@@ -905,20 +949,105 @@ PeopleService.prototype = {
       Observers.notify("people-remove", guid);
     }, this);
     return guids.length;
-  },
+  },  
 
   find: function find(attrs) {
     return this._find("json", attrs).map(function(json) {let p = JSON.parse(json); return new Person(p);});
   },
 	
 
-	importFromService: function importFromService(svcName, completionCallback, progressFunction) {
+  connectedServices : function connectedServices() {
+    var svcs = {};
+    var stmt = this._dbCreateStatement("SELECT * FROM service_metadata");
+    try{
+      stmt.reset();
+      while (stmt.step()) {  
+        let svcname = stmt.row.servicename;;  
+        let refresh = stmt.row.refresh;  
+        svcs[svcname] = { refresh: new Date(refresh) }
+      }
+      return svcs;
+    } catch (e) {
+      this._log.warn("Unable to perform service lookup: " + e);
+    } finally {
+      stmt.reset();
+    }
+  },
+
+	connectService: function importFromService(svcName, completionCallback, progressFunction) {
 
 		// note that this could cause an asynchronous call
 		Cu.import("resource://people/modules/import.js");    
-		PeopleImporter.getBackend(svcName).import(completionCallback, progressFunction);
-
+    let svc = PeopleImporter.getBackend(svcName);
+    let that = this;
+    if (svc) {
+      svc.import(
+        function(error) { 
+          if (!error) that.markServiceRefreshTimestamp(svcName);
+          completionCallback(error);
+        }, progressFunction);
+    }
 	},
+  
+  disconnectService: function disconnectService(svcName) {
+		Cu.import("resource://people/modules/import.js");    
+    this._log.debug("Disconnecting " + svcName);
+    let allPeople = this.find();
+    for each (let p in allPeople) {
+      if (p.obj.documents[svcName]) {
+        delete p.obj.documents[svcName];
+        if (p.obj.documents.__count__ > 0) {
+          this._log.debug("Removing " + svcName + " data from " + p.guid + "; updating");
+          this._update(p.obj);
+          this._updateIndexed(p.guid, p);
+        } else {
+          this._log.debug("Removing " + svcName + " data from " + p.guid + "; deleting");
+          this.removeGUIDs([p.guid]);
+        }
+      }
+    }
+    this.deleteServiceMetadata(svcName);
+  },
+  
+
+  markServiceRefreshTimestamp : function markServiceRefreshTimestamp(svcName) {
+    try {
+      let params = {
+        svcname: svcName,
+        refreshTime: new Date().getTime()
+      }
+      this._dbCreateStatement("INSERT OR REPLACE INTO service_metadata (servicename, refresh) VALUES (:svcname, :refreshTime)", params).
+        execute();
+    } catch (e) {
+      this._log.warn("Error while saving service_metadata: " + e);
+    }
+  },
+
+  deleteServiceMetadata : function deleteServiceMetadata(svcName) {
+    try {
+      let params = {
+        svcname: svcName,
+      }
+      this._dbCreateStatement("DELETE FROM service_metadata WHERE servicename = :svcname", params).
+        execute();
+    } catch (e) {
+      this._log.warn("Error while deleting service_metadata: " + e);
+    }
+  },
+
+  refreshService: function refreshService(svcName, completionCallback, progressFunction) {
+		Cu.import("resource://people/modules/import.js");    
+    
+    // This is not the most efficient way to do this.  What we're doing for now
+    // is removing all the documents for the service, saving it back, and then
+    // importing all the new records.
+    
+    // A better solution would be to load all the new records, merge them OVER the
+    // existing records, and then delete all documents for the service that were
+    // in records that were not just touched.
+    this.disconnectService(svcName);
+    this.connectService(svcName, completionCallback, progressFunction);
+  },
   
   doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {
 		Cu.import("resource://people/modules/import.js");    
