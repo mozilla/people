@@ -80,7 +80,7 @@ GravatarImageDiscoverer.prototype = {
         this._log.info("Gravatar import error: " + e);
       }
     }
-    completionCallback(null);
+    completionCallback({success: newPerson ? "Searching Gravatar found a thumbnail picture." : ""});
     return newPerson;
   }
 }

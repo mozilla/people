@@ -353,6 +353,7 @@ let PeopleManager = {
 
 function selectPerson(guid)
 {
+  if (guid != PeopleManager.selectedPersonGUID) gDiscoveryMessage = "";
   PeopleManager.selectedPersonGUID = guid;
 
   let person = null;
@@ -384,79 +385,89 @@ function renderDetailPane()
   //    type
   //    value
     
-  let summary = createDiv("summary");
-  let photo = createDiv("photo");
+  try {
+    let summary = createDiv("summary");
+    let photo = createDiv("photo");
 
-  let controls = createDiv("detailcontrols");
-  let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
-  link.setAttribute("href", "javascript:renderDetailAttributionPane()");
-  link.appendChild(document.createTextNode("Where did this information come from?"));
-  controls.appendChild(link);
-  summary.appendChild(controls);
+    let controls = createDiv("detailcontrols");
+    let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+    link.setAttribute("href", "javascript:renderDetailAttributionPane()");
+    link.appendChild(document.createTextNode("Where did this information come from?"));
+    controls.appendChild(link);
+    summary.appendChild(controls);
 
-  let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-  let photoURL = "chrome://people/content/images/person.png"; 
-  for each (let photo in person.getProperty("photos")) {
-    if( photo.type == "thumbnail") {
-      photoURL = photo.value;
+    let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+    let photoURL = "chrome://people/content/images/person.png"; 
+    for each (let photo in person.getProperty("photos")) {
+      if( photo.type == "thumbnail") {
+        photoURL = photo.value;
+      }
     }
+    img.setAttribute("src", photoURL);
+    photo.appendChild(img);
+    summary.appendChild(photo);
+
+    let information = createDiv("information");
+    let displayName = createDiv("name");
+    displayName.innerHTML = htmlescape(person.getProperty("displayName"));
+    information.appendChild(displayName);
+
+    let description = createDiv("description");
+    for each (let organization in person.getProperty("organizations")) {
+      if (organization.title && organization.name) {
+        description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>";       
+      } else if (organization.name) {
+        description.innerHTML += htmlescape(organization.name) + "<br/>";             
+      }
+    }
+    information.appendChild(description);
+      
+    summary.appendChild(information);
+    container.appendChild(summary);
+
+    let identities = createDiv("identities");
+    addFieldList(identities, person.getProperty("emails"), "mailto");
+    addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
+    addFieldList(identities, person.getProperty("ims"));
+    addFieldList(identities, person.getProperty("location"), null, null, "http://maps.google.com/maps?q=");
+
+    var urls = person.getProperty("urls");
+    if (urls && urls.length > 0) {
+      let header = createDiv("fieldheader");
+      header.innerHTML = "Links:";
+      identities.appendChild(header);
+      addLinksList(identities, urls);
+    }
+
+    var accounts = person.getProperty("accounts");
+    if (accounts && accounts.length > 0) {
+      let header = createDiv("fieldheader");
+      header.innerHTML = "Accounts:";
+      identities.appendChild(header);
+      addAccountsList(identities, accounts);
+    }
+    container.appendChild(identities);
+
+
+    let discovery = createDiv("discoverers");
+    discovery.appendChild(document.createTextNode("Find " + person.getProperty("displayName") + " on the web: "));
+    let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+    dButton.setAttribute("type", "submit");
+    dButton.setAttribute("onclick", "javascript:doDiscovery()");
+    dButton.setAttribute("class", "discovererbutton");
+    dButton.setAttribute("value", "Search");
+    discovery.appendChild(dButton);
+
+    let dProgress = createDiv("discovererprogress");
+    dProgress.setAttribute("id", "discovererprogress");
+    if (gDiscoveryMessage) dProgress.innerHTML = gDiscoveryMessage;
+
+    discovery.appendChild(dProgress);
+
+    container.appendChild(discovery);
+  } catch (e) {
+    People._log.warn(e);
   }
-  img.setAttribute("src", photoURL);
-  photo.appendChild(img);
-  summary.appendChild(photo);
-
-  let information = createDiv("information");
-  let displayName = createDiv("name");
-  displayName.innerHTML = htmlescape(person.getProperty("displayName"));
-  information.appendChild(displayName);
-
-  let description = createDiv("description");
-  for each (let organization in person.getProperty("organizations")) {
-    description.innerHTML += htmlescape(organization.title) + ", " + htmlescape(organization.name) + "<br/>"; 
-  }
-  information.appendChild(description);
-    
-  summary.appendChild(information);
-  container.appendChild(summary);
-
-  let identities = createDiv("identities");
-  addFieldList(identities, person.getProperty("emails"), "mailto");
-  addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
-  addFieldList(identities, person.getProperty("ims"));
-  addFieldList(identities, person.getProperty("location"), null, null, "http://maps.google.com/maps?q=");
-
-  var urls = person.getProperty("urls");
-  if (urls && urls.length > 0) {
-    let header = createDiv("fieldheader");
-    header.innerHTML = "Links:";
-    identities.appendChild(header);
-    addLinksList(identities, urls);
-  }
-
-  var accounts = person.getProperty("accounts");
-  if (accounts && accounts.length > 0) {
-    let header = createDiv("fieldheader");
-    header.innerHTML = "Accounts:";
-    identities.appendChild(header);
-    addAccountsList(identities, accounts);
-  }
-  container.appendChild(identities);
-
-
-  let discovery = createDiv("discoverers");
-  discovery.appendChild(document.createTextNode("Find " + person.getProperty("displayName") + " on the web: "));
-  let dButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
-  dButton.setAttribute("type", "submit");
-  dButton.setAttribute("onclick", "javascript:doDiscovery()");
-  dButton.setAttribute("class", "discovererbutton");
-  dButton.setAttribute("value", "Search");
-  discovery.appendChild(dButton);
-
-  let dProgress = createDiv("discovererprogress");
-  dProgress.setAttribute("id", "discovererprogress");
-  discovery.appendChild(dProgress);
-
-  container.appendChild(discovery);
 }
 
 
@@ -480,11 +491,11 @@ function renderDetailAttributionPane()
 
     let header = createDiv("header");
     let svc = PeopleImporter.getService(aService);
-    
-    header.appendChild(document.createTextNode(svc.explainString()));
-    svcbox.appendChild(header);
-
-    traverseRender(aDoc, svcbox);
+    if (svc) {
+      header.appendChild(document.createTextNode(svc.explainString()));
+      svcbox.appendChild(header);
+      traverseRender(aDoc, svcbox);
+    }
   }
   container.appendChild(svcbox);
 }
@@ -613,17 +624,26 @@ function traverseRender(anObject, container)
 
 
 
+var gDiscoveryMessage = "";
 function doDiscovery()
 {
   let discoverers = PeopleImporter.getDiscoverers();
+  gDiscoveryMessage =  "";
   for (let disco in discoverers) {
     try {
       let discoverer = PeopleImporter.getDiscoverer(disco);
       updateDiscoveryProgress("Working...");
-      People.doDiscovery(disco, PeopleManager.selectedPersonGUID, function(error) {discoveryComplete(error)}, function(val) {updateDiscoveryProgress(discoverer.name + ": " + val);});
+      People.doDiscovery(disco, PeopleManager.selectedPersonGUID, 
+        function(error) {discoveryComplete(error)}, 
+        function(val) {updateDiscoveryProgress(discoverer.name + ": " + val);});
     } catch (e) {
       updateDiscoveryProgress(e.message);
     }
+  }
+  if (gDiscoveryMessage == "") {
+    gDiscoveryMessage = "Nothing was found about this contact using this information.";
+  } else {
+    gDiscoveryMessage = "Search results:<br/>" + gDiscoveryMessage;
   }
   navigator.people.find( {}, null, PeopleManager.loadComplete);
 }
@@ -639,12 +659,13 @@ function updateDiscoveryProgress(msg)
   }
 }
 
-function discoveryComplete(error) 
+function discoveryComplete(result) 
 {
-  if (error) {
-    updateDiscoveryProgress(error.message);
+  if (result && result.success) {
+    gDiscoveryMessage = gDiscoveryMessage + result.success + "<br/>";
+    updateDiscoveryProgress(gDiscoveryMessage);
   } else {
-    updateDiscoveryProgress(null);
+    updateDiscoveryProgress(result.message);
   }
 }
 
@@ -655,7 +676,8 @@ function isArray(obj) {
 
 function htmlescape(html) {
 	if (!html) return html;
-	
+	if (!html.replace) return html;
+  
   return html.
     replace(/&/gmi, '&amp;').
     replace(/"/gmi, '&quot;').

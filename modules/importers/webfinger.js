@@ -208,7 +208,7 @@ WebfingerDiscoverer.prototype = {
         progressFunction("Error while handling Webfinger lookup: " + e);
       }
     }
-    completionCallback(null);
+    completionCallback({success: newPerson ? "Searching all email addresses for Webfinger data found some link data." : ""});
     return newPerson;
     
   }

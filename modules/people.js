@@ -1057,7 +1057,9 @@ PeopleService.prototype = {
     let discoverer = PeopleImporter.getDiscoverer(svcName);
     if (discoverer) {
       let newDoc = PeopleImporter.getDiscoverer(svcName).discover(personResultSet[0], completionCallback, progressFunction);
-      if (newDoc) this.update(personGUID, discoverer, newDoc);
+      if (newDoc) {
+        this.update(personGUID, discoverer, newDoc);
+      }
     }
   },
 	

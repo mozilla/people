@@ -128,14 +128,25 @@ function displayServices()
 {
   let services = PeopleImporter.getBackends();  
   let connected = People.connectedServices();
-  for (let service in services) {
+
+  for (var service in services) {
     if (connected[service]) {
-      var delta = (new Date().getTime() - connected[service].refresh ) / 1000; // seconds
-      var str;
-      if (delta &lt; 3600*24) {
-        str = "at " + connected[service].refresh.toLocaleTimeString();
+      var now = new Date();
+      var then = new Date(connected[service].refresh);
+    
+      if (then.getDate() != now.getDate())
+      {
+         var dayDelta = (new Date().getTime() - then.getTime() ) / 1000 / 60 / 60 / 24 // hours
+         if (dayDelta &lt; 2) str = "yesterday";
+         else if (dayDelta &lt; 7) str = Math.floor(dayDelta) + " days ago";
+         else if (dayDelta &lt; 14) str = "last week";
+         else if (dayDelta &lt; 30) str = Math.floor(dayDelta) + " days ago";
+         else str = Math.floor(dayDelta /30)  + " month" + ((dayDelta/30&gt;2)?"s":"") + " ago";
       } else {
-        str = "on " + connected[service].refresh.toLocaleDateString();      
+          var str;
+          var hrs = then.getHours();
+          var mins = then.getMinutes();
+          str = "at " + Math.floor(Math.floor(hrs) % 12) + ":" + Math.floor(mins) + " " + (hrs >= 12 ? "P.M." : "A.M.");
       }
       document.getElementById("importer" + service + "action").value = "Refresh";
       document.getElementById("importer" + service + "progress").innerHTML = "Updated " + str;
@@ -158,44 +169,48 @@ function renderServices()
   let connected = People.connectedServices();
   
   for (let service in services) {
-    let importer = PeopleImporter.getBackend(service);
+    try {
+      let importer = PeopleImporter.getBackend(service);
 
-    let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-    svcDiv.setAttribute("class", "importerbadge");
+      let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcDiv.setAttribute("class", "importerbadge");
 
-    let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-    svcImg.setAttribute("src", importer.iconURL);
-    svcImg.setAttribute("id", service+"-badge");
-    svcDiv.appendChild(svcImg);
+      let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+      svcImg.setAttribute("src", importer.iconURL);
+      svcImg.setAttribute("id", service+"-badge");
+      svcDiv.appendChild(svcImg);
 
-    let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-    svcLabel.setAttribute("class", "importerlabel");
-    svcLabel.appendChild(document.createTextNode(importer.displayName));
-    svcDiv.appendChild(svcLabel);
+      let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcLabel.setAttribute("class", "importerlabel");
+      svcLabel.appendChild(document.createTextNode(importer.displayName));
+      svcDiv.appendChild(svcLabel);
 
-    let svcButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
-    svcButton.setAttribute("id", "importer" + service + "action");
-    svcButton.setAttribute("type", "submit");
-    svcButton.setAttribute("class", "importerbutton");
-    svcButton.setAttribute("onclick", "javascript:doServiceRefresh('" + service + "')");
-    svcButton.setAttribute("value", "Connect");
-    svcDiv.appendChild(svcButton);
+      let svcButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+      svcButton.setAttribute("id", "importer" + service + "action");
+      svcButton.setAttribute("type", "submit");
+      svcButton.setAttribute("class", "importerbutton");
+      svcButton.setAttribute("onclick", "javascript:doServiceRefresh('" + service + "')");
+      svcButton.setAttribute("value", "Connect");
+      svcDiv.appendChild(svcButton);
 
-    let svcProgress = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-    svcProgress.setAttribute("class", "importerprogress");
-    svcProgress.setAttribute("id", "importer" + service + "progress");
-    svcProgress.appendChild(document.createTextNode(""));
-    svcDiv.appendChild(svcProgress);
+      let svcProgress = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcProgress.setAttribute("class", "importerprogress");
+      svcProgress.setAttribute("id", "importer" + service + "progress");
+      svcProgress.appendChild(document.createTextNode(""));
+      svcDiv.appendChild(svcProgress);
 
-    let disconButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
-    disconButton.setAttribute("id", "importer" + service + "disconnect");
-    disconButton.setAttribute("type", "submit");
-    disconButton.setAttribute("class", "importersubbutton");
-    disconButton.setAttribute("onclick", "javascript:doServiceDisconnect('" + service + "')");
-    disconButton.setAttribute("value", "Disconnect");
-    svcDiv.appendChild(disconButton);
+      let disconButton = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+      disconButton.setAttribute("id", "importer" + service + "disconnect");
+      disconButton.setAttribute("type", "submit");
+      disconButton.setAttribute("class", "importersubbutton");
+      disconButton.setAttribute("onclick", "javascript:doServiceDisconnect('" + service + "')");
+      disconButton.setAttribute("value", "Disconnect");
+      svcDiv.appendChild(disconButton);
 
-    importers.appendChild(svcDiv);
+      importers.appendChild(svcDiv);
+    } catch (e) {
+      People._log.warn("Error while rendering service " + service + ": " + e);
+    }
   }
 }
 

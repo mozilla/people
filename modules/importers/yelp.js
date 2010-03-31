@@ -102,7 +102,7 @@ YelpAccountDiscoverer.prototype = {
         this._log.debug("Address " + email.value + " got error from Yelp: " + e);
       }
     }
-    completionCallback(null);
+    completionCallback({success: newPerson ? "Searching Yelp.com found a profile page." : ""});
     return newPerson;
   }
 }
