@@ -146,7 +146,10 @@ function displayServices()
           var str;
           var hrs = then.getHours();
           var mins = then.getMinutes();
-          str = "at " + Math.floor(Math.floor(hrs) % 12) + ":" + Math.floor(mins) + " " + (hrs >= 12 ? "P.M." : "A.M.");
+          
+          var hr = Math.floor(Math.floor(hrs) % 12);
+          if (hr == 0) hr =12;
+          str = "at " + hr + ":" + Math.floor(mins) + " " + (hrs >= 12 ? "P.M." : "A.M.");
       }
       document.getElementById("importer" + service + "action").value = "Refresh";
       document.getElementById("importer" + service + "progress").innerHTML = "Updated " + str;
