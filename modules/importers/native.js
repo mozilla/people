@@ -73,6 +73,9 @@ NativeAddressBookImporter.prototype = {
 				person = {}
 				let fname = allCards[i].getProperty("firstName");
 				let lname = allCards[i].getProperty("lastName");
+        let org = allCards[i].getProperty("organization");
+        let dept = allCards[i].getProperty("department");
+        let jobTitle = allCards[i].getProperty("jobTitle");
 				// let email = allCards[i].getProperty("email");
 				
 				if (!fname && !lname) continue; // skip anonymous cards for now
@@ -89,6 +92,15 @@ NativeAddressBookImporter.prototype = {
 				person.name = {}
 				person.name.givenName = fname;
 				person.name.familyName = lname;
+
+        if (org || jobTitle) {
+          person.organizations = [];
+          var orgRecord = {};
+          if (orgRecord) orgRecord.name = org;
+          if (jobTitle) orgRecord.title = jobTitle;
+          if (dept) orgRecord.department = dept;
+          person.organizations.push(orgRecord);
+        }
 
 				person.emails = []
 				let emailLabels = allCards[i].getPropertyListLabels("email", []);

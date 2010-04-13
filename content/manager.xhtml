@@ -23,7 +23,13 @@ function doServiceConnect(service)
 {
   try {
     updateImportProgress(service, "Working...");
-    People.connectService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);});
+
+    People.connectService(
+      service, 
+      function(error) {importerComplete(error, service);}, 
+      function(val) {updateImportProgress(service, val);}, 
+      window);
+      
   } catch (e) {
     updateImportProgress(service, e.message);
     displayServices();  
@@ -45,7 +51,7 @@ function doServiceRefresh(service)
 {
   try {
     updateImportProgress(service, "Working...");
-    People.refreshService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);});
+    People.refreshService(service, function(error) {importerComplete(error, service)}, function(val) {updateImportProgress(service, val);}, window);
   } catch (e) {
     updateImportProgress(service, e.message);
     displayServices();  
@@ -64,7 +70,12 @@ function updateImportProgress(service, msg)
 function importerComplete(error, service) 
 {
   if (error) {
-    updateImportProgress(service, error.message);
+    if (error.progressUI) {
+      document.getElementById('importer' + service + 'progress').innerHTML = "";
+      document.getElementById('importer' + service + 'progress').appendChild(error.progressUI);
+    } else { 
+      updateImportProgress(service, error.message);
+    }
   } else {
     updateImportProgress(service, null);
     navigator.people.find( {}, null, PeopleManager.loadComplete);
@@ -149,7 +160,8 @@ function displayServices()
           
           var hr = Math.floor(Math.floor(hrs) % 12);
           if (hr == 0) hr =12;
-          str = "at " + hr + ":" + Math.floor(mins) + " " + (hrs >= 12 ? "P.M." : "A.M.");
+          var mins = Math.floor(mins);
+          str = "at " + hr + ":" + (mins &lt; 10 ? "0" : "") + Math.floor(mins) + " " + (hrs >= 12 ? "P.M." : "A.M.");
       }
       document.getElementById("importer" + service + "action").value = "Refresh";
       document.getElementById("importer" + service + "progress").innerHTML = "Updated " + str;

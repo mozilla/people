@@ -70,7 +70,11 @@ var Overlay = {
         
         // Insert code if version is different here => upgrade
         window.setTimeout(function(){
-          gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/v1_to_v2.xhtml");
+          if (current == "0.3a1") {
+            gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/v3a1.xhtml");          
+          } else{
+            gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/v1_to_v2.xhtml");
+          }
         }, 1500); //Firefox 2 fix - or else tab will get closed
       }
     }

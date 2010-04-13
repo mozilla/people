@@ -890,10 +890,10 @@ PeopleService.prototype = {
                         if (newObj.rel == item.rel) {
                           return true;
                         }
-                      } else if (newObj.type == "internet") {// gross hack for Google email
+                      } else if (newObj.type == "internet" || newObj.type == "unlabeled") {// gross hack for Google, Yahoo, etc.
                         newObj.type = item.type;
                         return true;
-                      } else if (item.type == "internet") {
+                      } else if (item.type == "internet" || item.type == "unlabeled") {
                         item.type = newObj.type;
                         return true;
                       } else {
@@ -974,7 +974,7 @@ PeopleService.prototype = {
     }
   },
 
-	connectService: function importFromService(svcName, completionCallback, progressFunction) {
+	connectService: function importFromService(svcName, completionCallback, progressFunction, window) {
 
 		// note that this could cause an asynchronous call
 		Cu.import("resource://people/modules/import.js");    
@@ -985,7 +985,7 @@ PeopleService.prototype = {
         function(error) { 
           if (!error) that.markServiceRefreshTimestamp(svcName);
           completionCallback(error);
-        }, progressFunction);
+        }, progressFunction, window);
     }
 	},
   
@@ -1035,7 +1035,7 @@ PeopleService.prototype = {
     }
   },
 
-  refreshService: function refreshService(svcName, completionCallback, progressFunction) {
+  refreshService: function refreshService(svcName, completionCallback, progressFunction, window) {
 		Cu.import("resource://people/modules/import.js");    
     
     // This is not the most efficient way to do this.  What we're doing for now
@@ -1046,7 +1046,7 @@ PeopleService.prototype = {
     // existing records, and then delete all documents for the service that were
     // in records that were not just touched.
     this.disconnectService(svcName);
-    this.connectService(svcName, completionCallback, progressFunction);
+    this.connectService(svcName, completionCallback, progressFunction, window);
   },
   
   doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {

@@ -195,9 +195,10 @@ PoCoPerson.prototype = {
 // Now load the built-ins:
 Cu.import("resource://people/modules/importers/native.js");
 Cu.import("resource://people/modules/importers/gmail.js");
-Cu.import("resource://people/modules/importers/twitter.js");
 Cu.import("resource://people/modules/importers/linkedin.js");
 Cu.import("resource://people/modules/importers/plaxo.js");
+Cu.import("resource://people/modules/importers/twitter.js");
+Cu.import("resource://people/modules/importers/yahoo.js");
 
 Cu.import("resource://people/modules/importers/gravatar.js");
 Cu.import("resource://people/modules/importers/flickr.js");

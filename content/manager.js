@@ -259,7 +259,7 @@ let PeopleManager = {
         for each (let photo in person.getProperty("photos")) {
           if( photo.type == "thumbnail") {
             photoURL = photo.value;
-          }
+          } 
         }
         img.setAttribute("src", photoURL);
         photo.appendChild(img);
@@ -327,16 +327,42 @@ let PeopleManager = {
         img.setAttribute("src", "chrome://people/content/images/person_grey.png");
         contact.appendChild(img);
 
+
+        var dN = person.getProperty("displayName");
+        if (dN == null || dN.length ==0) {
+          let emails = person.getProperty("emails");
+          if (emails && emails.length > 0) {
+            dN = emails[0].value;
+          } else {
+            let accounts = person.getProperty("accounts");
+            if (accounts && accounts.length > 0) {
+              dN = accounts[0].username;
+            } else {
+              let orgs = person.getProperty("organizations");
+              if (orgs && orgs.length > 0) {
+                dN = accounts[0].name;
+              } else {
+                let urls = person.getProperty("urls");
+                if (urls && urls.length > 0) {
+                  dN = urls[0].value;
+                } else {
+                  dN = "Unnamed Contact";
+                }
+              }
+            }
+          }
+        }
+
         let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
         a.setAttribute("class", "clink");
         a.setAttribute("href", "javascript:selectPerson('" + person.guid + "')");
-        a.appendChild(document.createTextNode(person.getProperty("displayName")));
+        a.appendChild(document.createTextNode(dN));
         contact.appendChild(a);
 
         // hidden div for name
         let displayName = createDiv("name");
         displayName.setAttribute("style", "display:none");
-        displayName.innerHTML = htmlescape(person.getProperty("displayName"));
+        displayName.innerHTML = htmlescape(dN);
         contact.appendChild(displayName);
         
         contactList.appendChild(contact);
@@ -397,11 +423,18 @@ function renderDetailPane()
     summary.appendChild(controls);
 
     let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-    let photoURL = "chrome://people/content/images/person.png"; 
+    let photoURL;
+    let backupPhotoURL;
     for each (let photo in person.getProperty("photos")) {
       if( photo.type == "thumbnail") {
         photoURL = photo.value;
+      } else if (!backupPhotoURL) {
+        backupPhotoURL = photo.value;
       }
+    }
+    if (!photoURL) {
+      if (backupPhotoURL) photoURL = backupPhotoURL;
+      else photoURL = "chrome://people/content/images/person.png";
     }
     img.setAttribute("src", photoURL);
     photo.appendChild(img);

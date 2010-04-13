@@ -73,8 +73,10 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
 		CFTypeRef lastName = ABRecordCopyValue (person, kABLastNameProperty);
 		//CFTypeRef firstNamePhonetic = ABRecordCopyValue (person, kABFirstNamePhoneticProperty);
 		//CFTypeRef lastNamePhonetic = ABRecordCopyValue (person, kABLastNamePhoneticProperty);
-		//CFTypeRef org = ABRecordCopyValue (person, kABOrganizationProperty);
-		//CFTypeRef title = ABRecordCopyValue (person, kABJobTitleProperty);
+		CFTypeRef org = ABRecordCopyValue (person, kABOrganizationProperty);
+		CFTypeRef dept = ABRecordCopyValue (person, kABDepartmentProperty);
+		CFTypeRef title = ABRecordCopyValue (person, kABJobTitleProperty);
+    
 		CFTypeRef emails = ABRecordCopyValue (person, kABEmailProperty);// kABMultiStringProperty
 		CFTypeRef phones = ABRecordCopyValue (person, kABPhoneProperty);// kABMultiStringProperty
 //	CFTypeRef addresses = ABRecordCopyValue (person, kABAddressProperty);// multi-dictionary
@@ -89,13 +91,16 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
 			card->setLastName((CFStringRef)lastName);
 		}
 
-/*		if (org) {
-			card->setOrganization(extractCFStringPtr((CFStringRef)org, valueBuffer, BUFSIZE));
+		if (org) {
+			card->setOrganization((CFStringRef)org);
 		}
-		if (title) {
-			card->setTitle(extractCFStringPtr((CFStringRef)title, valueBuffer, BUFSIZE));
+		if (dept) {
+			card->setDepartment((CFStringRef)dept);
+		}	
+    if (title) {
+			card->setTitle((CFStringRef)title);
 		}
-*/
+
 		if (emails) {
 			for (j=0;j<ABMultiValueCount((ABMultiValueRef)emails);j++) {
 				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)emails, j);

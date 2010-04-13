@@ -149,7 +149,7 @@ A {
 .tabledetailpane > .summary > .photo > img { margin: 0em; padding: 0em; border: 2px solid #eee; width: 48px; height: 48px; }
 .tabledetailpane > .summary > .information { margin-left: 54px; padding-left: 1em; }
 .tabledetailpane > .summary > .information > .name { color: #222; font-weight: bold; font-size: 120%;}
-.tabledetailpane > .summary > .information > .description { color: #999; font-size:120%}
+.tabledetailpane > .summary > .information > .description { color: #999; font-weight:bold; font-size:100%}
 
 .tabledetailpane > .identities > .identity {white-space: nowrap; overflow: hidden}
 .tabledetailpane > .identities > .identity > .type > .favicon { margin-left:2px; }

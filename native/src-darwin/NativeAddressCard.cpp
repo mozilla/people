@@ -15,6 +15,9 @@ NativeAddressCard::NativeAddressCard()
   /* member initializers and constructor code */
 	mFirstName = NULL;
 	mLastName = NULL;
+	mOrganization = NULL;
+	mDepartment = NULL;
+	mTitle = NULL;
 	mEmails = NULL;
 	mNumEmails = mEmailsSize = 0;
 	mPhones = NULL;
@@ -28,6 +31,8 @@ NativeAddressCard::~NativeAddressCard()
   /* destructor code */
 	if (mFirstName) CFRelease(mFirstName);
 	if (mLastName) CFRelease(mLastName);
+	if (mOrganization) CFRelease(mOrganization);
+	if (mTitle) CFRelease(mTitle);
 
 	int i;
 	if (mEmails) {
@@ -61,6 +66,12 @@ NS_IMETHODIMP NativeAddressCard::GetProperty(const char *name, PRUnichar **_retv
 		val = mFirstName;
 	} else if (!strcmp(name, "lastName")) {
 		val = mLastName;
+	} else if (!strcmp(name, "organization")) {
+		val = mOrganization;
+	} else if (!strcmp(name, "department")) {
+		val = mDepartment;
+	} else if (!strcmp(name, "jobTitle")) {
+		val = mTitle;
 	}
 	
 	if (val) {
@@ -221,6 +232,10 @@ void NativeAddressCard::setLastName(const CFStringRef name)
 void NativeAddressCard::setOrganization(const CFStringRef org)
 {
 	mOrganization = org;
+}
+void NativeAddressCard::setDepartment(const CFStringRef org)
+{
+	mDepartment = org;
 }
 void NativeAddressCard::setTitle(const CFStringRef title)
 {

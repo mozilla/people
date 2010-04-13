@@ -34,6 +34,7 @@ public:
 	void setFirstName(const CFStringRef name);
 	void setLastName(const CFStringRef name);
 	void setOrganization(const CFStringRef org);
+	void setDepartment(const CFStringRef org);
 	void setTitle(const CFStringRef title);
 	void setEmail(const CFStringRef type, const CFStringRef email);
 	void setPhone(const CFStringRef type, const CFStringRef phone);
@@ -49,6 +50,7 @@ protected:
 	CFStringRef mFirstName;
 	CFStringRef mLastName;
 	CFStringRef mOrganization;
+	CFStringRef mDepartment;
 	CFStringRef mTitle;
 	
 	TaggedField **mEmails;
