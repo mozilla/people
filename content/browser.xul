@@ -43,6 +43,17 @@
 
   <script type="application/javascript" src="chrome://people/content/firstrun.js"/>
   <script type="application/javascript" src="chrome://people/content/injector.js"/>
+  <script type="application/javascript">
+  <![CDATA[
+    Components.utils.import("resource://people/content/location_autocomplete.js");
+
+    addEventListener("load", function() {
+      // Change the search engine to include people
+      gURLBar.setAttribute("autocompletesearch", "people " +
+        gURLBar.getAttribute("autocompletesearch"));
+    }, false);
+  ]]>
+  </script>
 
   <menupopup id="menu_ToolsPopup">
     <menuitem class="menuitem-iconic"

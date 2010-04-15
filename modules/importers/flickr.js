@@ -125,8 +125,7 @@ FlickrAccountDiscoverer.prototype = {
         this._log.warn("Address check with flickr returned status code " + load.status + "\n" + load.responseText);
       }
     }
-    completionCallback({success: newPerson ? "Searching Flickr found a photo page." : ""});
-    return newPerson;
+    completionCallback(newPerson, {success: newPerson ? "Searching Flickr found a photo page." : ""});
   }
 }
 

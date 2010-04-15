@@ -95,9 +95,8 @@ AmazonAccountDiscoverer.prototype = {
         this._log.debug("Address " + email.value + " got error from Amazon: " + e);
       }
     }
-    completionCallback({success: newPerson ? "Searching Amazon.com found a profile page." : ""});
-    return newPerson;
+    completionCallback(newPerson, {success: newPerson ? "Searching Amazon.com found a profile page." : ""});
   }
 }
 
-PeopleImporter.registerDiscoverer(AmazonAccountDiscoverer);
+//PeopleImporter.registerDiscoverer(AmazonAccountDiscoverer);

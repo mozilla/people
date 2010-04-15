@@ -131,4 +131,8 @@ PeopleAutoComplete.prototype = {
 };
 
 let components = [PeopleAutoComplete];
-function NSGetModule(compMgr, fileSpec) XPCOMUtils.generateModule(components);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule(components);
+}
+
+

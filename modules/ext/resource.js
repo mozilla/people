@@ -125,7 +125,8 @@ Resource.prototype = {
 
   _init: function Res__init(uri) {
     this._log = Log4Moz.repository.getLogger(this._logName);
-    //this._log.level =
+    this._log.level = Log4Moz.Level.Info;
+    
     //  Log4Moz.Level[Utils.prefs.getCharPref("log.logger.network.resources")];
     this.uri = uri;
     this._headers = {'Content-type': 'text/plain'};

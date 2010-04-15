@@ -1,0 +1,78 @@
+body { 
+  font-family: sans-serif; 
+  font-size: 11pt; 
+  margin: 0px;
+  padding: 0px; 
+  background-color: #f8f8f8; 
+  height:100%
+}
+
+a {
+  color:#3875D7
+}
+
+.spinner {
+  float:right;
+  padding:4px;
+}
+
+.person {
+  width:auto;
+  margin-left:16px;
+  margin-right:16px;
+  margin-top:16px;
+  padding:8px;
+  border:1pt #808080 solid;
+  min-height:74px;
+  -moz-border-radius: 1em; 
+  -moz-box-shadow: #bbb 2px 2px 1px; 
+}
+
+.photo {
+  width: 68px; 
+  height: 68px; 
+  position: absolute; 
+  border: 1px solid #aaa;  
+}
+.profilePhoto {
+  margin: 0em; 
+  padding: 0em; 
+  border: 2px solid #eee; 
+  width: 64px; 
+  height: 64px; 
+}
+
+.displayName {
+  font:caption;
+  margin-left:74px;
+  font-size:120%;
+  font-weight:bold;
+  padding-bottom:16px;
+}
+
+.vlist_title {
+  font:small-caption;
+  border-bottom:1px dotted #808080;
+}
+
+.vlist {
+  margin-left:74px;
+  padding-bottom:16px;
+  width:auto;
+}
+
+.type {
+  display:inline-block;
+  font:small-caption;
+  font-weight:normal;
+  color:#808080;
+  width:120px;
+  text-align:right;
+  overflow:hidden;
+}
+.value {
+  padding-left:1em;
+  font:small-caption;
+  font-weight:normal;
+  display:inline-block;
+}

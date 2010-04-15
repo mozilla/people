@@ -466,6 +466,7 @@ function renderDetailPane()
 
     var urls = person.getProperty("urls");
     if (urls && urls.length > 0) {
+      urls = selectTopLevelUrls(urls);
       let header = createDiv("fieldheader");
       header.innerHTML = "Links:";
       identities.appendChild(header);
@@ -502,6 +503,21 @@ function renderDetailPane()
     People._log.warn(e);
   }
 }
+
+function selectTopLevelUrls(urls)
+{
+  var ret = [];
+  for each (var u in urls) {
+    var matched = false;
+    for each (var r in ret) {
+      if (u.value.indexOf(r.value) == 0) {matched = true;break;}
+    }
+    if (!matched) ret.push(u);
+  }
+  return ret;
+}
+
+
 
 
 function renderDetailAttributionPane()

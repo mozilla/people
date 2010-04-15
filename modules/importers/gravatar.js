@@ -59,7 +59,7 @@ GravatarImageDiscoverer.prototype = {
 	get iconURL() "chrome://people/content/images/gravatar.png",
 
   discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Scanning current People store for Gravatar icons.");
+    this._log.debug("Scanning email addresses for Gravatar icons.");
 
     let newPerson = null;
     for each (let email in forPerson.getProperty("emails")) {
@@ -80,8 +80,7 @@ GravatarImageDiscoverer.prototype = {
         this._log.info("Gravatar import error: " + e);
       }
     }
-    completionCallback({success: newPerson ? "Searching Gravatar found a thumbnail picture." : ""});
-    return newPerson;
+    completionCallback(newPerson, {success: newPerson ? "Searching Gravatar found a thumbnail picture." : ""});
   }
 }
 

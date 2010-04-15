@@ -47,6 +47,8 @@ Cu.import("resource://people/modules/ext/resource.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
 Cu.import("resource://gre/modules/Microformats.js");
+let IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+
 
 function HCardDiscoverer() {
   this._log = Log4Moz.repository.getLogger("People.HCardDiscoverer");
@@ -67,6 +69,18 @@ function getAttribute(element, name)
 }
 
 
+let KNOWN_HCARDS = {"digg.com":1, "twitter.com":1};
+
+function isKnownHCardSite(parsedURI)
+{
+  try {
+    var hostName = parsedURI.host;
+    if (hostName.indexOf("www.") == 0) hostName = hostName.slice(4);
+    if (KNOWN_HCARDS[hostName]) return true;
+  } catch (e) {
+  }
+  return false;
+}
 
 HCardDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
@@ -81,8 +95,9 @@ HCardDiscoverer.prototype = {
     for each (let link in forPerson.getProperty("urls")) {
       try {
         this._log.debug("Checking link " + link.type + ": " + JSON.stringify(link));
+        var parsedURI = IO_SERVICE.newURI(link.value, null, null);
       
-        if (link.rel == 'http://microformats.org/profile/hcard')
+        if (link.rel == 'http://microformats.org/profile/hcard' || isKnownHCardSite(parsedURI))
         {
           progressFunction("Resolving HCard at " + link.value);
           let hcardResource = new Resource(link.value);
@@ -109,13 +124,19 @@ HCardDiscoverer.prototype = {
                 var href = getAttribute(anElement, "href");
                 var text = anElement.textContent;
                 
-                // TODO: perform lookup from href domain, or text, to canonical rels
-                var aLink = {
-                  type: text, rel: text, value: href
-                };
-                if (newPerson.urls == undefined) newPerson.urls = [];
-                newPerson.urls.push(aLink);
-                urlCheckMap[href] = 1;
+                try {
+                  var parsedURI = IO_SERVICE.newURI(href, null, parsedURI);
+                  
+                  // TODO: perform lookup from href domain, or text, to canonical rels
+                  var aLink = {
+                    type: text, rel: text, value: parsedURI.spec
+                  };
+                  if (newPerson.urls == undefined) newPerson.urls = [];
+                  newPerson.urls.push(aLink);
+                  urlCheckMap[href] = 1;
+                } catch (e) {
+                  this._log.debug("Error while processing hcard link: " + e);
+                }
               } else {
                 this._log.debug("Found a link with rel=me but it had no href: " + anElement);
               }
@@ -144,11 +165,14 @@ HCardDiscoverer.prototype = {
                 if (anAdr['extended-address']) addr.extendedAddress = anAdr['extended-address'];
                 if (anAdr['region']) addr.region = anAdr['region'];
                 if (anAdr['postal-code']) addr.postalCode = anAdr['postal-code'];
-                if (anAdr['country-name']) addr.countryName = anAdr['country-name'];
+                if (anAdr['country-name']) addr.country = anAdr['country-name'];
                 if (anAdr['post-office-box']) addr.postOfficeBox = anAdr['post-office-box'];
                 if (anAdr['locality']) addr.locality = anAdr['locality'];
                 newPerson.addresses.push(addr);
               }
+            }
+            if (aPerson.bio) {
+              newPerson.note = [{type:"bio", value:aPerson.bio}];
             }
             if (aPerson.bday) {
               newPerson.bday = aPerson.bday;
@@ -227,8 +251,7 @@ HCardDiscoverer.prototype = {
         progressFunction("Error while handling HCardDiscoverer lookup: " + e);
       }
     }
-    completionCallback({success: newPerson ? "Loading a profile link found some link data." : ""});
-    return newPerson;
+    completionCallback(newPerson, {success: newPerson ? "Loading a profile link found some link data." : ""});
   }
 }
 

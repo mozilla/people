@@ -102,16 +102,16 @@ NativeAddressBookImporter.prototype = {
           person.organizations.push(orgRecord);
         }
 
-				person.emails = []
 				let emailLabels = allCards[i].getPropertyListLabels("email", []);
 				let emailValues = allCards[i].getPropertyListValues("email", []);
 				for (let j=0;j<emailLabels.length;j++) {
+          if (!person.emails) person.emails = [];
 					person.emails.push({value:emailValues[j], type:emailLabels[j]});
 				}
-				person.phoneNumbers = []
 				let phoneLabels = allCards[i].getPropertyListLabels("phone", []);
 				let phoneValues = allCards[i].getPropertyListValues("phone", []);
 				for (let j=0;j<phoneLabels.length;j++) {
+          if (!person.phoneNumbers) person.phoneNumbers = [];
 					person.phoneNumbers.push({value:phoneValues[j], type:phoneLabels[j]});
 				}
 

@@ -64,6 +64,41 @@ function WebfingerDiscoverer() {
   this._log.debug("Initializing importer backend for " + this.displayName);
 };
 
+function extractLRDDTemplateFromHostMetaText(text, progressFn)
+{
+  var parser = Components.classes["@mozilla.org/xmlextras/domparser;1"].createInstance(Components.interfaces.nsIDOMParser);
+  var parsedDoc = parser.parseFromString(text, "text/xml");
+  if (parsedDoc.documentElement.nodeName == "parsererror") {
+    throw {error:"Unable to parse host-meta file for " + domain};
+  }
+  var host = parsedDoc.documentElement.getElementsByTagNameNS("http://host-meta.net/xrd/1.0", "Host");
+  if (!host || host.length == 0) {
+    host = parsedDoc.documentElement.getElementsByTagName("Host"); // hm, well, try it without a namespace
+    if (!host || host.length == 0) {
+      throw {error:"Unable to find a Host element in the host-meta file for " + domain};
+    }
+  }
+
+// Experimental support for domain aliasing
+// if (host[0].textContent != domain) {
+// 	return "Error: Host-meta contained a Host specification that did not match the host of the account.  Domain aliasing is not supported.";
+//	}
+  var links = parsedDoc.documentElement.getElementsByTagName("Link")
+  var userXRDURL = null;
+  for (var i in links) {
+    var link = links[i];
+    var rel = link.getAttribute("rel");
+    if (rel) {
+      if (rel.toLowerCase() == "lrdd") {
+        var template = link.getAttribute("template");
+        return template;
+      }
+    }  
+  }	
+  return null;
+}
+
+
 WebfingerDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
   get name() "Webfinger",
@@ -71,146 +106,104 @@ WebfingerDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function WebfingerDiscoverer_discover(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Discovering Webfinger services for " + forPerson.displayName);
-
-    let newPerson = null;
+    People._log.debug("Discovering Webfinger services for " + forPerson.displayName);
+    let that = this;
+    
     for each (let email in forPerson.getProperty("emails")) {
       try {
         progressFunction("Checking for webfinger for address " + email.value);
-        this._log.debug("Checking for webfinger for address " + email.value);
-        var split = email.value.split("@");
+        People._log.debug("Checking for webfinger for address " + email.value);
+        let split = email.value.split("@");
         if (split.length != 2) {
-          this._log.debug("Cannot parse " + email.value);
+          People._log.debug("Cannot parse " + email.value);
           progressFunction("Cannot parse " + email.value);
           continue;
         }
-        var id = split[0];
-        var domain = split[1];
+        let id = split[0];
+        let domain = split[1];
 
         // Check for the host-meta
         var hostmetaURL = "http://" + domain + "/.well-known/host-meta";
-        var hostmeta = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
-        hostmeta.open('GET', hostmetaURL, false);
-        hostmeta.send(null)
-        if (hostmeta.status != 200) {
-          this._log.debug("Host " + domain + " doesn't have a host-meta file, and therefore does not support webfinger.");
-          progressFunction("" + domain + " does not support webfinger.");
-          continue;
-        }
-
-        var parser = Components.classes["@mozilla.org/xmlextras/domparser;1"].createInstance(Components.interfaces.nsIDOMParser);
-        var hostmeta = parser.parseFromString(hostmeta.responseText, "text/xml");
-        if (hostmeta.documentElement.nodeName == "parsererror") {
-          this._log.debug("Unable to parse host-meta file for " + domain);
-          progressFunction("Unable to parse host-meta file for " + domain);
-          continue;
-        }
-        var host = hostmeta.documentElement.getElementsByTagNameNS("http://host-meta.net/xrd/1.0", "Host");
-        if (!host || host.length == 0) {
-          host = hostmeta.documentElement.getElementsByTagName("Host"); // hm, well, try it without a namespace
-          if (!host || host.length == 0) {
-            this._log.debug("Unable to find a Host element in the host-meta file for " + domain);
-            progressFunction("Unable to find a Host element in the host-meta file for " + domain);
-            continue;
-          }
-        }
-
-      // Experimental support for domain aliasing
-      // if (host[0].textContent != domain) {
-      // 	return "Error: Host-meta contained a Host specification that did not match the host of the account.  Domain aliasing is not supported.";
-      //	}
-        var links = hostmeta.documentElement.getElementsByTagName("Link")
-        var userXRDURL = null;
-        for (var i in links) {
-          var link = links[i];
-          var rel = link.getAttribute("rel");
-          if (rel) {
-            if (rel.toLowerCase() == "lrdd") {
-              var template = link.getAttribute("template");
-              var userXRDURL = template.replace("{uri}", encodeURI(email.value));
-              break;
-            }
-          }  
-        }	
-        if (userXRDURL == null) {
-          this._log.debug("Unable to find a Link with a rel of lrdd and a valid template in host-meta for " + domain);
-          progressFunction("Unable to find a Link with a rel of lrdd and a valid template in host-meta for " + domain);
-          continue;
-        }
-
-        let xrdLoader = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-        xrdLoader.open('GET', userXRDURL, false);
-        xrdLoader.send(null);
-        if (xrdLoader.status == 200) {
-          // Happy days, let's parse it
-          progressFunction("Found XRD document; reading it");
-          this._log.debug("Found XRD document; reading it");
-          this._log.debug(xrdLoader.responseText);
-          let dom = xrdLoader.responseXML;
-
-  /*
-  <XRD xmlns='http://docs.oasis-open.org/ns/xri/xrd-1.0'>
-    <Subject>acct:bradfitz@gmail.com</Subject>
-    <Alias>http://www.google.com/profiles/bradfitz</Alias>
-    <Link rel='http://portablecontacts.net/spec/1.0' href='http://www-opensocial.googleusercontent.com/api/people/'/>
-    <Link rel='http://webfinger.net/rel/profile-page' href='http://www.google.com/profiles/bradfitz' type='text/html'/>
-    <Link rel='http://microformats.org/profile/hcard' href='http://www.google.com/profiles/bradfitz' type='text/html'/>
-    <Link rel='http://gmpg.org/xfn/11' href='http://www.google.com/profiles/bradfitz' type='text/html'/>
-    <Link rel='http://specs.openid.net/auth/2.0/provider' href='http://www.google.com/profiles/bradfitz'/>
-    <Link rel='describedby' href='http://www.google.com/profiles/bradfitz' type='text/html'/>
-    <Link rel='describedby' href='http://s2.googleusercontent.com/webfinger/?q=bradfitz%40gmail.com&amp;fmt=foaf' type='application/rdf+xml'/>
-    <Link rel='http://schemas.google.com/g/2010#updates-from' href='http://buzz.googleapis.com/feeds/115863474911002159675/public/posted' type='application/atom+xml'/>
-  </XRD>
-  */    
-          var aliasList = dom.documentElement.getElementsByTagName("Alias");
-          var linkList = dom.documentElement.getElementsByTagName("Link");
-
-          if (newPerson == undefined) newPerson = {};
-          
-          // not sure how useful this is.
-          /*for (var alias in aliasList)
-          {
-            if (newPerson.links == undefined) newPerson.links =[];
-            newPerson.links.push( {type:"Alias", alias.textContent} );
-          }*/
-          
-          
-          // Many XRDs include duplicated links that map to the same user concept.
-          for (var i=0;i<linkList.length;i++)
-          {
-            var link = linkList[i];
-            if (newPerson.urls == undefined) newPerson.urls =[];
-            var rel = link.attributes.rel;
-            if (rel.value in REL_DICTIONARY) {
-
-              var obj = {
-                type:REL_DICTIONARY[rel.value], 
-                rel:rel.value, 
-                value:link.attributes.href.value
-              };
-              if (link.attributes['type'] != undefined) {
-                obj['content-type'] = link.attributes.type.value;
+        let hostmeta = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
+        hostmeta.open('GET', hostmetaURL, true);
+        dump("Opening hostmeta (" + hostmeta + ") to " + hostmetaURL + "\n");
+        hostmeta.email = email.value;
+        hostmeta.onreadystatechange = function (aEvt) {
+          if (hostmeta.readyState == 4) {
+            try {
+              if (hostmeta.status != 200) {
+                throw {error:""+domain + " does not support webfinger."};
               }
+              var template = extractLRDDTemplateFromHostMetaText(hostmeta.responseText);
+              var userXRDURL = null;
+              if (template) userXRDURL = template.replace("{uri}", encodeURI(hostmeta.email));
 
-              this._log.debug("Pushing " + obj.type + ":" + obj.value);
-              newPerson.urls.push(obj);
-            } else {
-              this._log.debug("Unknown rel " + rel.value);
+              if (userXRDURL == null) {
+                throw {error:"" + domain + " does not support webfinger (no Link with an lrdd rel and template attribute)"};
+              }
+              let xrdLoader = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+              People._log.debug(userXRDURL);
+              xrdLoader.open('GET', userXRDURL, true);
+
+              xrdLoader.onreadystatechange = function (aEvt) {
+                if (xrdLoader.readyState == 4) {
+                  let newPerson;
+                  if (xrdLoader.status == 200) {
+                    progressFunction("Found XRD document; reading it");
+                    People._log.debug("Found XRD document; reading it");
+                    let dom = xrdLoader.responseXML;
+                    People._log.debug("Response text is " + xrdLoader.responseText);
+                    People._log.debug("Response DOM is " + dom);
+
+                    let linkList = dom.documentElement.getElementsByTagName("Link");
+                    if (newPerson == undefined) newPerson = {};
+                    
+                    // not sure how useful this is.
+                    // var aliasList = dom.documentElement.getElementsByTagName("Alias");                  
+                    /*for (var alias in aliasList) {
+                      if (newPerson.links == undefined) newPerson.links =[];
+                      newPerson.links.push( {type:"Alias", alias.textContent} );
+                    }*/
+                  
+                    // Many XRDs include duplicated links that map to the same user concept.
+                    for (var i=0;i<linkList.length;i++)
+                    {
+                      let link = linkList[i];
+                      if (newPerson.urls == undefined) newPerson.urls =[];
+                      let rel = link.attributes.rel;
+                      if (rel.value in REL_DICTIONARY) {
+
+                        let obj = {
+                          type:REL_DICTIONARY[rel.value], 
+                          rel:rel.value, 
+                          value:link.attributes.href.value
+                        };
+                        if (link.attributes['type'] != undefined) {
+                          obj['content-type'] = link.attributes.type.value;
+                        }
+                        People._log.debug("Pushing " + obj.type + ":" + obj.value);
+                        newPerson.urls.push(obj);
+                      } else {
+                        People._log.debug("Unknown rel " + rel.value);
+                      }
+                    }
+                  }
+                  completionCallback(newPerson, {success: newPerson ? "Searching all email addresses for Webfinger data found some link data." : ""});
+                }
+              }
+              xrdLoader.send(null);
+            } catch (e) {
+              People._log.warn("Webfinger: "+ e + "; " + e.error);
+              completionCallback(null, e);
             }
           }
-          
-        } else {
-          this._log.debug("Received error (" + xrdLoader.status + " while loading service page for " + email.value);
-          progressFunction("Received error (" + xrdLoader.status + " while loading service page for " + email.value);
         }
+        hostmeta.send(null);
       } catch (e) {
-        this._log.warn("Error while handling Webfinger lookup: " + e);
-        progressFunction("Error while handling Webfinger lookup: " + e);
+        People._log.warn("Error while handling Webfinger lookup: " + e);
+        completionCallback(null, {error:"Error while handling Webfinger lookup: " + e});
       }
     }
-    completionCallback({success: newPerson ? "Searching all email addresses for Webfinger data found some link data." : ""});
-    return newPerson;
-    
   }
 }
 

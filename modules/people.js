@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let EXPORTED_SYMBOLS = ["People"];
+let EXPORTED_SYMBOLS = ["People", "Person"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -1052,14 +1052,19 @@ PeopleService.prototype = {
   doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {
 		Cu.import("resource://people/modules/import.js");    
     var personResultSet = this._find("json", {guid:personGUID}).map(function(json) {return new Person(JSON.parse(json));});
-    this._log.warn("Performing discovery on GUID " + personGUID);
     
     let discoverer = PeopleImporter.getDiscoverer(svcName);
+    let that = this;
     if (discoverer) {
-      let newDoc = PeopleImporter.getDiscoverer(svcName).discover(personResultSet[0], completionCallback, progressFunction);
-      if (newDoc) {
-        this.update(personGUID, discoverer, newDoc);
-      }
+      PeopleImporter.getDiscoverer(svcName).discover(
+        personResultSet[0], 
+        function(newDoc, error) {
+          if (newDoc) {          
+            that.update(personGUID, discoverer, newDoc);
+          }
+          completionCallback(error);
+        },
+        progressFunction);
     }
   },
 	

@@ -120,7 +120,8 @@ DiscovererBackend.prototype = {
     return "From searching for this contact with " + this.name;
   },
 
-  discover: function Discoverer_discover(person) {
+  discover: function Discoverer_discover(person, completionCallback, progressCallback) {
+    // When you're done, call completionCallback with a new document
     this._log.debug("DiscovererBackend.import() invoked, base class does nothing");
   }
 };
@@ -200,9 +201,10 @@ Cu.import("resource://people/modules/importers/plaxo.js");
 Cu.import("resource://people/modules/importers/twitter.js");
 Cu.import("resource://people/modules/importers/yahoo.js");
 
+Cu.import("resource://people/modules/importers/webfinger.js");
+Cu.import("resource://people/modules/importers/googleSocialGraph.js");
 Cu.import("resource://people/modules/importers/gravatar.js");
 Cu.import("resource://people/modules/importers/flickr.js");
 Cu.import("resource://people/modules/importers/yelp.js");
-Cu.import("resource://people/modules/importers/webfinger.js");
 Cu.import("resource://people/modules/importers/hcard.js");
 Cu.import("resource://people/modules/importers/amazon.js");
