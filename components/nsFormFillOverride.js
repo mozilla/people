@@ -49,7 +49,10 @@ PeopleAutoComplete.prototype = {
     let props = [name];
     if (field != null) {
       let attributes = ["class", "id", "rel"];
-      attributes.forEach(function(attr) props.push(field.getAttribute(attr)));
+      attributes.forEach(function(attr) {
+        if (field.hasAttribute(attr))
+          props.push(field.getAttribute(attr));
+      });
     }
 
     // Check the gathered properties for people-like values
