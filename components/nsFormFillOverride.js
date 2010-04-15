@@ -31,10 +31,19 @@ PeopleAutoComplete.prototype = {
   classID: Components.ID("{545c79b1-1c45-4f5e-b6bb-98ce9e9fbd12}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFormAutoComplete]),
 
-  checkPeople: function checkPeople(name, field) {
-    // If we have an input field of type email, we definitely want it
-    if (field != null && field.getAttribute("type") == "email")
-      return true;
+  // Specify the html5 types that we want and some values to guess
+  peopleTypes: {
+    email: /^(?:.*(?:e-?mail|recipients?).*|to)$/i,
+    tel: /^(?:tel(?:ephone)?|.*phone.*)$/i,
+  },
+
+  checkPeopleType: function checkPeopleType(name, field) {
+    // If we have an input field with the desired html5 type, take it!
+    if (field != null) {
+      let type = field.getAttribute("type");
+      if (this.peopleTypes[type] != null)
+        return type;
+    }
 
     // Grab attributes to check for people inputs
     let props = [name];
@@ -43,12 +52,14 @@ PeopleAutoComplete.prototype = {
       attributes.forEach(function(attr) props.push(field.getAttribute(attr)));
     }
 
-    // Check these properties for people-like values
-    let peopleLike = /^(?:.*(?:e-?mail|recipients?).*|to)$/i;
-    return props.some(function(prop) prop.search(peopleLike) != -1);
+    // Check the gathered properties for people-like values
+    for (let [type, regex] in Iterator(this.peopleTypes)) {
+      if (props.some(function(prop) prop.search(regex) != -1))
+        return type;
+    }
   },
 
-  findPeople: function findPeople(query) {
+  findPeople: function findPeople(query, type) {
     _("findPeople", Array.slice(arguments));
 
     let result = Cc["@mozilla.org/autocomplete/simple-result;1"].
@@ -61,7 +72,6 @@ PeopleAutoComplete.prototype = {
       try {
           _("findPeople", "Person " + person.getProperty("displayName"));
 
-        let emails = person.getProperty("emails");
         let photos = person.getProperty("photos");
         let thumb;
 
@@ -73,14 +83,27 @@ PeopleAutoComplete.prototype = {
           }
         }
 
-        let dupCheck = {};
-        for each (let email in emails)
-        {
-          if (dupCheck[email.value]) continue;
-          dupCheck[email.value] = 1;
+        let suggestions;
+        switch (type) {
+          case "email":
+            suggestions = person.getProperty("emails");
+            break;
+          case "tel":
+            suggestions = person.getProperty("phoneNumbers");
+            break;
+          default:
+            _("unknown type!", type);
+            return;
+        }
 
-          data = person.displayName + " <" + email.value + ">";
-          result.appendMatch(email.value, data, thumb, "people");
+        let dupCheck = {};
+        for each (let suggestion in suggestions)
+        {
+          if (dupCheck[suggestion.value]) continue;
+          dupCheck[suggestion.value] = 1;
+
+          data = person.displayName + " <" + suggestion.value + ">";
+          result.appendMatch(suggestion.value, data, thumb, "people");
         }
       }
       catch(ex) {
@@ -97,8 +120,10 @@ PeopleAutoComplete.prototype = {
     _("autocomplete search", Array.slice(arguments));
 
     // Do people searches for certain input fields
-    if (this.checkPeople(name, field))
-      return this.findPeople(query);
+
+    let type = this.checkPeopleType(name, field);
+    if (type != null)
+      return this.findPeople(query, type);
 
     // Use the base form autocomplete for non-people searches
     return FAC.autoCompleteSearch(name, query, field, prev);
