@@ -69,13 +69,19 @@ function getAttribute(element, name)
 }
 
 
-let KNOWN_HCARDS = {"digg.com":1, "twitter.com":1};
+let KNOWN_HCARDS = {"digg.com":1, "twitter.com":1,"status.net":1};
 
 function isKnownHCardSite(parsedURI)
 {
   try {
     var hostName = parsedURI.host;
-    if (hostName.indexOf("www.") == 0) hostName = hostName.slice(4);
+    var tld = hostName.lastIndexOf(".");
+    if (tld > 0) {
+      var rootDomainIdx = hostName.lastIndexOf(".", tld-1);
+      hostName = hostName.slice(rootDomainIdx+1);
+    }
+    
+    dump("Host name " + hostName + " is Hcard? " + KNOWN_HCARDS[hostName]);
     if (KNOWN_HCARDS[hostName]) return true;
   } catch (e) {
   }

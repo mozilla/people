@@ -267,12 +267,13 @@ function startDiscovery(inputPerson)
   for (var d in discoverers) {
     var discoverer = PeopleImporter.getDiscoverer(d);
     if (discoverer) {
+      let engine = d;
       gPendingDiscoveryCount += 1;
       discoverer.discover(inputPerson, 
         function completion(newDoc) {
           gPendingDiscoveryCount -= 1;
           if (newDoc) {
-            gDocuments[d] = newDoc;
+            gDocuments[engine] = newDoc;
             renderPerson();
           }
         },
