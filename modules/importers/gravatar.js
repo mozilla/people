@@ -61,26 +61,39 @@ GravatarImageDiscoverer.prototype = {
   discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
     this._log.debug("Scanning email addresses for Gravatar icons.");
 
-    let newPerson = null;
+    var discoveryToken;
     for each (let email in forPerson.getProperty("emails")) {
       try {
         let md5 = hex_md5(email.value);
         let gravLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-        gravLoad.open('GET', "http://www.gravatar.com/avatar/" + md5 + "?d=404&s=1", false);
-        gravLoad.send(null);
-        if (gravLoad.status == 200) {
-          newPerson= {}
-          newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
-          this._log.info("Checked " + email + ": found a Gravatar");
-          break;
-        } else {
-          this._log.info("Checked " + email + ": no Gravatar");
+        gravLoad.open('GET', "http://www.gravatar.com/avatar/" + md5 + "?d=404&s=1", true);
+
+        this._log.debug("Checking address " + email.value + " with Gravatar");
+        progressFunction({initiate:"Gravatar:" + email.value, msg:"Checking address " + email.value + " with Gravatar"});
+        let discoveryToken = "Gravatar:" + email.value;
+        let checkedEmailValue = email.value;
+        
+        gravLoad.onreadystatechange = function (aEvt) {
+          try {
+            if (gravLoad.readyState == 4) {
+              let newPerson= {};
+              if (gravLoad.status == 200) {
+                newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
+                People._log.info("Checked " + checkedEmailValue + ": found a Gravatar");
+              } else {
+                People._log.info("Checked " + checkedEmailValue + ": no Gravatar");
+              }
+              completionCallback(newPerson, discoveryToken);
+            }
+          } catch (e) {
+            People._log.info("Error checking with Gravatar: " + e);
+          }
         }
+        gravLoad.send(null);
       } catch (e) {
         this._log.info("Gravatar import error: " + e);
       }
     }
-    completionCallback(newPerson, {success: newPerson ? "Searching Gravatar found a thumbnail picture." : ""});
   }
 }
 

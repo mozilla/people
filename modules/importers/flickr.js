@@ -62,70 +62,75 @@ FlickrAccountDiscoverer.prototype = {
   discover: function FlickrAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
     let flickrKey = "c0727ed63fc7eef37d8b46c57eec4b2e";
     
-    let newPerson;
     
     this._log.debug("Discovering Flickr account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
-      progressFunction("Checking address with Flickr.");
-      
+      let discoveryToken = "Flickr:" + email.value;
+      progressFunction({initiate:discoveryToken, msg:"Checking " + email.value + " at Flickr."});
       let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-      load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.findByEmail&api_key=" + flickrKey + "&find_email=" + encodeURIComponent(email.value), false);
-      load.send(null);
-      if (load.status == 200) {
-        let dom = load.responseXML;
-        
-        /* success is <rsp stat="ok"><user id="76283545@N00" nsid="76283545@N00"><username>foo</username></user></rsp>
-        failure is <rsp stat="fail"><err code="1" msg="User not found" /></rsp> */
-        if (dom.documentElement.attributes.stat.value == "ok")
-        {
-          let user = dom.documentElement.getElementsByTagName("user")[0];
-          let nsID = user.attributes.nsid.value;
+      load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.findByEmail&api_key=" + flickrKey + "&find_email=" + encodeURIComponent(email.value), true);
 
-          progressFunction("Resolving details with Flickr.");
-          load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.getInfo&api_key=" + flickrKey + "&user_id=" + encodeURIComponent(nsID), false);
-          load.send(null);
-          let detail = load.responseXML;
-          if (detail.documentElement.attributes.stat.value == "ok") 
-          {
-            let personDOM = detail.documentElement.getElementsByTagName("person")[0];
-            let username = personDOM.getElementsByTagName("username")[0];
-            let location = personDOM.getElementsByTagName("location")[0];
-            let photosurl = personDOM.getElementsByTagName("photosurl")[0];
-            let realname = personDOM.getElementsByTagName("realname")[0];
-            // let profileurl = personDOM.getElementsByTagName("profileurl")[0];
+      load.onreadystatechange = function (aEvt) {
+        let myDiscoveryToken = discoveryToken;
+        let newPerson;
+        if (load.readyState == 4) {
+          if (load.status == 200) {
+            let dom = load.responseXML;
+            
+            /* success is <rsp stat="ok"><user id="76283545@N00" nsid="76283545@N00"><username>foo</username></user></rsp>
+            failure is <rsp stat="fail"><err code="1" msg="User not found" /></rsp> */
+            if (dom.documentElement.attributes.stat.value == "ok")
+            {
+              let user = dom.documentElement.getElementsByTagName("user")[0];
+              let nsID = user.attributes.nsid.value;
 
-            if (!newPerson) newPerson = {};
-            if (username) {
-              if (!newPerson.accounts) newPerson.accounts = [];
-              newPerson.accounts.push({domain:"flickr.com", type:"Flickr", username:username.textContent, userid:nsID});
-            }
-            if (location && location.textContent.length > 0) {
-              if (!newPerson.location) newPerson.location = [];
-              newPerson.location.push({type:"Location", value:location.textContent});
-            }
-            if (photosurl) {
-              if (!newPerson.urls) newPerson.urls = [];
-              newPerson.urls.push({type:"Flickr", value:photosurl.textContent});
-            }
-            if (realname) {
-              var n = realname.textContent;
-              newPerson.displayName = n;
-									
-              // For now, let's assume European-style givenName familyName+
-              let split = n.split(" ", 1);
-              if (split.len == 2 && split[0].length > 0 && split[1].length > 0) {
-                newPerson.name = {};
-                newPerson.name.givenName = split[0];
-                newPerson.name.familyName = split.splice(1, 1).join(" ");
+              load.open('GET', "http://api.flickr.com/services/rest/?method=flickr.people.getInfo&api_key=" + flickrKey + "&user_id=" + encodeURIComponent(nsID), false);
+              load.send(null);
+              let detail = load.responseXML;
+              if (detail.documentElement.attributes.stat.value == "ok") 
+              {
+                let personDOM = detail.documentElement.getElementsByTagName("person")[0];
+                let username = personDOM.getElementsByTagName("username")[0];
+                let location = personDOM.getElementsByTagName("location")[0];
+                let photosurl = personDOM.getElementsByTagName("photosurl")[0];
+                let realname = personDOM.getElementsByTagName("realname")[0];
+                // let profileurl = personDOM.getElementsByTagName("profileurl")[0];
+
+                if (!newPerson) newPerson = {};
+                if (username) {
+                  if (!newPerson.accounts) newPerson.accounts = [];
+                  newPerson.accounts.push({domain:"flickr.com", type:"Flickr", username:username.textContent, userid:nsID});
+                }
+                if (location && location.textContent.length > 0) {
+                  if (!newPerson.location) newPerson.location = [];
+                  newPerson.location.push({type:"Location", value:location.textContent});
+                }
+                if (photosurl) {
+                  if (!newPerson.urls) newPerson.urls = [];
+                  newPerson.urls.push({type:"Flickr", value:photosurl.textContent});
+                }
+                if (realname) {
+                  var n = realname.textContent;
+                  newPerson.displayName = n;
+                      
+                  // For now, let's assume European-style givenName familyName+
+                  let split = n.split(" ", 1);
+                  if (split.len == 2 && split[0].length > 0 && split[1].length > 0) {
+                    newPerson.name = {};
+                    newPerson.name.givenName = split[0];
+                    newPerson.name.familyName = split.splice(1, 1).join(" ");
+                  }
+                }
               }
             }
+            completionCallback(newPerson, myDiscoveryToken);
+          } else {
+            this._log.warn("Address check with flickr returned status code " + load.status + "\n" + load.responseText);
           }
         }
-      } else {
-        this._log.warn("Address check with flickr returned status code " + load.status + "\n" + load.responseText);
       }
+      load.send(null);
     }
-    completionCallback(newPerson, {success: newPerson ? "Searching Flickr found a photo page." : ""});
   }
 }
 

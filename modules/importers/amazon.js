@@ -51,7 +51,7 @@ Cu.import("resource://people/modules/ext/resource.js");
 
 function AmazonAccountDiscoverer() {
   this._log = Log4Moz.repository.getLogger("People.AmazonAccountDiscoverer");
-  this._log.debug("Initializing importer backend for " + this.displayName);
+  this._log.debug("Initializing discovery backend for " + this.displayName);
 };
 
 AmazonAccountDiscoverer.prototype = {
@@ -65,11 +65,12 @@ AmazonAccountDiscoverer.prototype = {
     this._log.debug("Discovering Amazon account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
       this._log.debug("Checking address " + email.value + " with Amazon");
-      progressFunction("Checking address " + email.value + " with Amazon.");
+      let discoveryToken = "Amazon:" + email.value;
+      progressFunction({initiate:discoveryToken, msg:"Checking address " + email.value + " with Amazon"});
 
       try {
-        let yelpResource = new Resource("http://www.amazon.com/gp/pdp/search?ie=UTF8&flatten=1&keywords=" + encodeURIComponent(email.value) + "&delta=0");
-        let dom = yelpResource.get().dom;
+        let amazonResource = new Resource("http://www.amazon.com/gp/pdp/search?ie=UTF8&flatten=1&keywords=" + encodeURIComponent(email.value) + "&delta=0");
+        let dom = amazonResource.get().dom;
         let canonicalLinkIterator = Utils.xpath(dom, "//link[@rel='canonical']");
         
         if (canonicalLinkIterator) {
@@ -95,7 +96,7 @@ AmazonAccountDiscoverer.prototype = {
         this._log.debug("Address " + email.value + " got error from Amazon: " + e);
       }
     }
-    completionCallback(newPerson, {success: newPerson ? "Searching Amazon.com found a profile page." : ""});
+    completionCallback(newPerson, discoveryToken);
   }
 }
 

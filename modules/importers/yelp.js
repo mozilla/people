@@ -61,11 +61,12 @@ YelpAccountDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function YelpAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
-    let newPerson;
     this._log.debug("Discovering Yelp account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
+      let newPerson;
       this._log.debug("Checking address " + email.value + " with Yelp");
-      progressFunction("Checking address " + email.value + " with Yelp.");
+      let discoveryToken = "Yelp:" + email.value;
+      progressFunction({initiate:discoveryToken, msg:"Checking address " + email.value + " with Yelp."});
 
       try {
         let yelpResource = new Resource("http://www.yelp.com/member_search?action_search=Search&query=" + encodeURIComponent(email.value));
@@ -92,7 +93,6 @@ YelpAccountDiscoverer.prototype = {
               }
               if (!newPerson.urls) newPerson.urls = [];
               newPerson.urls.push({type:"Yelp", value:"http://www.yelp.com" + href});
-              break; // we take the first match and don't keep looking
             }
           }
         } else {
@@ -101,8 +101,8 @@ YelpAccountDiscoverer.prototype = {
       } catch (e) {
         this._log.debug("Address " + email.value + " got error from Yelp: " + e);
       }
+      completionCallback(newPerson, discoveryToken);
     }
-    completionCallback(newPerson, {success: newPerson ? "Searching Yelp.com found a profile page." : ""});
   }
 }
 

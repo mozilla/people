@@ -401,6 +401,16 @@ function renderDetailPane()
   let container = document.getElementById('tabledetailpane');
   container.innerHTML = "";
 
+  let iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+  iframe.setAttribute("style", "border:0px");
+  iframe.setAttribute("src", "person:guid:" + person.guid);
+  iframe.setAttribute("border", "0");
+  iframe.setAttribute("width", "100%");
+  iframe.setAttribute("height", "100%");
+  container.appendChild(iframe);
+  return;
+
+
   // summary
   //  photo
   //  information

@@ -102,7 +102,6 @@ function getRequestToken(onComplete) {
             var dump = requestToken.status+" "+requestToken.statusText
                   +"\n"+requestToken.getAllResponseHeaders()
                   +"\n"+requestToken.responseText + "\n";
-
             People._log.debug("Successful Yahoo requestToken: " + dump);
             var results = OAuth.decodeForm(requestToken.responseText);
             onComplete(results);

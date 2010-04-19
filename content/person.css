@@ -14,6 +14,25 @@ a {
 .spinner {
   float:right;
   padding:4px;
+  position:relative;
+}
+.spinner > .mouseover {
+  font-size:80%;
+  position:absolute;
+  white-space:nowrap;
+  right:0px;
+  top:20px;
+  border:1px solid #808080;
+  background:#FFFFE8;
+  -moz-border-radius: 1em; 
+  -moz-box-shadow: #bbb 2px 2px 1px; 
+  padding:4px;
+}
+
+.displaymode {
+  font-size:80%;
+  float:right;
+  padding:4px;
 }
 
 .person {
@@ -76,3 +95,83 @@ a {
   font-weight:normal;
   display:inline-block;
 }
+
+
+
+
+.servicedetail {
+}
+.detailcontrols {
+  text-align:right;
+  padding-top:16px;
+  padding-right:32px;
+  font:small-caption;
+  font-weight:normal;
+} 
+.detailcontrols a {
+  color:#3875D7
+}
+
+.servicedetail > .header {
+  font:small-caption;
+  border-bottom:1px solid #808080;
+  margin-top:16px;
+}
+.servicedetail > .subhead {
+  vertical-align:top;
+  font:small-caption;
+}
+.servicedetail > .subhead > .nestbox {
+  margin-left:16px;
+}
+
+.servicedetail > .subhead > .item {
+  margin-left:16px;
+}
+.servicedetail > .slot > .svcdetaillabel {
+  width:116px;
+}
+.servicedetail > .subhead > .nestbox > .slot > .svcdetaillabel {
+  width:100px;
+}
+.counteditem {
+  margin-left:16px;
+}
+.counteditem > .slot > .svcdetaillabel {
+  margin-left:8px;
+  width:92px;
+}
+.svccountedlabel {
+  font:small-caption;
+  width:100px;
+  font-style:italic;
+  display:inline-block;
+  overflow:hidden;
+  white-space:nowrap;
+  vertical-align:top
+}
+
+
+.svcdetaillabel {
+  font:small-caption;
+  width:100px;
+  display:inline-block;
+  overflow:hidden;
+  white-space:nowrap;
+  vertical-align:top
+}
+.svcdetailvalue {
+  padding-left:6px;
+  display:inline-block;
+  font:small-caption;
+  width:400px;
+  font-weight:normal;
+  display:inline-block;
+  overflow:hidden;
+  white-space:nowrap;
+}
+
+.svcdetailvaluerel {
+  font-style:italic
+}
+

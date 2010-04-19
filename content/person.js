@@ -46,7 +46,14 @@ var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Components.i
 var gPerson = null;
 var gContainer;
 var gDocuments;
+
+const CONTACT_CARD = 1;
+const DATA_SOURCES = 2;
+
+var gDisplayMode = CONTACT_CARD;
+
 var gPendingDiscoveryCount=0;
+var gPendingDiscoveryMap = {};
 
 function createDiv(clazz)
 {
@@ -152,7 +159,9 @@ function initPerson(container, identifier)
 function constructDocumentFromIdentifier(identifier)
 {
   var inputDoc = {};
-  if (identifier.indexOf("@") > 0) {
+  if (identifier.indexOf("guid:") == 0) {
+    inputDoc.guid = identifier.slice(5);
+  } else if (identifier.indexOf("@") > 0) {
     // let's guess it's an email
     inputDoc.emails = [{type:"email", value:identifier}];
   } else if (identifier.indexOf("http") == 0) {
@@ -171,6 +180,7 @@ function constructQueryFromDocument(doc)
   var ret = {};
   if (doc.emails && doc.emails.length>0) ret.emails = doc.emails[0].value;
   if (doc.displayName) ret.displayName = doc.displayName;
+  if (doc.guid) ret.guid = doc.guid;
   return ret;
 }
 
@@ -184,67 +194,248 @@ function renderPerson()
       var spinnerImg = createElem("img");
       spinnerImg.setAttribute("src", "chrome://people/content/images/loading.gif");
       spinnerImg.setAttribute("title", "" + gPendingDiscoveryCount + " queries pending");
+      
+      var text = "<div>";
+      for each (d in gPendingDiscoveryMap) {
+        text += d + "<br/>";
+      }
+      text += "</div>";
       spinnerBox.appendChild(spinnerImg);
+
+      var spinnerMouseover = createDiv("mouseover");
+      spinnerMouseover.innerHTML = text;
+      spinnerBox.appendChild(spinnerMouseover);
       personBox.appendChild(spinnerBox);
     }
     
-    var photos = gPerson.getProperty("photos");
-    if (photos) {
-      var photoBox = createDiv("photo");
-      var photoImg = createElem("img");
-      photoImg.setAttribute("src", photos[0].value);
-      photoImg.setAttribute("class", "profilePhoto");
-      photoBox.appendChild(photoImg);
-      personBox.appendChild(photoBox);
+    let controls = createDiv("displaymode");
+    let link = createElem("a");
+    controls.appendChild(link);
+    personBox.appendChild(controls);
+    
+    switch (gDisplayMode) {
+      case CONTACT_CARD:
+        renderContactCard(personBox);
+        link.setAttribute("href", "javascript:setDisplayMode(" + DATA_SOURCES +")");
+        link.appendChild(document.createTextNode("Show data sources"));
+        break;
+      case DATA_SOURCES:
+        renderDataSources(personBox);
+        link.setAttribute("href", "javascript:setDisplayMode(" + CONTACT_CARD +")");
+        link.appendChild(document.createTextNode("Return to summary view"));
+        break;
     }
 
-    var dN = gPerson.getProperty("displayName");
-    if (dN) {
-      var displayNameDiv = createDiv("displayName");
-      displayNameDiv.appendChild(document.createTextNode(dN));
-      personBox.appendChild(displayNameDiv);
-      document.title = dN;
-    }
-
-    var emails = gPerson.getProperty("emails");
-    if (emails) {
-      personBox.appendChild(renderTypeValueList("Email Addresses", "email", emails));
-    }
-    var phones = gPerson.getProperty("phoneNumbers");
-    if (phones) {
-      personBox.appendChild(renderTypeValueList("Phone Numbers", "phone", phones));
-    }
-    var locations = gPerson.getProperty("location");
-    if (locations) {
-      personBox.appendChild(renderTypeValueList("Locations", "location", locations, 
-        {linkToURL:"http://maps.google.com/maps?q="}));
-    }
-
-    var addresses = gPerson.getProperty("addresses");
-    if (addresses) {
-      personBox.appendChild(renderTypeValueList("Addresses", "adr", addresses, {itemRender: function addrRender(item) {
-        return (item.streetAddress ? item.streetAddress + " " : "") + 
-               (item.locality ? item.locality + " " : "") + 
-               (item.region ? item.region + " " : "") + 
-               (item.postalCode ? item.postalCode + " " : "") + 
-               (item.country ? item.country : ""); 
-       }, linkToURL:"http://maps.google.com/maps?q="}));
-    }
-    var urls = gPerson.getProperty("urls");
-    if (urls) {
-      urls = selectTopLevelUrls(urls);
-      personBox.appendChild(renderTypeValueList("Links", "url", urls, {includeFavicon:true, linkify:true}));
-    }
-    var notes = gPerson.getProperty("notes");
-    if (notes) {
-      personBox.appendChild(renderTypeValueList("Notes", "note", notes));
-    }
     gContainer.innerHTML = "";
     gContainer.appendChild(personBox);
   } catch (e) {
     gContainer.innerHTML = "Uh oh, something went wrong! " + e;
   }
 }
+
+function setDisplayMode(mode)
+{
+  gDisplayMode = mode;
+  renderPerson();
+}
+
+function renderContactCard(personBox)
+{    
+  var photos = gPerson.getProperty("photos");
+  if (photos) {
+    var photoBox = createDiv("photo");
+    var photoImg = createElem("img");
+    photoImg.setAttribute("src", photos[0].value);
+    photoImg.setAttribute("class", "profilePhoto");
+    photoBox.appendChild(photoImg);
+    personBox.appendChild(photoBox);
+  }
+
+  var dN = gPerson.getProperty("displayName");
+  if (dN) {
+    var displayNameDiv = createDiv("displayName");
+    displayNameDiv.appendChild(document.createTextNode(dN));
+    personBox.appendChild(displayNameDiv);
+    document.title = dN;
+  }
+
+  var emails = gPerson.getProperty("emails");
+  if (emails) {
+    personBox.appendChild(renderTypeValueList("Email Addresses", "email", emails));
+  }
+  var phones = gPerson.getProperty("phoneNumbers");
+  if (phones) {
+    personBox.appendChild(renderTypeValueList("Phone Numbers", "phone", phones));
+  }
+  var locations = gPerson.getProperty("location");
+  if (locations) {
+    personBox.appendChild(renderTypeValueList("Locations", "location", locations, 
+      {linkToURL:"http://maps.google.com/maps?q="}));
+  }
+
+  var addresses = gPerson.getProperty("addresses");
+  if (addresses) {
+    personBox.appendChild(renderTypeValueList("Addresses", "adr", addresses, {itemRender: function addrRender(item) {
+      return (item.streetAddress ? item.streetAddress + " " : "") + 
+             (item.locality ? item.locality + " " : "") + 
+             (item.region ? item.region + " " : "") + 
+             (item.postalCode ? item.postalCode + " " : "") + 
+             (item.country ? item.country : ""); 
+     }, linkToURL:"http://maps.google.com/maps?q="}));
+  }
+  var urls = gPerson.getProperty("urls");
+  if (urls) {
+    urls = selectTopLevelUrls(urls);
+    personBox.appendChild(renderTypeValueList("Links", "url", urls, {includeFavicon:true, linkify:true}));
+  }
+  var notes = gPerson.getProperty("notes");
+  if (notes) {
+    personBox.appendChild(renderTypeValueList("Notes", "note", notes));
+  }
+}
+
+function renderDataSources(personBox)
+{
+  let svcbox = createDiv("servicedetail");
+  for (let aService in gPerson.obj.documents)
+  {
+    let aDoc = gPerson.obj.documents[aService];
+
+    let header = createDiv("header");
+    let svc = PeopleImporter.getService(aService);
+    if (svc) {
+      header.innerHTML = svc.explainString();
+      svcbox.appendChild(header);
+      traverseRender(aDoc, svcbox);
+    }
+  }
+  personBox.appendChild(svcbox);
+}
+
+function traverseRender(anObject, container)
+{
+  for (let aKey in anObject)
+  {
+    if (isArray(anObject[aKey]))
+    {
+      let count = 1;
+      let subhead = createDiv("subhead");
+      subhead.appendChild(document.createTextNode(aKey));
+      for each (let anItem in anObject[aKey])
+      {
+        if (typeof anItem == "string") 
+        {
+          let item = createDiv("item");
+          let slot = createDiv("slot");
+          let label = createDiv("svcdetaillabel");
+          let value = createDiv("svcdetailvalue");
+          value.appendChild(document.createTextNode(anItem));
+          slot.appendChild(label);
+          slot.appendChild(value);
+          item.appendChild(slot);
+          subhead.appendChild(item);
+        }
+        else if (anItem.hasOwnProperty("type") && anItem.hasOwnProperty("value"))
+        {
+          let item = createDiv("item");
+          let slot = createDiv("slot");
+          let label = createDiv("svcdetaillabel");
+          let value = createDiv("svcdetailvalue");
+          label.appendChild(document.createTextNode(anItem.type));
+          value.appendChild(document.createTextNode(anItem.value));
+          slot.appendChild(label);
+          slot.appendChild(value);
+          item.appendChild(slot);
+          if (anItem.rel && anItem.rel != anItem.type) {
+            let rel = createDiv("svcdetailvaluerel");
+            rel.appendChild(document.createTextNode("rel: " + anItem.rel));
+            value.appendChild(rel);
+          }
+          subhead.appendChild(item);
+        }
+        else if (anItem.hasOwnProperty("domain")) // specialcase for accounts
+        {
+          let item = createDiv("item");
+          let slot = createDiv("slot");
+          let label = createDiv("svcdetaillabel");
+          let value = createDiv("svcdetailvalue");
+          label.appendChild(document.createTextNode(anItem.domain));
+          var username = anItem.username;
+          var userid = anItem.userid;
+          var un;
+          if (username && userid) {
+            un = username + " (" + userid + ")";
+          } else if (username) un = username;
+          else if (userid) un = userid;
+          
+          if (un) {
+            value.appendChild(document.createTextNode(un));
+          } else {
+            value.appendChild(document.createTextNode("(No username)"));
+          }
+          slot.appendChild(label);
+          slot.appendChild(value);
+          item.appendChild(slot);
+          subhead.appendChild(item);
+        }
+        else 
+        {
+          // generic item; use 'name' if it is present
+          let item = createDiv("counteditem");
+          
+          let textLabel;
+          /*if (anItem.name) textLabel = anItem.name;
+          else */textLabel = "Item #" + count;
+
+          let slot = createDiv("slot");
+          let label = createDiv("svccountedlabel");
+          label.appendChild(document.createTextNode(textLabel));
+          slot.appendChild(label);
+          item.appendChild(slot);
+
+          for (let aSlot in anItem)
+          {
+            let slot = createDiv("slot");
+            let label = createDiv("svcdetaillabel");
+            let value = createDiv("svcdetailvalue");
+            label.appendChild(document.createTextNode(aSlot));
+            value.appendChild(document.createTextNode(anItem[aSlot]));
+            slot.appendChild(label);
+            slot.appendChild(value);
+            item.appendChild(slot);
+          }
+          subhead.appendChild(item);
+          count = count + 1;
+        }
+      }
+      container.appendChild(subhead);
+    }
+    else if (typeof anObject[aKey] == 'object') 
+    {
+      let subhead = createDiv("subhead");
+      subhead.appendChild(document.createTextNode(aKey));
+      let nestbox = createDiv("nestbox");
+      subhead.appendChild(nestbox);
+      traverseRender(anObject[aKey], nestbox);
+      container.appendChild(subhead);
+    }
+    else
+    {
+      let slot = createDiv("slot");
+      let label = createDiv("svcdetaillabel");
+      let value = createDiv("svcdetailvalue");
+      label.appendChild(document.createTextNode(aKey));
+      value.appendChild(document.createTextNode(anObject[aKey]));
+      slot.appendChild(label);
+      slot.appendChild(value);
+      container.appendChild(slot);
+    }
+  }
+}
+
+
+
+
 
 function selectTopLevelUrls(urls)
 {
@@ -268,19 +459,30 @@ function startDiscovery(inputPerson)
     var discoverer = PeopleImporter.getDiscoverer(d);
     if (discoverer) {
       let engine = d;
-      gPendingDiscoveryCount += 1;
+
       discoverer.discover(inputPerson, 
-        function completion(newDoc) {
+        function completion(newDoc, discoveryToken) {
           gPendingDiscoveryCount -= 1;
+          if (!discoveryToken) discoveryToken = engine;
+          delete gPendingDiscoveryMap[discoveryToken];
           if (newDoc) {
-            gDocuments[engine] = newDoc;
-            renderPerson();
+            gDocuments[discoveryToken] = newDoc;
           }
+          renderPerson();
         },
         function progress(msg) {
-          dump(msg);
+          if (msg.initiate) {
+            gPendingDiscoveryCount += 1;
+            gPendingDiscoveryMap[msg.initiate] = msg.msg;
+          }
         }
       );
     }
   }
 }
+
+
+function isArray(obj) {
+  return obj != null && obj.constructor.toString() == Array;
+}
+

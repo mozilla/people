@@ -111,12 +111,11 @@ WebfingerDiscoverer.prototype = {
     
     for each (let email in forPerson.getProperty("emails")) {
       try {
-        progressFunction("Checking for webfinger for address " + email.value);
+        let discoveryToken = "Webfinger:" + email.value;
         People._log.debug("Checking for webfinger for address " + email.value);
         let split = email.value.split("@");
         if (split.length != 2) {
           People._log.debug("Cannot parse " + email.value);
-          progressFunction("Cannot parse " + email.value);
           continue;
         }
         let id = split[0];
@@ -126,9 +125,11 @@ WebfingerDiscoverer.prototype = {
         var hostmetaURL = "http://" + domain + "/.well-known/host-meta";
         let hostmeta = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
         hostmeta.open('GET', hostmetaURL, true);
-        dump("Opening hostmeta (" + hostmeta + ") to " + hostmetaURL + "\n");
+        People._log.debug("Opening hostmeta (" + hostmeta + ") to " + hostmetaURL);
         hostmeta.email = email.value;
+        progressFunction({initiate:discoveryToken, msg:"Checking for webfinger for address " + email.value});
         hostmeta.onreadystatechange = function (aEvt) {
+          let hmToken = discoveryToken;
           if (hostmeta.readyState == 4) {
             try {
               if (hostmeta.status != 200) {
@@ -146,15 +147,11 @@ WebfingerDiscoverer.prototype = {
               xrdLoader.open('GET', userXRDURL, true);
 
               xrdLoader.onreadystatechange = function (aEvt) {
+                let xrdToken = hmToken;
                 if (xrdLoader.readyState == 4) {
                   let newPerson;
                   if (xrdLoader.status == 200) {
-                    progressFunction("Found XRD document; reading it");
-                    People._log.debug("Found XRD document; reading it");
                     let dom = xrdLoader.responseXML;
-                    People._log.debug("Response text is " + xrdLoader.responseText);
-                    People._log.debug("Response DOM is " + dom);
-
                     let linkList = dom.documentElement.getElementsByTagName("Link");
                     if (newPerson == undefined) newPerson = {};
                     
@@ -188,20 +185,20 @@ WebfingerDiscoverer.prototype = {
                       }
                     }
                   }
-                  completionCallback(newPerson, {success: newPerson ? "Searching all email addresses for Webfinger data found some link data." : ""});
+                  completionCallback(newPerson, xrdToken);
                 }
               }
               xrdLoader.send(null);
             } catch (e) {
               People._log.warn("Webfinger: "+ e + "; " + e.error);
-              completionCallback(null, e);
+              completionCallback(null, hmToken);
             }
           }
         }
         hostmeta.send(null);
       } catch (e) {
         People._log.warn("Error while handling Webfinger lookup: " + e);
-        completionCallback(null, {error:"Error while handling Webfinger lookup: " + e});
+        completionCallback(null, discoveryToken);
       }
     }
   }
