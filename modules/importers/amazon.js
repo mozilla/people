@@ -61,43 +61,47 @@ AmazonAccountDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function AmazonAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
-    let newPerson;
-    this._log.debug("Discovering Amazon account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
-      this._log.debug("Checking address " + email.value + " with Amazon");
+      let newPerson;
       let discoveryToken = "Amazon:" + email.value;
-      progressFunction({initiate:discoveryToken, msg:"Checking address " + email.value + " with Amazon"});
-
       try {
-        let amazonResource = new Resource("http://www.amazon.com/gp/pdp/search?ie=UTF8&flatten=1&keywords=" + encodeURIComponent(email.value) + "&delta=0");
-        let dom = amazonResource.get().dom;
-        let canonicalLinkIterator = Utils.xpath(dom, "//link[@rel='canonical']");
-        
-        if (canonicalLinkIterator) {
-          let elem = canonicalLinkIterator.iterateNext();
-          if (elem) {
-            var attrs = elem.attributes, href;
-            for(i=attrs.length-1; i>=0; i--) {
-              if (attrs[i].name == "href") {
-                href = attrs[i].value;
-                break;
+        progressFunction({initiate:discoveryToken, msg:"Checking address " + email.value + " with Amazon"});
+        try {
+          this._log.debug("Checking address " + email.value + " with Amazon");
+
+          let amazonResource = new Resource("http://www.amazon.com/gp/pdp/search?ie=UTF8&flatten=1&keywords=" + encodeURIComponent(email.value) + "&delta=0");
+          let dom = amazonResource.get().dom;
+          let canonicalLinkIterator = Utils.xpath(dom, "//link[@rel='canonical']");
+          
+          if (canonicalLinkIterator) {
+            let elem = canonicalLinkIterator.iterateNext();
+            if (elem) {
+              var attrs = elem.attributes, href;
+              for(i=attrs.length-1; i>=0; i--) {
+                if (attrs[i].name == "href") {
+                  href = attrs[i].value;
+                  break;
+                }
+              }
+              if (href) {
+                // great, found one!  We could pull other information out of the page as well...
+                newPerson = {urls:[{type:"Amazon", value:href}]};
               }
             }
-            if (href) {
-              // great, found one!  We could pull other information out of the page as well...
-              newPerson = {urls:[{type:"Amazon", value:href}]};
-              break; // we take the first match and don't keep looking
-            }
+          } else {
+            this._log.warn("Account check with Amazon returned status code " + load.status + "\n" + load.responseText);
           }
-        } else {
-          this._log.warn("Account check with Amazon returned status code " + load.status + "\n" + load.responseText);
+        } catch (e) {
+          this._log.debug("Address " + email.value + " got error from Amazon: " + e);        
         }
+        completionCallback(newPerson, discoveryToken);
       } catch (e) {
-        this._log.debug("Address " + email.value + " got error from Amazon: " + e);
+        if (e != "DuplicatedDiscovery") {
+          this._log.debug("Address " + email.value + " got error from Amazon: " + e);
+        }
       }
     }
-    completionCallback(newPerson, discoveryToken);
   }
 }
 
-//PeopleImporter.registerDiscoverer(AmazonAccountDiscoverer);
+PeopleImporter.registerDiscoverer(AmazonAccountDiscoverer);

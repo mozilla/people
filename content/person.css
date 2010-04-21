@@ -79,6 +79,31 @@ a {
   padding-bottom:16px;
   width:auto;
 }
+.photolist {
+  margin-left:132px;
+  padding-left:0px;
+  list-style:none
+}
+
+.photolist li {
+  padding-right:8px;
+  display:inline-block
+}
+
+.item_overflow_link {
+  padding-top:2px;
+  margin-left:132px;
+  font:small-caption;
+  font-weight:normal;
+}
+.item_overflow_link a {
+  color:#808080;
+  text-decoration:none
+}
+.item_overflow_link a:hover {
+  color:#3875D7;
+  text-decoration:underline
+}
 
 .type {
   display:inline-block;
@@ -88,16 +113,53 @@ a {
   width:120px;
   text-align:right;
   overflow:hidden;
+  vertical-align:top;
 }
 .value {
-  padding-left:1em;
+  padding-left:12px;
   font:small-caption;
   font-weight:normal;
   display:inline-block;
 }
+#updates {
+  white-space:nowrap;
+}
 
+.update {
+  padding-left:12px;
+  font:small-caption;
+  font-weight:normal;
+  display:inline-block;
+  white-space:normal;
+}
+.updateimg {
+  padding-bottom:4px;
+}
 
+.updatefavicon {
+  padding-right:4px;
+}
 
+.update > .text {
+  color:#075FB2;
+}
+.update > .pubdate {
+  font-size:80%;
+  color:#808080;
+}
+.update > .source {
+  font-size:80%;
+  color:#808080;
+}
+.update > .source > a {
+  color:#808080;
+  text-decoration:none
+}
+
+.update > .source > a:hover {
+  color:#3875D7;
+  text-decoration:underline
+}
 
 .servicedetail {
 }

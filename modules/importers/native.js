@@ -115,13 +115,12 @@ NativeAddressBookImporter.prototype = {
 					person.phoneNumbers.push({value:phoneValues[j], type:phoneLabels[j]});
 				}
 
-	/*			person.urls = []
 				let urlLabels = allCards[i].getPropertyListLabels("urls", []);
 				let urlValues = allCards[i].getPropertyListValues("urls", []);
 				for (let j=0;j<urlLabels.length;j++) {
+          if (!person.urls) person.urls = [];
 					person.urls.push({value:urlValues[j], type:urlLabels[j]});
 				}
-	*/
 
 				people.push(person);
 			}

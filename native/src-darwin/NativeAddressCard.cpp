@@ -114,6 +114,8 @@ static const wchar_t *deriveLabelFromString(CFStringRef stringRef)
 		return L"home";
 	} else if (CFStringCompare(stringRef, kABPhoneMainLabel, 0) == 0) {
 		return L"main";
+	} else if (CFStringCompare(stringRef, kABHomePageLabel, 0) == 0) {
+		return L"home page";
 	} else {
     return NULL;
 	}

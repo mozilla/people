@@ -83,6 +83,10 @@ PeopleImporterSvc.prototype = {
 	},
   
   getService: function getService(name) {
+    var idx = name.indexOf(":");
+    if (idx > 0) {
+      name = name.slice(idx+1);
+    }
     let s = this._backends[name];
     if (s) return this.getBackend(name);
     s = this._discoverers[name];
@@ -203,6 +207,7 @@ Cu.import("resource://people/modules/importers/yahoo.js");
 
 Cu.import("resource://people/modules/importers/webfinger.js");
 Cu.import("resource://people/modules/importers/googleSocialGraph.js");
+Cu.import("resource://people/modules/importers/facebook.js");
 Cu.import("resource://people/modules/importers/gravatar.js");
 Cu.import("resource://people/modules/importers/flickr.js");
 Cu.import("resource://people/modules/importers/yelp.js");

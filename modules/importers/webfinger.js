@@ -106,12 +106,11 @@ WebfingerDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function WebfingerDiscoverer_discover(forPerson, completionCallback, progressFunction) {
-    People._log.debug("Discovering Webfinger services for " + forPerson.displayName);
     let that = this;
-    
     for each (let email in forPerson.getProperty("emails")) {
       try {
         let discoveryToken = "Webfinger:" + email.value;
+        progressFunction({initiate:discoveryToken, msg:"Checking for webfinger for address " + email.value});
         People._log.debug("Checking for webfinger for address " + email.value);
         let split = email.value.split("@");
         if (split.length != 2) {
@@ -125,9 +124,8 @@ WebfingerDiscoverer.prototype = {
         var hostmetaURL = "http://" + domain + "/.well-known/host-meta";
         let hostmeta = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
         hostmeta.open('GET', hostmetaURL, true);
-        People._log.debug("Opening hostmeta (" + hostmeta + ") to " + hostmetaURL);
+        People._log.debug("Making hostmeta request to " + hostmetaURL);
         hostmeta.email = email.value;
-        progressFunction({initiate:discoveryToken, msg:"Checking for webfinger for address " + email.value});
         hostmeta.onreadystatechange = function (aEvt) {
           let hmToken = discoveryToken;
           if (hostmeta.readyState == 4) {
@@ -190,15 +188,19 @@ WebfingerDiscoverer.prototype = {
               }
               xrdLoader.send(null);
             } catch (e) {
-              People._log.warn("Webfinger: "+ e + "; " + e.error);
+              People._log.debug("Webfinger: "+ e + "; " + e.error);
               completionCallback(null, hmToken);
             }
           }
         }
         hostmeta.send(null);
       } catch (e) {
-        People._log.warn("Error while handling Webfinger lookup: " + e);
-        completionCallback(null, discoveryToken);
+        if (e != "DuplicatedDiscovery") {
+          People._log.warn("Error while handling Webfinger lookup: " + e);
+          try {
+            if (discoveryToken) completionCallback(null, discoveryToken);
+          } catch (e) {}
+        }
       }
     }
   }

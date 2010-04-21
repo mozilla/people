@@ -61,47 +61,52 @@ YelpAccountDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function YelpAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Discovering Yelp account for " + forPerson.displayName);
     for each (let email in forPerson.getProperty("emails")) {
       let newPerson;
-      this._log.debug("Checking address " + email.value + " with Yelp");
       let discoveryToken = "Yelp:" + email.value;
-      progressFunction({initiate:discoveryToken, msg:"Checking address " + email.value + " with Yelp."});
-
       try {
-        let yelpResource = new Resource("http://www.yelp.com/member_search?action_search=Search&query=" + encodeURIComponent(email.value));
-        let dom = yelpResource.get().dom;
-        let resultIterator = Utils.xpath(dom, "//div[@class='result-text']//a");
-        if (resultIterator) {
-          let elem = resultIterator.iterateNext();
-          if (elem) {
-            var attrs = elem.attributes, href;
-            for(i=attrs.length-1; i>=0; i--) {
-              if (attrs[i].name == "href") {
-                href = attrs[i].value;
-                break;
-              }
-            }
-            if (href) {
-              if (!newPerson) newPerson = {};
+        progressFunction({initiate:discoveryToken, msg:"Checking address " + email.value + " with Yelp."});
+        this._log.debug("Checking address " + email.value + " with Yelp");
 
-              // href is of the form "/user_details?userid=Dk2IkchUjADbrC05sdsAVQ"
-              if (/^\/user_details\?userid=(.+)$/i.test(href)) {
-                let userid = RegExp.$1;
-                if (!newPerson.accounts) newPerson.accounts = [];
-                newPerson.accounts.push({domain:"yelp.com", type:"Yelp", userid:userid});
+        try {
+          let yelpResource = new Resource("http://www.yelp.com/member_search?action_search=Search&query=" + encodeURIComponent(email.value));
+          let dom = yelpResource.get().dom;
+          let resultIterator = Utils.xpath(dom, "//div[@class='result-text']//a");
+          if (resultIterator) {
+            let elem = resultIterator.iterateNext();
+            if (elem) {
+              var attrs = elem.attributes, href;
+              for(i=attrs.length-1; i>=0; i--) {
+                if (attrs[i].name == "href") {
+                  href = attrs[i].value;
+                  break;
+                }
               }
-              if (!newPerson.urls) newPerson.urls = [];
-              newPerson.urls.push({type:"Yelp", value:"http://www.yelp.com" + href});
+              if (href) {
+                if (!newPerson) newPerson = {};
+
+                // href is of the form "/user_details?userid=Dk2IkchUjADbrC05sdsAVQ"
+                if (/^\/user_details\?userid=(.+)$/i.test(href)) {
+                  let userid = RegExp.$1;
+                  if (!newPerson.accounts) newPerson.accounts = [];
+                  newPerson.accounts.push({domain:"yelp.com", type:"Yelp", userid:userid});
+                }
+                if (!newPerson.urls) newPerson.urls = [];
+                newPerson.urls.push({type:"Yelp", value:"http://www.yelp.com" + href});
+              }
             }
+          } else {
+            this._log.warn("Account check with Yelp returned status code " + load.status + "\n" + load.responseText);
           }
-        } else {
-          this._log.warn("Account check with Yelp returned status code " + load.status + "\n" + load.responseText);
+        } catch (e) {
+          this._log.debug("Address " + email.value + " got error from Yelp: " + e);
         }
+        completionCallback(newPerson, discoveryToken);
       } catch (e) {
-        this._log.debug("Address " + email.value + " got error from Yelp: " + e);
+        if (e != "DuplicatedDiscovery") {
+          this._log.debug("Yelp error: " + e);
+        }
       }
-      completionCallback(newPerson, discoveryToken);
     }
   }
 }

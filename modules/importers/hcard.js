@@ -69,7 +69,7 @@ function getAttribute(element, name)
 }
 
 
-let KNOWN_HCARDS = {"digg.com":1, "twitter.com":1,"status.net":1,"blogger.com":1};
+let KNOWN_HCARDS = {"digg.com":1, "twitter.com":1,"status.net":1,"blogger.com":1,"linkedin.com":1};
 
 function isKnownHCardSite(parsedURI)
 {
@@ -93,82 +93,89 @@ HCardDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function HCardDiscoverer_discover(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Discovering HCard profiles for " + forPerson.displayName);
-
-    let newPerson;
     for each (let link in forPerson.getProperty("urls")) {
+      let newPerson;
       try {
-        this._log.debug("Checking link " + link.type + ": " + JSON.stringify(link));
         var parsedURI = IO_SERVICE.newURI(link.value, null, null);
       
         if (link.rel == 'http://microformats.org/profile/hcard' || isKnownHCardSite(parsedURI))
         {
+        
           let discoveryToken = "hcard:" + link.value;
           try 
           {
             progressFunction({initiate:discoveryToken, msg:"Resolving HCard at " + link.value});
-            let hcardResource = new Resource(link.value);
-            let dom = hcardResource.get().dom;// Synchronous and slow. :(
+            this._log.debug("Resolving HCard at " + link.value);
+            try {
+              let hcardResource = new Resource(link.value);
+              let dom = hcardResource.get().dom;// Synchronous and slow. :(
+              if (newPerson == null) newPerson = {};
 
-            if (newPerson == null) newPerson = {};
+              // First grab all the links with rel="me" -- 
+              let relMeIterator = Utils.xpath(dom, "//*[@rel='me']");
+              let anElement;
 
-            // First grab all the links with rel="me" -- 
-            let relMeIterator = Utils.xpath(dom, "//*[@rel='me']");
-            let anElement;
-
-            var i;
-            var urlCheckMap = {};
-            while (true) {
-              anElement = relMeIterator.iterateNext();
-              if (anElement == null) break;
-              
-              // For some reason I can't fathom, attributes.href isn't working here.
-              // We'll use a helper function instead.
-              if (anElement.nodeType == Ci.nsIDOMNode.ELEMENT_NODE)
-              {
-                if (anElement.tagName.toLowerCase() == 'a')
+              var i;
+              var urlCheckMap = {};
+              while (true) {
+                anElement = relMeIterator.iterateNext();
+                if (anElement == null) break;
+                
+                // For some reason I can't fathom, attributes.href isn't working here.
+                // We'll use a helper function instead.
+                if (anElement.nodeType == Ci.nsIDOMNode.ELEMENT_NODE)
                 {
-                  var href = getAttribute(anElement, "href");
-                  var text = anElement.textContent;
-                  
-                  try {
-                    var parsedURI = IO_SERVICE.newURI(href, null, parsedURI);
+                  if (anElement.tagName.toLowerCase() == 'a' || anElement.tagName.toLowerCase() == 'link')
+                  {
+                    var href = getAttribute(anElement, "href");
+                    var text = anElement.textContent;
                     
-                    // TODO: perform lookup from href domain, or text, to canonical rels
-                    var aLink = {
-                      type: text, rel: text, value: parsedURI.spec
-                    };
-                    if (newPerson.urls == undefined) newPerson.urls = [];
-                    newPerson.urls.push(aLink);
-                    urlCheckMap[href] = 1;
-                  } catch (e) {
-                    this._log.debug("Error while processing hcard link: " + e);
-                  }
+                    try {
+                      var parsedURI = IO_SERVICE.newURI(href, null, parsedURI);
+
+                      // A couple special cases.
+                      if (parsedURI.host == "twitter.com" && (href.indexOf("/following")>0 ||
+                          href.indexOf("/followers")>0 || href.indexOf("/memberships")>0)) continue;
+                      if (parsedURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
+                          
+
+
+                      // TODO: perform lookup from href domain, or text, to canonical rels
+                      var aLink = {
+                        type: text, rel: text, value: parsedURI.spec
+                      };
+                      if (newPerson.urls == undefined) newPerson.urls = [];
+                      newPerson.urls.push(aLink);
+                      urlCheckMap[href] = 1;
+                    } catch (e) {
+                      this._log.debug("Error while processing hcard link: " + e);
+                    }
+                  } 
                 } else {
-                  this._log.debug("Found a link with rel=me but it had no href: " + anElement);
+                  this._log.debug("Got a rel=me on a non-link: " + anElement);
                 }
-              } else {
-                this._log.debug("Got a rel=me on a non-link: " + anElement);
               }
+              
+              // And then look for other hcard fields...
+              var uFcount = Microformats.count('hCard', dom, {recurseExternalFrames: false});
+              if (uFcount > 0) {
+                var uFlist = Microformats.get('hCard', dom, {recurseExternalFrames: false});
+                var aPerson = uFlist[0];
+                processPerson(aPerson, newPerson);
+              }
+            } catch (e) {
+              this._log.warn("Error while loading HCard: " + e);            
             }
-            
-            // And then look for other hcard fields...
-            var uFcount = 
-              Microformats.count('hCard', dom, {recurseExternalFrames: false});
-            if (uFcount > 0) {
-              var uFlist = 
-                  Microformats.get('hCard', dom, {recurseExternalFrames: false});
-              var aPerson = uFlist[0];
-              processPerson(aPerson, newPerson);
-            }
+            completionCallback(newPerson, discoveryToken);
           } catch (e) {
-            this._log.warn("Error while handling HCardDiscoverer lookup: " + e);
-            progressFunction("Error while handling HCardDiscoverer lookup: " + e);
+            if (e != "DuplicatedDiscovery") {
+              this._log.warn("Error while loading HCard: " + e);
+              progressFunction("Error while handling HCardDiscoverer lookup: " + e);
+            }
           }
-          completionCallback(newPerson, discoveryToken);
         }
       } catch (e) {
-        this._log.warn("Error while handling HCardDiscoverer lookup: " + e);
+        this._log.warn("Error while handling HCardDiscoverer lookup on " + link.value +": " + e);
         progressFunction("Error while handling HCardDiscoverer lookup: " + e);
       }
     }

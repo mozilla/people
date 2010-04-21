@@ -152,8 +152,8 @@ function getAccessToken(onComplete, requestTokenResults, userToken)
         Prefs.set("oauth_session_handle", oauth_session_handle);
         Prefs.set("xoauth_yahoo_guid", xoauth_yahoo_guid);
           
+        PeopleImporter.getBackend("Yahoo!").import(gSavedCompletionCallback, gSavedProgressCallback, null);
       }
-      onComplete();// with results..
   };
   requestAccess.open(message.method, message.action, true); 
   requestAccess.setRequestHeader("Authorization", OAuth.getAuthorizationHeader("", message.parameters));

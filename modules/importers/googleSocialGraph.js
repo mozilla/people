@@ -63,8 +63,6 @@ GoogleSocialGraphDiscoverer.prototype = {
   },
 
   discover: function GoogleSocialGraphDiscoverer_discover(forPerson, completionCallback, progressFunction) {
-    this._log.debug("Searching with the Google Social Graph API for " + forPerson.displayName);
-
     var query = "";
     
     for each (let email in forPerson.getProperty("emails")) {
@@ -84,68 +82,77 @@ GoogleSocialGraphDiscoverer.prototype = {
     // TODO: Make more than one call if the list of emails and urls is too long
 
     if (query.length > 0) {
-      People._log.debug("Performing Google Social Graph API call with " + query);
-      var apiCall = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
-      apiCall.open('GET', "http://socialgraph.apis.google.com/otherme?q=" + query, true);
-      progressFunction({initiate:"GoogleSocialGraph", msg:"Searching Google Social Graph for e-mail and URLs"});
-      apiCall.onreadystatechange = function (aEvt) {
-        let newPerson = null;
-        if (apiCall.readyState == 4) {
-          if (apiCall.status != 200) {
-            People._log.debug("Result code " + apiCall.status + " while contacting Google Social Graph API");
-            progressFunction("Error while accessing Google Social Graph API");
-          } else {
-            var result = JSON.parse(apiCall.responseText);
-            
-            for (key in result) {
-              if (!newPerson) newPerson = {};
-              try {
-                if (newPerson.urls == undefined) newPerson.urls =[];
-                let val = result[key];
-                if (key.indexOf("mailto:") == 0) {
-                  if (newPerson.emails == undefined) newPerson.emails = [];
-                  newPerson.emails.push({value:key.slice(7), type:"internet"});
-                } 
-                else if (key.indexOf("tel:") == 0) {
-                  if (newPerson.phoneNumbers == undefined) newPerson.phoneNumbers = [];
-                  newPerson.phoneNumbers.push({value:key.slice(4), type:"phone"});
-                } 
-                else 
-                {
-                  let obj = {};
-                  
-                  // Pull the URL's hostname, remove trailing 'www.', and make that the type
-                  try {
-                    let parsedURI = IO_SERVICE.newURI(key, null, null);
-                    let hostName = parsedURI.host;
-                    if (hostName.indexOf("www.") == 0) hostName = hostName.slice(4);
-                    obj.type = hostName;
-                  } catch (e) {}
-                  if (!obj.type) obj.type = "URL";
-                  obj.value = key;
-                  // TODO rel?
-                  newPerson.urls.push(obj);
-                  processAttributes(obj, newPerson);                  
+      try
+      {
+        progressFunction({initiate:"GoogleSocialGraph", msg:"Searching Google Social Graph for e-mail and URLs"});
+        People._log.debug("Performing Google Social Graph API call with " + query);
+        var apiCall = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
+        apiCall.open('GET', "http://socialgraph.apis.google.com/otherme?q=" + query, true);
+        apiCall.onreadystatechange = function (aEvt) {
+          let newPerson = null;
+          if (apiCall.readyState == 4) {
+            if (apiCall.status != 200) {
+              People._log.debug("Result code " + apiCall.status + " while contacting Google Social Graph API");
+              progressFunction("Error while accessing Google Social Graph API");
+            } else {
+              var result = JSON.parse(apiCall.responseText);
+              
+              for (key in result) {
+                if (!newPerson) newPerson = {};
+                try {
+                  if (newPerson.urls == undefined) newPerson.urls =[];
+                  let val = result[key];
+                  if (key.indexOf("mailto:") == 0) {
+                    if (newPerson.emails == undefined) newPerson.emails = [];
+                    newPerson.emails.push({value:key.slice(7), type:"internet"});
+                  } 
+                  else if (key.indexOf("tel:") == 0) {
+                    if (newPerson.phoneNumbers == undefined) newPerson.phoneNumbers = [];
+                    newPerson.phoneNumbers.push({value:key.slice(4), type:"phone"});
+                  } 
+                  else 
+                  {
+                    let obj = {};
+                    
+                    // Pull the URL's hostname, remove trailing 'www.', and make that the type
+                    try {
+                      let parsedURI = IO_SERVICE.newURI(key, null, null);
+                      let hostName = parsedURI.host;
+                      if (hostName.indexOf("www.") == 0) hostName = hostName.slice(4);
+                      obj.type = hostName;
+                    } catch (e) {}
+                    if (!obj.type) obj.type = "URL";
+                    obj.value = key;
+                    // TODO rel?
+                    
+                    processAttributes(result[key], obj, newPerson);                  
+                    newPerson.urls.push(obj);
+                  }
+                } catch (e) {
+                  People._log.warn("Error while handling Google Social Graph lookup: " + e);
+                  progressFunction("Error while handling Google Social Graph lookup: " + e);
                 }
-              } catch (e) {
-                People._log.warn("Error while handling Google Social Graph lookup: " + e);
-                progressFunction("Error while handling Google Social Graph lookup: " + e);
               }
             }
+            completionCallback(newPerson, "GoogleSocialGraph");
           }
-          completionCallback(newPerson, "GoogleSocialGraph");
+        }
+        apiCall.send(null);
+      } catch (e) {
+        if (e != "DuplicatedDiscovery") {
+          People._log.info("Error while starting Google Social Graph lookup: " + e);
+          progressFunction("Error while starting Google Social Graph lookup: " + e);
         }
       }
-      apiCall.send(null);
     }
   }
 };
 
-function processAttributes(obj, newPerson)
+function processAttributes(input, obj, newPerson)
 {
-  if (obj.attributes) {
-    for (let attr in obj.attributes) {
-      let val = obj.attributes[attr];
+  if (input.attributes) {
+    for (let attr in input.attributes) {
+      let val = input.attributes[attr];
       if (attr == "url") {
         obj.value = val;
       } else if (attr == "photo") {
@@ -165,7 +172,7 @@ function processAttributes(obj, newPerson)
           if (!newPerson.name.givenName) newPerson.name.givenName = val;
         }
       } else {
-       obj[attr] = obj.attributes[attr];
+       obj[attr] = val;
       }
     }
   }
