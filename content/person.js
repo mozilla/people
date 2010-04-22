@@ -216,7 +216,10 @@ function initPerson(container, identifier)
   var input = constructDocumentFromIdentifier(identifier);
   var query = constructQueryFromDocument(input);
   var searchResult = null;
-  if (query.__count__ > 0) {
+
+  var count=0;
+  for (var p in query) count++;
+  if (count > 0) {
     searchResult = People.find(query);
   }
   if (searchResult && searchResult.length > 0) {
@@ -241,7 +244,7 @@ function constructDocumentFromIdentifier(identifier)
     // let's guess it's an email
     inputDoc.emails = [{type:"email", value:identifier}];
   } else if (identifier.indexOf("http") == 0) {
-    // probably a link
+    // probably a link - but special case a couple
     inputDoc.urls = [{type:"URL", value:identifier}];
   } else {
     // not sure, we'll have to guess it's a name for now

@@ -156,6 +156,9 @@ function processAttributes(input, obj, newPerson)
       if (attr == "url") {
         obj.value = val;
       } else if (attr == "photo") {
+        // Couple special cases.
+        if (val.indexOf("facebook.com") >= 0) continue; // Google has lots of stale Facebook data.
+        
         if (newPerson.photos == undefined) newPerson.photos = [];
         newPerson.photos.push({type:"profile", value:val});
       } else if (attr == "adr") {

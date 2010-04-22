@@ -996,7 +996,10 @@ PeopleService.prototype = {
     for each (let p in allPeople) {
       if (p.obj.documents[svcName]) {
         delete p.obj.documents[svcName];
-        if (p.obj.documents.__count__ > 0) {
+        
+        var count=0;
+        for (var i in p.obj.documents) count++;
+        if (count > 0) {
           this._log.debug("Removing " + svcName + " data from " + p.guid + "; updating");
           this._update(p.obj);
           this._updateIndexed(p.guid, p);
