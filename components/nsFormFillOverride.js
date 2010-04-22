@@ -33,7 +33,7 @@ PeopleAutoComplete.prototype = {
 
   // Specify the html5 types that we want and some values to guess
   peopleTypes: {
-    email: /^(?:.*(?:e-?mail|recipients?).*|to)$/i,
+    email: /^(?:.*(?:e-?mail|recipients?).*|(send_)?to(_b?cc)?)$/i,
     tel: /^(?:tel(?:ephone)?|.*phone.*)$/i,
   },
 
