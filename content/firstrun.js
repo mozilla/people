@@ -70,8 +70,8 @@ var Overlay = {
         
         // Insert code if version is different here => upgrade
         window.setTimeout(function(){
-          if (current == "0.3a1") {
-            gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/v3a1.xhtml");          
+          if (current == "0.3") {
+            gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/v3.xhtml");          
           } else{
             gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/v1_to_v2.xhtml");
           }

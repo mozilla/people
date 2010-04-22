@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+    version="-//W3C//DTD XHTML 1.1//EN" xml:lang="en">
+<head>
+ <link rel="stylesheet"
+      href="chrome://people/content/directory.css"
+      type="text/css" />
+<title>Contacts: Updated to 0.3</title>
+</head>
+
+<body>
+
+<div class='head'>
+Firefox Contacts: Upgraded to version 0.3
+</div>
+
+
+<div class='dir'>
+<img style="float:right" src="images/experiment.png"/>
+<p>
+Firefox Contacts has been updated to version 0.3.
+</p>
+
+<p>
+<a href="chrome://people/content/manager.xul">Click here</a> to
+open the Contacts management screen.
+</p>
+
+<p>
+Please visit <a href="http://mozillalabs.com/conceptseries/identity/contacts/">our site</a>
+if you have any comments or feedback.
+</p>
+
+<br clear="all"/>
+
+<p><b>Development Notes:</b></p>
+
+<p>
+<ul>
+<li>Support for Yahoo! import.  You will need to log in and retrieve a security code from Yahoo! to enable the importer.</li>
+
+<li>Support for Facebook import and discovery.  When you connect to Facebook you will need to authorize Firefox Contacts to access your account.</li>
+
+<li>Support for "person:" addresses, and auto-completion of people in the AwesomeBar.  Just start typing a contact's name in the location bar and it will automatically suggest completions.</li>
+
+<li>Much-enhanced people search capabilities.  The installed discovery modules will run automatically when you view a contact. 
+ Discovery modules for Webfinger, HCard import, Google Social Graph, Facebook, Gravatar, Yelp, Amazon, and Flickr are included.</li>
+
+<li>Automatic combination of data discovered through discovery.  Firefox will load "profile pages" that it finds and combine 
+their information into the contact.  Because it is being run on the client, Firefox can access protected pages that are not
+visible to web-crawler-type systems; for example, it can access a Gowalla location trace from a friend, or a Facebook birthday,
+ because it is already logged in as you.  Note that this only works with sites that support standard automatic discovery 
+ mechanisms like HCard, RSS, and ActivityStreams.</li>
+
+<li>Support for non-contact people in the AwesomeBar.  You may enter "person:xxx", where xxx is any email address or URL, 
+and Firefox will do what it can to display information about that person.  Information from your local address book (if any) 
+will be combined with information that can be discovered from sources on the web.  You can use URLs from social networking 
+sites like Facebook, Twitter, Digg -- for example, try "<a href="person:http://www.facebook.com/zuck">person:http://www.facebook.com/zuck</a>"</li>
+
+</ul>
+</p>
+
+</div>
+
+</body>
+</html>

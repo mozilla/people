@@ -720,17 +720,50 @@ function traverseRender(anObject, container)
 
 
 
-
+var UNIQUE_URLS = ["http://www.facebook.com/"];
 function selectTopLevelUrls(urls)
 {
+  var tmp = [];
+  
+  // if it's a unique URL, take the shortest one.  This is, admittedly,
+  // a hack to cause the vanity Facebook URL to come up first.
+  
+  // otherwise, if any URLs are prefixes of other URLs in the list,
+  // take the shorter one.
+  
+  var shortMap = {};
+  
+  for each (var u in urls) {
+    var wasAUnique = false;
+    for each (var unique in UNIQUE_URLS) {
+      if (u.value.indexOf(unique) == 0) {
+        if (!shortMap[unique]) shortMap[unique] = u;
+        else {
+          if (u.value.length < shortMap[unique].value.length) {
+            shortMap[unique] = u;
+          }
+        }
+        wasAUnique = true;
+      }
+    }
+    if (!wasAUnique) {
+      tmp.push(u);
+    }
+  }
+  
   var ret = [];
+  for each (u in shortMap) {
+    ret.push(u);
+  }
+  ret = ret.concat(tmp);
+/*
   for each (var u in urls) {
     var matched = false;
     for each (var r in ret) {
       if (u.value.indexOf(r.value) == 0) {matched = true;break;}
     }
     if (!matched) ret.push(u);
-  }
+  }*/
   return ret;
 }
 
