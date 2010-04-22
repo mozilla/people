@@ -382,7 +382,7 @@ function renderContactCard(personBox)
   }
 
   if (photos && photos.length > 1) {
-    personBox.appendChild(renderPhotoList("Photos", "photos", photos.slice(1)));
+    personBox.appendChild(renderPhotoList("Photos", "photos", photos));
   }
 
   var addresses = gPerson.getProperty("addresses");

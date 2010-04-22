@@ -120,11 +120,25 @@ a {
   font:small-caption;
   font-weight:normal;
   display:inline-block;
+  white-space:normal;
+  width:auto
 }
 #updates {
   white-space:nowrap;
 }
+#notes {
+  white-space:nowrap;
+}
+#notes > .item {
+  white-space:nowrap;
+}
+#notes > .item > .value {
+  padding-right:110px;
+}
 
+.item {
+  white-space:normal;
+}
 .update {
   padding-left:12px;
   font:small-caption;

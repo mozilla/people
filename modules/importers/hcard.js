@@ -131,18 +131,18 @@ HCardDiscoverer.prototype = {
                     var text = anElement.textContent;
                     
                     try {
-                      var parsedURI = IO_SERVICE.newURI(href, null, parsedURI);
+                      var targetURI = IO_SERVICE.newURI(href, null, parsedURI);
+                      this._log.debug("Resolved " + href + " to " + targetURI.spec + " (on " + parsedURI.spec+ ")");
 
                       // A couple special cases.
-                      if (parsedURI.host == "twitter.com" && (href.indexOf("/following")>0 ||
+                      if (targetURI.host == "twitter.com" && (href.indexOf("/following")>0 ||
                           href.indexOf("/followers")>0 || href.indexOf("/memberships")>0)) continue;
-                      if (parsedURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
-                          
+                      if (targetURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
 
 
                       // TODO: perform lookup from href domain, or text, to canonical rels
                       var aLink = {
-                        type: text, rel: text, value: parsedURI.spec
+                        type: text, rel: text, value: targetURI.spec
                       };
                       if (newPerson.urls == undefined) newPerson.urls = [];
                       newPerson.urls.push(aLink);

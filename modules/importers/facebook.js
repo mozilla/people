@@ -88,38 +88,15 @@ var gOAuthCompletionListener = {
     if (aURI) {
       let spec = aURI.spec;
       if (spec.indexOf(COMPLETION_URI) == 0) {
-
-        // If it has a code, this is the first pass
-        // If it has an accessToken, this is the second pass
         var query = parseQueryString(aURI.spec.split("?")[1]);
         if (query.code) {
-
-          // Exchange it for an access token
-          var accessTokenURL = "https://graph.facebook.com/oauth/access_token?" +
-              "callback=" + COMPLETION_URI +
-              "&code=" + query.code +
-              "&client_id=" + MozillaLabsContactsApplicationID +
-              "&client_secret=" + MozillaLabsContactsApplicationSecret;
-
+          Prefs.set("oauth_code", query.code);
           aProgress.DOMWindow.stop();
           aProgress.DOMWindow.location = "chrome://people/content/facebook_progress.xhtml";
-
-          let call = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
-          let url = accessTokenURL;
-          call.open('GET', url, true);
-          call.onreadystatechange = function (aEvt) {
-            if (call.readyState == 4) {
-              if (call.status == 200) {
-                let response = parseQueryString(call.responseText);
-                Prefs.set("oauth_access_token", response.access_token);
-                doFacebookImport();
-              } else {
-                People._log.info("Unable to access Facebook: error " + call.status + " while getting access token.");
-                dump(call.responseText);
-              }
-            }
-          }
-          call.send(null);
+          
+          let oldCallback = gCompletionCallback;
+          gCompletionCallback = function() {try{oldCallback();}catch(e){};aProgress.DOMWindow.location = "chrome://people/content/manager.xhtml";}
+          getAccessToken();
         } 
       }
     }
@@ -145,6 +122,34 @@ var gOAuthCompletionListener = {
 
 };
 
+function getAccessToken()
+{
+  var code = Prefs.get("oauth_code");
+
+  var accessTokenURL = "https://graph.facebook.com/oauth/access_token?" +
+      "callback=" + COMPLETION_URI +
+      "&code=" + code +
+      "&client_id=" + MozillaLabsContactsApplicationID +
+      "&client_secret=" + MozillaLabsContactsApplicationSecret;
+
+  let call = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
+  let url = accessTokenURL;
+  call.open('GET', url, true);
+  call.onreadystatechange = function (aEvt) {
+    if (call.readyState == 4) {
+      if (call.status == 200) {
+        let response = parseQueryString(call.responseText);
+        Prefs.set("oauth_access_token", response.access_token);
+        doFacebookImport();
+      } else {
+        People._log.info("Unable to access Facebook: error " + call.status + " while getting access token.");
+        dump(call.responseText);
+      }
+    }
+  }
+  call.send(null);
+}
+
 var gProgressCallback, gCompletionCallback, gWindow, gEngine;
 
 FacebookImporter.prototype = {
@@ -156,8 +161,8 @@ FacebookImporter.prototype = {
   import: function FacebookImporter_import(completionCallback, progressFunction, window) {
     gEngine = this; // kind of gross.  lots of asynchronous callbacks and we lose track of our instance, sigh
     gWindow = window;
-    gProgressCallback = progressFunction;
-    gCompletionCallback = completionCallback;
+    gProgressCallback = function(arg) {try{progressFunction(arg)}catch(e){}};
+    gCompletionCallback = function(arg) {try{completionCallback(arg)}catch(e){}};
   
     if (Prefs.get("oauth_access_token")) {
       // We've already got one!  Let's use it.
@@ -206,7 +211,7 @@ function doFacebookImport()
           people.push(person);
         }
         People.add(people, gEngine, gProgressCallback);
-        gCompletionCallback(null);  
+        gCompletionCallback(null);
       }
     }
   }
@@ -241,12 +246,15 @@ FacebookDiscoverer.prototype = {
         //  http://[www.]facebook.com/profile.php?id=<userid>
         
         // TODO work on this, profile isn't working right
-        let re = RegExp("http://(www\.)?facebook.com/(people/([^/]+)/(.*)|profile\.php\?id=(.*)|([^/]*))", "gi"); 
+        let re = RegExp("http://(www\\.)?facebook.com/(people/([^/]+)/(.*)|profile\\.php\\?id=(.*)|([^/]*))", "gi"); 
         let result = re.exec(link.value);
         if (result) {
           let fbid;
           if (result[6]) {
             fbid = result[6];
+          }
+          else if (result[5]) {
+            fbid = result[5];
           }
           else if (result[4]) {
             fbid = result[4];
@@ -291,7 +299,9 @@ FacebookDiscoverer.prototype = {
     let that = this;
     call.onreadystatechange = function (aEvt) {
       if (call.readyState == 4) {
-        if (call.status == 200) {
+        if (call.status == 401) {
+          getAccessToken();
+        } else if (call.status == 200) {
           let response = JSON.parse(call.responseText);
           
           switch (type) {
@@ -309,20 +319,38 @@ FacebookDiscoverer.prototype = {
               if (response.birthday) {
                 newPerson.birthday = response.birthday;
               }
+              if (response.about) {
+                newPerson.notes = [{type:"About", value:response.about}];
+              }
               if (response.website) {
                 var websites = response.website.split("\n");
                 for each (var site in websites) {
                   if (!newPerson.urls) newPerson.urls = [];
-                  newPerson.urls.push({type:"URL", value:site})
+                  
+                  if (site.length > 0) {
+                    if (site.indexOf("http://") != 0) {
+                      site = "http://" + site;
+                    }
+                    newPerson.urls.push({type:"URL", value:site})
+                  }
                 }
               }
+              
+              var username=null;
               if (response.link) {
                 if (!newPerson.urls) newPerson.urls = [];
                 newPerson.urls.push({type:"facebook.com", value:response.link});
+
                 var lastIdx = response.link.lastIndexOf("/");
-                newPerson.accounts = [{domain:"facebook.com", username:response.link.slice(lastIdx+1)}];
+                username = response.link.slice(lastIdx+1);
+                if (username.indexOf("profile.php?id=") == 0) username = username.slice(15);
+
+                newPerson.accounts = [{domain:"facebook.com", username:username}];
               }
-              newPerson.photos = [{type:"profile", value:"https://graph.facebook.com/" + id + "/picture"}];
+              newPerson.photos = [
+                {type:"thumbnail", value:"https://graph.facebook.com/" + (username ? username : id) + "/picture?type=square"},
+                {type:"profile", value:"https://graph.facebook.com/" + (username ? username : id) + "/picture?type=large"}
+              ];
               completionCallback(newPerson, "Facebook:root:" + id);
               break;
           }
