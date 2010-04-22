@@ -59,8 +59,10 @@ var MozillaLabsContactsAPIKey = "873bb1ddcc201222004c053a25d07d12";
 var MozillaLabsContactsApplicationSecret = "5a931183e640fa50ca93b0ab556eb949";
 var MozillaLabsContactsApplicationID = "110879292285085";
 
+var gLogger = Log4Moz.repository.getLogger("People.FacebookImporter");
+
 function FacebookImporter() {
-  this._log = Log4Moz.repository.getLogger("People.FacebookImporter");
+  this._log = gLogger;
   this._log.debug("Initializing importer backend for " + this.displayName);
 };
 
@@ -96,7 +98,7 @@ var gOAuthCompletionListener = {
           
           let oldCallback = gCompletionCallback;
           gCompletionCallback = function() {try{oldCallback();}catch(e){};aProgress.DOMWindow.location = "chrome://people/content/manager.xhtml";}
-          getAccessToken();
+          getAccessToken(doFacebookImport);
         } 
       }
     }
@@ -122,7 +124,7 @@ var gOAuthCompletionListener = {
 
 };
 
-function getAccessToken()
+function getAccessToken(resumptionFunction)
 {
   var code = Prefs.get("oauth_code");
 
@@ -140,10 +142,15 @@ function getAccessToken()
       if (call.status == 200) {
         let response = parseQueryString(call.responseText);
         Prefs.set("oauth_access_token", response.access_token);
-        doFacebookImport();
+        resumptionFunction();
       } else {
-        People._log.info("Unable to access Facebook: error " + call.status + " while getting access token.");
+        gLogger.info("Unable to access Facebook: error " + call.status + " while getting access token.");
         dump(call.responseText);
+        
+        // nuke the prefs and start over.
+        Prefs.reset("oauth_access_token");
+        Prefs.reset("oauth_code");
+        resumptionFunction();
       }
     }
   }
@@ -193,6 +200,8 @@ FacebookImporter.prototype = {
 function doFacebookImport()
 {
   var accessToken = Prefs.get("oauth_access_token");
+
+  gLogger.info("Accessing Facebook friend list with saved access token");
   
   let call = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
   let url = "https://graph.facebook.com/me/friends?access_token=" + accessToken;
@@ -212,6 +221,11 @@ function doFacebookImport()
         }
         People.add(people, gEngine, gProgressCallback);
         gCompletionCallback(null);
+      } else if (call.status == 401) {
+        // expired, go refresh it
+        getAccessToken(doFacebookImport);
+      } else {
+        gLogger.info("Error while accessing Facebook friend list: " + call.status);
       }
     }
   }
@@ -300,7 +314,8 @@ FacebookDiscoverer.prototype = {
     call.onreadystatechange = function (aEvt) {
       if (call.readyState == 4) {
         if (call.status == 401) {
-          getAccessToken();
+          this._log.info("Received 401 error while accessing Facebook; renewing access token");
+          getAccessToken(function(){createFacebookDiscoveryHandler(id, progressFunction, completionCallback, type)});
         } else if (call.status == 200) {
           let response = JSON.parse(call.responseText);
           
