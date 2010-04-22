@@ -1,6 +1,5 @@
 Quick n' dirty list of tasks:
 
-* Redo person schema to make per-service data refresh possible.
 * Add a plugin interface to the backend to support "accelerators",
   little bundles that would describe fields to be indexed in separate
   tables, and what fields they map to in .find().  Only accelerated
@@ -11,6 +10,5 @@ Quick n' dirty list of tasks:
   obscure fields)
 * Split vcard from gmail, so that we can easily support other vcard
   sources.
-* Add a post-processing layer, probably glued using notifications.
-* Use post-processing layer to optionally generate gravatar image
-  URLs.
+* Figure out how to register appropriate observers to allow
+  third-party addons to register new importers and discoverers.
