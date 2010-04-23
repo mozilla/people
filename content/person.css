@@ -3,7 +3,7 @@ body {
   font-size: 11pt; 
   margin: 0px;
   padding: 0px; 
-  background-color: #f8f8f8; 
+  background-color: #EDEDED;; 
   height:100%
 }
 
@@ -40,23 +40,25 @@ a {
   margin-left:16px;
   margin-right:16px;
   margin-top:16px;
-  padding:8px;
-  border:1pt #808080 solid;
+  padding:16px;
   min-height:74px;
   -moz-border-radius: 1em; 
-  -moz-box-shadow: #bbb 2px 2px 1px; 
+  background-color: rgba(255,255,255,1);
+  border: 1px solid rgba(185,185,185,1);
+	-moz-box-shadow: 
+		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+		inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+		rgba(0, 0, 0, 0.1) 0px 2px 0px;
 }
 
 .photo {
   width: 68px; 
   height: 68px; 
   position: absolute; 
-  border: 1px solid #aaa;  
 }
 .profilePhoto {
   margin: 0em; 
   padding: 0em; 
-  border: 2px solid #eee; 
   width: 64px; 
   height: 64px; 
 }
