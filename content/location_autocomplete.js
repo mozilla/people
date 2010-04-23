@@ -47,7 +47,7 @@ Cu.import("resource://people/modules/people.js");
 // nsIAutoCompleteSearch to put keyword results from the db into autocomplete
 let showKeywords = let (T = {
   startSearch: function(searchString, searchParam, previous, listener) {
-    let keyword = searchString;
+    let keyword = searchString.toLowerCase();
     
     var peopleResults = People.find({displayName:keyword});
     var peopleResultsEmail = People.find({emails:keyword});
@@ -62,6 +62,35 @@ let showKeywords = let (T = {
       if (!already) finalResults.push(p);
     }
     peopleResults = finalResults;
+
+    // Require a full match on a name or email element before we display:
+    var fullMatchResults = [];
+    for each (var p in peopleResults) {
+      var fullMatch = false;
+      if (p.displayName.toLowerCase() == keyword) {
+        fullMatch = true;
+      }
+      else {
+        p.name = p.getProperty("name");
+        if (p.name) {
+          if (p.name.givenName.toLowerCase() == keyword) {
+            fullMatch = true;
+          } else if (p.name.familyName.toLowerCase() == keyword) {
+            fullMatch = true;
+          }
+        }
+        if (!fullMatch) {
+          for each (var em in p.getProperty("emails"))
+          {
+            if (em.value && em.value.split("@")[0].toLowerCase() == keyword) {
+              fullMatch = true;
+            }
+          }
+        }
+      }
+      if (fullMatch) fullMatchResults.push(p);
+    }
+    peopleResults = fullMatchResults;
 
     // nsIAutoCompleteResult object to give the autocomplete controller
     let result = {
