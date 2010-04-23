@@ -1,21 +1,39 @@
 #include <CoreFoundation/CFString.h>
 #include "INativeAddressCard.h"
 
-class TaggedField 
+class TypedElement 
+{
+  public:
+    virtual CFStringRef getType()=0;
+    virtual CFStringRef getValue()=0;
+};
+
+class TaggedField : public TypedElement
 {
 	public:
 		TaggedField(const CFStringRef type, const CFStringRef value);
+    ~TaggedField();
+    virtual CFStringRef getType();
+    virtual CFStringRef getValue();
+
+  protected:
 		CFStringRef mType;
 		CFStringRef mValue;
 };
 
-class AddressField 
+class AddressField : public TypedElement
 {
 	public:
-		AddressField(const CFStringRef type, const CFStringRef street, const CFStringRef city, const CFStringRef zip, const CFStringRef country, const CFStringRef countryCode);
+		AddressField(const CFStringRef type, const CFStringRef street, const CFStringRef city, const CFStringRef state, const CFStringRef zip, const CFStringRef country, const CFStringRef countryCode);
+    virtual CFStringRef getType();
+    virtual CFStringRef getValue();
+
+  protected:
+		CFMutableStringRef mLocalJSON;
 		CFStringRef mType;
 		CFStringRef mStreet;
 		CFStringRef mCity;
+		CFStringRef mState;
 		CFStringRef mZip;
 		CFStringRef mCountry;
 		CFStringRef mCountryCode;
@@ -39,7 +57,7 @@ public:
 	void setEmail(const CFStringRef type, const CFStringRef email);
 	void setPhone(const CFStringRef type, const CFStringRef phone);
 	void setURL(const CFStringRef type, const CFStringRef url);
-	void setAddress(const CFStringRef type, const CFStringRef streetPtr, const CFStringRef cityPtr, 
+	void setAddress(const CFStringRef type, const CFStringRef streetPtr, const CFStringRef cityPtr, const CFStringRef statePtr, 
                   const CFStringRef zipPtr, const CFStringRef countryPtr, const CFStringRef countryCodePtr);
   
 private:

@@ -24,6 +24,8 @@ NativeAddressCard::NativeAddressCard()
 	mNumPhones = mPhonesSize = 0;
 	mURLs = NULL;
 	mNumURLs = mURLsSize = 0;
+  mAddresses = NULL;
+	mNumAddresses = mAddressesSize = 0;
 }
 
 NativeAddressCard::~NativeAddressCard()
@@ -37,22 +39,19 @@ NativeAddressCard::~NativeAddressCard()
 	int i;
 	if (mEmails) {
 		for (i=0;i<mNumEmails;i++) {
-			CFRelease(mEmails[i]->mType);
-			CFRelease(mEmails[i]->mValue);
+      delete mEmails[i];
 		}
 		free(mEmails);
 	}
 	if (mPhones) {
 		for (i=0;i<mNumPhones;i++) {
-			CFRelease(mPhones[i]->mType);
-			CFRelease(mPhones[i]->mValue);
+      delete mPhones[i];
 		}
 		free(mPhones);
 	}
 	if (mURLs) {
 		for (i=0;i<mNumURLs;i++) {
-			CFRelease(mURLs[i]->mType);
-			CFRelease(mURLs[i]->mValue);
+      delete mURLs[i];
 		}
 		free(mURLs);
 	}
@@ -124,19 +123,23 @@ static const wchar_t *deriveLabelFromString(CFStringRef stringRef)
 /* void getPropertyListLabels (in string name, out unsigned long count, [array, retval, size_is (count)] out string labels); */
 NS_IMETHODIMP NativeAddressCard::GetPropertyListLabels(const char *name, PRUint32 *count NS_OUTPARAM, PRUnichar ***labels NS_OUTPARAM)
 {
-	TaggedField **array = NULL;
+	TypedElement **array = NULL;
 	int len;
 	if (!strcmp(name, "email")) {
-		array = mEmails;
+		array = (TypedElement**)mEmails;
 		len = mNumEmails;
 	}
 	else if (!strcmp(name, "phone")) {
-		array = mPhones;
+		array = (TypedElement**)mPhones;
 		len = mNumPhones;
 	}
 	else if (!strcmp(name, "urls")) {
-		array = mURLs;
+		array = (TypedElement**)mURLs;
 		len = mNumURLs;
+	}
+  else if (!strcmp(name, "addresses")) {
+		array = (TypedElement**)mAddresses;
+		len = mNumAddresses;
 	}
 	
 	if (array) {
@@ -146,23 +149,34 @@ NS_IMETHODIMP NativeAddressCard::GetPropertyListLabels(const char *name, PRUint3
 
 		int i;
 		for (i=0;i<len;i++) {
-      const wchar_t *labelLocal = deriveLabelFromString(array[i]->mType);
-      if (labelLocal) {
-        size_t len = wcslen(labelLocal);
-        PRUnichar *buffer = (PRUnichar*)nsMemory::Alloc(sizeof(PRUnichar) * (len+1));
-        if (buffer) {
-          memcpy(buffer, labelLocal, sizeof(PRUnichar) * (len+1));
-          (*labels)[i] = buffer;
+      CFStringRef type = array[i]->getType();
+      if (type) {
+        const wchar_t *labelLocal = deriveLabelFromString(array[i]->getType());
+        if (labelLocal) {
+          size_t len = wcslen(labelLocal);
+          PRUnichar *buffer = (PRUnichar*)nsMemory::Alloc(sizeof(PRUnichar) * (len+1));
+          if (buffer) {
+            memcpy(buffer, labelLocal, sizeof(PRUnichar) * (len+1));
+            (*labels)[i] = buffer;
+          } else {
+            return NS_ERROR_OUT_OF_MEMORY;
+          }
         } else {
-          return NS_ERROR_OUT_OF_MEMORY;
+          CFIndex length= CFStringGetLength(array[i]->getType());
+          CFIndex bufferSize = sizeof(PRUnichar) * (length + 1);
+          PRUnichar *buffer = (PRUnichar*)nsMemory::Alloc(bufferSize);
+          if (buffer) {
+            CFStringGetCharacters (array[i]->getType(), CFRangeMake(0, length), buffer);
+            buffer[length] = '\0';
+            (*labels)[i] = buffer;
+          } else {
+            return NS_ERROR_OUT_OF_MEMORY;
+          }
         }
       } else {
-        CFIndex length= CFStringGetLength(array[i]->mType);
-        CFIndex bufferSize = sizeof(PRUnichar) * (length + 1);
-        PRUnichar *buffer = (PRUnichar*)nsMemory::Alloc(bufferSize);
+        PRUnichar *buffer = (PRUnichar*)nsMemory::Alloc(1);
         if (buffer) {
-          CFStringGetCharacters (array[i]->mType, CFRangeMake(0, length), buffer);
-          buffer[length] = '\0';
+          buffer[0] = '\0';
           (*labels)[i] = buffer;
         } else {
           return NS_ERROR_OUT_OF_MEMORY;
@@ -181,19 +195,23 @@ NS_IMETHODIMP NativeAddressCard::GetPropertyListLabels(const char *name, PRUint3
 /* void getPropertyListValues (in string name, out unsigned long count, [array, retval, size_is (count)] out string values); */
 NS_IMETHODIMP NativeAddressCard::GetPropertyListValues(const char *name, PRUint32 *count NS_OUTPARAM, PRUnichar ***values NS_OUTPARAM)
 {
-	TaggedField **array = NULL;
+	TypedElement **array = NULL;
 	int len;
 	if (!strcmp(name, "email")) {
-		array = mEmails;
+		array = (TypedElement**)mEmails;
 		len = mNumEmails;
 	}
 	else if (!strcmp(name, "phone")) {
-		array = mPhones;
+		array = (TypedElement**)mPhones;
 		len = mNumPhones;
 	}
 	else if (!strcmp(name, "urls")) {
-		array = mURLs;
+		array = (TypedElement**)mURLs;
 		len = mNumURLs;
+	}
+  else if (!strcmp(name, "addresses")) {
+		array = (TypedElement**)mAddresses;
+		len = mNumAddresses;
 	}
 	
 	if (array) {
@@ -203,16 +221,24 @@ NS_IMETHODIMP NativeAddressCard::GetPropertyListValues(const char *name, PRUint3
 
 		int i;
 		for (i=0;i<len;i++) {
-      CFIndex length= CFStringGetLength(array[i]->mValue);
-      CFIndex bufferSize = sizeof(PRUnichar) * (length + 1);
-      PRUnichar *buffer = (PRUnichar*)nsMemory::Alloc(bufferSize);
-      if (buffer) {
-        CFStringGetCharacters (array[i]->mValue, CFRangeMake(0, length), buffer);
-        buffer[length] = '\0';
-        (*values)[i] = buffer;
+      CFStringRef value = array[i]->getValue();
+      PRUnichar *buffer;
+      if (value) {
+        CFIndex length= CFStringGetLength(array[i]->getValue());
+        CFIndex bufferSize = sizeof(PRUnichar) * (length + 1);
+        buffer = (PRUnichar*)nsMemory::Alloc(bufferSize);
+        if (buffer) {
+          CFStringGetCharacters (array[i]->getValue(), CFRangeMake(0, length), buffer);
+          buffer[length] = '\0';
+        }
       } else {
+        buffer = (PRUnichar*)nsMemory::Alloc(1);      
+        if (buffer) buffer[0] = '\0';
+      }
+      if (!buffer) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
+      (*values)[i] = buffer;
 		}
     return NS_OK;
 	} else {
@@ -275,29 +301,107 @@ TaggedField::TaggedField(const CFStringRef type, const CFStringRef value) : mTyp
 	if (type) mType = type;
 	if (value) mValue = value;
 }
+TaggedField::~TaggedField()
+{
+  CFRelease(mType);
+  CFRelease(mValue);
+}
 
+CFStringRef TaggedField::getType()
+{
+  return mType;
+}
+
+CFStringRef TaggedField::getValue()
+{
+  return mValue;
+}
 
 
 void NativeAddressCard::setAddress(const CFStringRef type, const CFStringRef streetPtr, const CFStringRef cityPtr, 
-                                   const CFStringRef zipPtr, const CFStringRef countryPtr, const CFStringRef countryCodePtr)
+                                    const CFStringRef statePtr, const CFStringRef zipPtr, const CFStringRef countryPtr, const CFStringRef countryCodePtr)
 {
 	if (mNumAddresses == mAddressesSize) {
 			mAddresses = (AddressField**)realloc(mAddresses, sizeof(AddressField*) * (mAddressesSize + 8));
-			mNumAddresses += 8;
+			mAddressesSize += 8;
 	}
-	mAddresses[mNumAddresses++] = new AddressField(type, streetPtr, cityPtr, zipPtr, countryPtr, countryCodePtr);
+	mAddresses[mNumAddresses++] = new AddressField(type, streetPtr, cityPtr, statePtr, zipPtr, countryPtr, countryCodePtr);
 }
 
-AddressField::AddressField(const CFStringRef type, const CFStringRef street, const CFStringRef city, const CFStringRef zip, 
+AddressField::AddressField(const CFStringRef type, const CFStringRef street, const CFStringRef city, 
+                          const CFStringRef state, const CFStringRef zip, 
                            const CFStringRef country, const CFStringRef countryCode) : 
-                           mType(NULL), mStreet(NULL), mCity(NULL), mZip(NULL), mCountry(NULL), mCountryCode(NULL)
+                           mType(NULL), mStreet(NULL), mCity(NULL), mState(NULL), mZip(NULL), mCountry(NULL), mCountryCode(NULL)
 {
 	if (type) mType = type;
 	if (street) mStreet = street;
 	if (city) mCity = city;
+	if (state) mState = state;
 	if (zip) mZip = zip;
 	if (country) mCountry = country;
 	if (countryCode) mCountryCode = countryCode;
+  mLocalJSON = NULL;
+}
+
+CFStringRef AddressField::getType()
+{
+  return mType;
+}
+
+void appendEscapingQuotes(CFMutableStringRef theString, const CFStringRef appendedString);
+
+CFStringRef AddressField::getValue()
+{
+  if (mLocalJSON == NULL) {
+    int first = 1;
+    mLocalJSON = CFStringCreateMutable(NULL, 0);
+    CFStringAppend(mLocalJSON, CFSTR("{"));
+    if (mStreet) {
+      CFStringAppend(mLocalJSON, CFSTR("\"streetAddress\":\""));
+      appendEscapingQuotes(mLocalJSON, mStreet);
+      CFStringAppend(mLocalJSON, CFSTR("\""));
+      first = 0;
+    }
+    if (mCity) {
+      if (!first) CFStringAppend(mLocalJSON, CFSTR(","));
+      CFStringAppend(mLocalJSON, CFSTR("\"locality\":\""));
+      appendEscapingQuotes(mLocalJSON, mCity);
+      CFStringAppend(mLocalJSON, CFSTR("\""));
+      first = 0;
+    }
+    if (mState) {
+      if (!first) CFStringAppend(mLocalJSON, CFSTR(","));
+      CFStringAppend(mLocalJSON, CFSTR("\"region\":\""));
+      appendEscapingQuotes(mLocalJSON, mState);
+      CFStringAppend(mLocalJSON, CFSTR("\""));
+      first = 0;
+    }
+    if (mZip) {
+      if (!first) CFStringAppend(mLocalJSON, CFSTR(","));
+      CFStringAppend(mLocalJSON, CFSTR("\"postalCode\":\""));
+      appendEscapingQuotes(mLocalJSON, mZip);
+      CFStringAppend(mLocalJSON, CFSTR("\""));
+      first = 0;
+    }
+    if (mCountry) {
+      if (!first) CFStringAppend(mLocalJSON, CFSTR(","));
+      CFStringAppend(mLocalJSON, CFSTR("\"country\":\""));
+      appendEscapingQuotes(mLocalJSON, mCountry);
+      CFStringAppend(mLocalJSON, CFSTR("\""));
+      first = 0;
+    }
+    CFStringAppend(mLocalJSON, CFSTR("}"));
+  }
+  
+  return mLocalJSON;
 }
 
 
+void appendEscapingQuotes(CFMutableStringRef theString, const CFStringRef appendedString)
+{
+  // There is certainly a more efficient way to do this.
+  CFMutableStringRef temp = CFStringCreateMutableCopy(NULL, 0, appendedString);
+  CFStringFindAndReplace(temp, CFSTR("\""), CFSTR("\\\""), CFRangeMake(0, CFStringGetLength(appendedString)), 0);
+  CFStringAppend(theString, temp);
+  CFRelease(temp);
+}

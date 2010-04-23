@@ -122,6 +122,15 @@ NativeAddressBookImporter.prototype = {
 					person.urls.push({value:urlValues[j], type:urlLabels[j]});
 				}
 
+				let addressLabels = allCards[i].getPropertyListLabels("addresses", []);
+				let addressValues = allCards[i].getPropertyListValues("addresses", []);
+				for (let j=0;j<addressLabels.length;j++) {
+          if (!person.addresses) person.addresses = [];
+          var addr = JSON.parse(addressValues[j]);
+          addr.type = addressLabels[j];
+					person.addresses.push(addr);
+				}
+
 				people.push(person);
 			}
 			this._log.info("Adding " + people.length + " Native address book contacts to People store");

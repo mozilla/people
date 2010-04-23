@@ -391,11 +391,28 @@ function renderContactCard(personBox)
   var addresses = gPerson.getProperty("addresses");
   if (addresses) {
     personBox.appendChild(renderTypeValueList("Addresses", "adr", addresses, {itemRender: function addrRender(item) {
-      var val = (item.streetAddress ? item.streetAddress + " " : "") + 
-             (item.locality ? item.locality + " " : "") + 
-             (item.region ? item.region + " " : "") + 
-             (item.postalCode ? item.postalCode + " " : "") + 
-             (item.country ? item.country : ""); 
+      var val = "";
+      if (item.streetAddress) {
+        val += item.streetAddress;
+        val += " ";
+      }
+      if (item.locality) {
+        val += item.locality;
+      }
+      if (item.region) {// handle "city, ST" convention - TODO is this appropriate for non-US locales?
+        if (val.length > 0) val += ", ";
+        val += item.region;
+      } 
+      if (val.length > 0) val += " ";
+      
+      if (item.postalCode) {
+        val += item.postalCode;
+        val += " ";
+      }
+      if (item.country) {
+        val += item.country;
+        val += " ";
+      }
       if (val.length == 0 && item.value) return item.value;
       return val;
      }, linkToURL:"http://maps.google.com/maps?q="}));

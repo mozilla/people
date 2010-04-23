@@ -79,7 +79,7 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
     
 		CFTypeRef emails = ABRecordCopyValue (person, kABEmailProperty);// kABMultiStringProperty
 		CFTypeRef phones = ABRecordCopyValue (person, kABPhoneProperty);// kABMultiStringProperty
-//	CFTypeRef addresses = ABRecordCopyValue (person, kABAddressProperty);// multi-dictionary
+    CFTypeRef addresses = ABRecordCopyValue (person, kABAddressProperty);// multi-dictionary
 		CFTypeRef homePage = ABRecordCopyValue (person, kABHomePageProperty);// string - deprecated since 10.4
 		CFTypeRef urls = ABRecordCopyValue (person, kABURLsProperty);// kABMultiStringProperty
 
@@ -109,7 +109,6 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
 			}
 		}
 
-/*
 		if (addresses) {
 			for (j=0;j<ABMultiValueCount((ABMultiValueRef)addresses);j++) {
 				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)addresses, j);
@@ -117,22 +116,15 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
         
         CFStringRef aStreet = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressStreetKey);
         CFStringRef aCity = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressCityKey);
+        CFStringRef aState = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressStateKey);
         CFStringRef aZip = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressZIPKey);
         CFStringRef aCountry = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressCountryKey);
         CFStringRef aCountryCode = (CFStringRef)CFDictionaryGetValue(anAddress, kABAddressCountryCodeKey);
 
-        const char *labelPtr = deriveLabelFromString(label, labelBuffer, BUFSIZE);
-
-				const char *streetPtr = aStreet ? extractCFStringPtr(aStreet, valueBuffer, BUFSIZE) : NULL;
-				const char *cityPtr = aCity ? extractCFStringPtr(aCity, valueBuffer2, BUFSIZE) : NULL;
-				const char *zipPtr = aZip ? extractCFStringPtr(aZip, valueBuffer3, BUFSIZE) : NULL;
-				const char *countryPtr = aCountry ? extractCFStringPtr(aCountry, valueBuffer4, BUFSIZE) : NULL;
-				const char *countryCodePtr = aCountryCode ? extractCFStringPtr(aCountryCode, valueBuffer5, BUFSIZE) : NULL;
-				
-				card->setAddress(labelPtr, streetPtr, cityPtr, zipPtr, countryPtr, countryCodePtr);
+				card->setAddress(label, aStreet, aCity, aState, aZip, aCountry, aCountryCode);
 			}
 		}
-*/
+
 		if (phones) {
 			for (j=0;j<ABMultiValueCount((ABMultiValueRef)phones);j++) {
 				CFStringRef label = (CFStringRef)ABMultiValueCopyLabelAtIndex ((ABMultiValueRef)phones, j);
