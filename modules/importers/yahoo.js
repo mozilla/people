@@ -214,6 +214,14 @@ YahooContactsImporter.prototype = {
       });
     }
   },
+  disconnect : function YahooImporter_disconnect() 
+  {
+    Prefs.reset("oauth_token", oauth_token);
+    Prefs.reset("oauth_token_secret", oauth_token_secret);
+    Prefs.reset("oauth_session_handle", oauth_session_handle);
+    Prefs.reset("xoauth_yahoo_guid", xoauth_yahoo_guid);
+  },
+  
   performImport: function YahooImporter_performImport(completionCallback, progressFunction, window)
   {
     var that = this;

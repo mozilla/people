@@ -992,6 +992,14 @@ PeopleService.prototype = {
   disconnectService: function disconnectService(svcName) {
 		Cu.import("resource://people/modules/import.js");    
     this._log.debug("Disconnecting " + svcName);
+    
+    try {
+      let svc = PeopleImporter.getBackend(svcName);
+      svc.disconnect();
+    } catch (e) {
+      this._log.debug("Error while disconnecting from " + svcName + ": " + e);    
+    }
+    
     let allPeople = this.find();
     for each (let p in allPeople) {
       if (p.obj.documents[svcName]) {

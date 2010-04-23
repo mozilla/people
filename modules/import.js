@@ -109,6 +109,9 @@ ImporterBackend.prototype = {
   },
   import: function Backend_import() {
     this._log.debug("ImporterBackend.import() invoked, base class does nothing");
+  },
+  disconnect : function Backend_disconnect() {
+  
   }
 };
 

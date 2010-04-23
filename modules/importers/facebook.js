@@ -177,24 +177,36 @@ FacebookImporter.prototype = {
     }
     else
     {
-      // Need to ask the user to authenticate:
-      let targetURL = "https://graph.facebook.com/oauth/authorize?client_id=" + MozillaLabsContactsApplicationID + 
-          "&redirect_uri=" + COMPLETION_URI + 
-          "&scope=friends_birthday,friends_online_presence,friends_photos,friends_website";
-      var mainWindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                           .getInterface(Components.interfaces.nsIWebNavigation)
-                           .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
-                           .rootTreeItem
-                           .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                           .getInterface(Components.interfaces.nsIDOMWindow);
-      // Start listening for completions
-      mainWindow.gBrowser.addProgressListener(gOAuthCompletionListener, Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
-      window.location = targetURL;
-
-      // when we're done, we'll do:
-      // gBrowser.removeProgressListener(this);
+      doFacebookAuthorize(window);
     }
   },
+  
+  disconnect : function FacebookImporter_disconect()
+  {
+    Prefs.reset("oauth_access_token");
+    Prefs.reset("oauth_code");
+  }
+}
+
+function doFacebookAuthorize(window)
+{
+  // Need to ask the user to authenticate:
+  let targetURL = "https://graph.facebook.com/oauth/authorize?client_id=" + MozillaLabsContactsApplicationID + 
+      "&redirect_uri=" + COMPLETION_URI + 
+      "&scope=friends_birthday,friends_online_presence,friends_photos,friends_website";
+  var mainWindow = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                       .getInterface(Components.interfaces.nsIWebNavigation)
+                       .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
+                       .rootTreeItem
+                       .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                       .getInterface(Components.interfaces.nsIDOMWindow);
+  // Start listening for completions
+  mainWindow.gBrowser.addProgressListener(gOAuthCompletionListener, Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+  window.location = targetURL;
+
+  // when we're done, we'll do:
+  // gBrowser.removeProgressListener(this);
+
 }
 
 function doFacebookImport()
@@ -217,6 +229,12 @@ function doFacebookImport()
           let person = {};
           person.accounts = [{domain:"facebook.com", userid:fbPerson.id}];
           person.displayName = fbPerson.name;
+          var splitName = person.displayName.split(" ");
+          if (splitName.length > 1) {
+            person.name = {};
+            person.name.givenName = splitName[0];
+            person.name.familyName = splitName.slice(1).join(" ");
+          }
           people.push(person);
         }
         People.add(people, gEngine, gProgressCallback);
@@ -323,13 +341,13 @@ FacebookDiscoverer.prototype = {
             case "root":
               let newPerson = {};
               if (response.name) newPerson.displayName = response.name;
-              if (response.first_name) {
+              if (response["first_name"]) {
                 if (!newPerson.name ) newPerson.name={};
-                newPerson.name.givenName = response.first_name;
+                newPerson.name.givenName = response["first_name"];
               }
-              if (response.last_name) {
+              if (response["last_name"]) {
                 if (!newPerson.name) newPerson.name={};
-                newPerson.name.familyName = response.last_name;
+                newPerson.name.familyName = response["last_name"];
               }
               if (response.birthday) {
                 newPerson.birthday = response.birthday;
