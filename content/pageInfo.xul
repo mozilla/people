@@ -54,8 +54,9 @@
   </commandset>
 
   <vbox id="permList">
-    <vbox>
-      <label id="permPeopleFindLabel" value="&permPeopleFind;" control="people-findRadioGroup"/>
+    <vbox class="permission">
+      <label id="permPeopleFindLabel" class="permissionLabel"
+             value="&permPeopleFind;" control="people-findRadioGroup"/>
       <hbox role="group" aria-labelledby="permPeopleFindLabel">
         <checkbox id="people-findDef" command="cmd_people-findDef" label="&permAskAlways;"/>
         <spacer flex="1"/>
