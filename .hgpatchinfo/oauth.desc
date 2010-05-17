@@ -1,0 +1,7 @@
+oauth branch:
+- currently depends on oautherizer addon at http://bitbucket.org/mixedpuppy/
+  This will be resolved (one reason this is on a branch)
+- all importers except linkedin now use oauth
+  linkedin oauth api's do not include email addresses
+- some reworking of ui to make compatible with thunderbird
+
