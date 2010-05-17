@@ -92,7 +92,9 @@ AmazonAccountDiscoverer.prototype = {
             this._log.warn("Account check with Amazon returned status code " + load.status + "\n" + load.responseText);
           }
         } catch (e) {
-          this._log.debug("Address " + email.value + " got error from Amazon: " + e);        
+          this._log.debug("Address " + email.value + " got error from Amazon: " + e);
+	  this._log.error(e);
+	  this._log.error(e.stack);
         }
         completionCallback(newPerson, discoveryToken);
       } catch (e) {

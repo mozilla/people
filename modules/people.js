@@ -812,6 +812,7 @@ PeopleService.prototype = {
       query += " WHERE " + wheres.join(" AND ");
 
 		// Look up the results, filtering on indexed terms
+		let result;
     try {
       result = Utils.getRows(this._dbCreateStatement(query, params).statement);
     }
@@ -887,7 +888,7 @@ PeopleService.prototype = {
                     // different rels.
                     if (newObj.value == item.value) {
                       if (newObj.type == item.type) {
-                        if (newObj.rel == item.rel) {
+                        if (newObj['rel'] == item.rel) {
                           return true;
                         }
                       } else if (newObj.type == "internet" || newObj.type == "unlabeled") {// gross hack for Google, Yahoo, etc.
@@ -999,7 +1000,10 @@ PeopleService.prototype = {
     } catch (e) {
       this._log.debug("Error while disconnecting from " + svcName + ": " + e);    
     }
-    
+    this.removeServiceData(svcName);
+  },
+  
+	removeServiceData: function (svcName) {
     let allPeople = this.find();
     for each (let p in allPeople) {
       if (p.obj.documents[svcName]) {
@@ -1018,8 +1022,7 @@ PeopleService.prototype = {
       }
     }
     this.deleteServiceMetadata(svcName);
-  },
-  
+	},
 
   markServiceRefreshTimestamp : function markServiceRefreshTimestamp(svcName) {
     try {
@@ -1056,7 +1059,7 @@ PeopleService.prototype = {
     // A better solution would be to load all the new records, merge them OVER the
     // existing records, and then delete all documents for the service that were
     // in records that were not just touched.
-    this.disconnectService(svcName);
+    this.removeServiceData(svcName);
     this.connectService(svcName, completionCallback, progressFunction, window);
   },
   
@@ -1282,7 +1285,7 @@ Person.prototype = {
               // different rels.
               if (newObj.value == item.value) {
                 if (newObj.type == item.type) {
-                  if (newObj.rel == item.rel) {
+                  if (newObj['rel'] == item.rel) {
                     return true;
                   }
                 } else if (newObj.type == "internet") {// gross hack for VCard email

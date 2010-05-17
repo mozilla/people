@@ -14,6 +14,7 @@
 
 
 <script type="text/javascript;version=1.8">
+<![CDATA[
 let allFieldList = ["displayName", "emailhash", "emails", "phoneNumbers", "urls", "name/givenName", "name/familyName"];
 let fieldLabels = {displayName:"Name", 
                     emailhash: "Unique Identifier (based on email, but not addressible)", 
@@ -92,7 +93,7 @@ function toggleRemember()
 {
 	remember.value = document.getElementById('remember').checked;
 }
-
+]]>
 </script>
 
 <body id="body">
@@ -110,8 +111,8 @@ function toggleRemember()
 	</div>
 
 	<div style="float:right; padding-right:12px;font:9pt Arial">
-		<a class="selectLinks" href="javascript:selectAll()">select all</a> - 
-		<a class="selectLinks" href="javascript:unselectAll()">unselect all</a>
+		<a class="selectLinks" onclick="selectAll()">select all</a> - 
+		<a class="selectLinks" onclick="unselectAll()">unselect all</a>
 	</div>	
 	<div style="font-size:16pt;font-weight:bold; margin-left:32px;left:10px;">
 	for these people:

@@ -304,7 +304,7 @@ Resource.prototype = {
     // Find a window to stick our hidden iframe into.
     var windowMediator = Cc['@mozilla.org/appshell/window-mediator;1'].
       getService(Ci.nsIWindowMediator);
-    var window = windowMediator.getMostRecentWindow("navigator:browser");
+    var window = windowMediator.getMostRecentWindow(null);
     // XXX We can use other windows, too, so perhaps we should try to get
     // some other window if there's no browser window open.  Perhaps we should
     // even prefer other windows, since there's less chance of any browser

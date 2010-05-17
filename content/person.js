@@ -40,7 +40,10 @@ const Cc = Components.classes;
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");    
 
+try {
+// if the favicon service doesn't exist (e.g. Thunderbird) just ignore it
 var FAVICON_SERVICE = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
+} catch(e) {}
 var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
 
@@ -147,7 +150,7 @@ function renderTypeValueList(title, objectType, list, options)
     var link = createElem("a");
     link.setAttribute("class", "item_overflow_link");
     link.setAttribute("id", objectType + "overflowlink");
-    link.setAttribute("href", "javascript:revealOverflow('" + objectType + "')");
+    link.setAttribute("onclick", "revealOverflow('" + objectType + "')");
     link.appendChild(document.createTextNode("Show " + (count-5) + " more..."));
     itemsDiv.appendChild(link);
   }
@@ -174,7 +177,7 @@ function renderPhotoList(title, objectType, list, options)
     var link = createElem("a");
     link.setAttribute("class", "item_overflow_link");
     link.setAttribute("id", objectType + "overflowlink");
-    link.setAttribute("href", "javascript:revealOverflow('" + objectType + "')");
+    link.setAttribute("onclick", "revealOverflow('" + objectType + "')");
     link.appendChild(document.createTextNode("Show " + (list.length) + " photos..."));
     itemsDiv.appendChild(link);
   }
@@ -326,12 +329,12 @@ function renderPerson()
     switch (gDisplayMode) {
       case CONTACT_CARD:
         renderContactCard(personBox);
-        link.setAttribute("href", "javascript:setDisplayMode(" + DATA_SOURCES +")");
+        link.setAttribute("onclick", "setDisplayMode(" + DATA_SOURCES +")");
         link.appendChild(document.createTextNode("Show data sources"));
         break;
       case DATA_SOURCES:
         renderDataSources(personBox);
-        link.setAttribute("href", "javascript:setDisplayMode(" + CONTACT_CARD +")");
+        link.setAttribute("onclick", "setDisplayMode(" + CONTACT_CARD +")");
         link.appendChild(document.createTextNode("Return to summary view"));
         break;
     }

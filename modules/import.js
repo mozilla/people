@@ -201,6 +201,7 @@ PoCoPerson.prototype = {
 
 
 // Now load the built-ins:
+Cu.import("resource://people/modules/importers/abcard.js");
 Cu.import("resource://people/modules/importers/native.js");
 Cu.import("resource://people/modules/importers/facebook.js");
 Cu.import("resource://people/modules/importers/gmail.js");

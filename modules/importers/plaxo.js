@@ -51,13 +51,22 @@ Cu.import("resource://people/modules/importers/genericpoco.js");
 function PlaxoImporter() {
   this._log = Log4Moz.repository.getLogger("People.PlaxoImporter");
   this._log.debug("Initializing importer backend for " + this.displayName);
-  this.provider = "http://www.plaxo.com";
 }
 PlaxoImporter.prototype = {
   __proto__: GenericPoCoImporter.prototype,
   get name() "Plaxo",
   get displayName() "Plaxo Contacts",
   get iconURL() "chrome://people/content/images/plaxo.png",
+  get provider() "http://www.plaxo.com",
+
+  // a fake url we catch on redirect to it, allowing us to catch the
+  // access token
+  get redirectURL() "http://thunderbird.local/access.xhtml",
+  
+  // these are retreived by XRDS, however for services not supporting
+  // discovery they can be set here
+  consumerToken: "anonymous",
+  consumerSecret: ""
 };
 
 

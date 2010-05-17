@@ -10,6 +10,9 @@ body {
 a {
   color:#3875D7
 }
+a:hover {
+  cursor: pointer;
+}
 
 .spinner {
   float:right;

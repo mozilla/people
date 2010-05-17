@@ -13,6 +13,9 @@ body {
 A {
   color:#3875D7
 }
+a:hover {
+  cursor: pointer;
+}
 
 scrollbar {-moz-opacity: 0.3 !important;}
 scrollbar:hover {-moz-opacity: 1.0 !important;}

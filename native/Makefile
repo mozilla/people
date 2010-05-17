@@ -53,7 +53,7 @@ ifeq ($(platform_target),1)
 	exit 1
 endif
 
-all: build
+all: lib build
 
 .PHONY: build lib rebuild_all
 
@@ -66,7 +66,10 @@ lib:
 	$(MAKE) -C src-$(platform_target) install
 
 build:
-	cp -R -v components $(stage_dir)
-	cd platform;mkdir -p ../$(stage_dir)/platform;cp -R -v * ../$(stage_dir)/platform
+	echo $(platform_target)
+	cp -R -v ../components $(stage_dir)
+	cd src-$(platform_target)
+	mkdir -p $(stage_dir)/platform
+	cp -R -v * $(stage_dir)/platform
 
 rebuild_all: lib build

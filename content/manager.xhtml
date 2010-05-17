@@ -204,7 +204,7 @@ function renderServices()
       svcButton.setAttribute("id", "importer" + service + "action");
       svcButton.setAttribute("type", "submit");
       svcButton.setAttribute("class", "importerbutton");
-      svcButton.setAttribute("onclick", "javascript:doServiceRefresh('" + service + "')");
+      svcButton.setAttribute("onclick", "doServiceRefresh('" + service + "')");
       svcButton.setAttribute("value", "Connect");
       svcDiv.appendChild(svcButton);
 
@@ -218,7 +218,7 @@ function renderServices()
       disconButton.setAttribute("id", "importer" + service + "disconnect");
       disconButton.setAttribute("type", "submit");
       disconButton.setAttribute("class", "importersubbutton");
-      disconButton.setAttribute("onclick", "javascript:doServiceDisconnect('" + service + "')");
+      disconButton.setAttribute("onclick", "doServiceDisconnect('" + service + "')");
       disconButton.setAttribute("value", "Disconnect");
       svcDiv.appendChild(disconButton);
 
@@ -238,7 +238,7 @@ var contactDisplayMode = "table";
 var PANES = ["contact", "service", "permission"];
 function selectPane(pane) {
   document.getElementById("contacts").style.display= (pane == "contact"?"block":"none");
-  document.getElementById("contactdetail").style.display=(pane == "contact"?"block":"none");
+  document.getElementById("contactdetail").style.display=(pane == "contact"  &amp;&amp; contactDisplayMode == "table"?"block":"none");
 
   for each (var p in PANES) {
     if (p == pane) {

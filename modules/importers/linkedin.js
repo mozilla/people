@@ -44,6 +44,8 @@ Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
+Cu.import("resource://people/modules/oauthbase.js");
+Cu.import("resource://oauthorizer/modules/oauthconsumer.js");
 
 function LinkedInImporter() {
   this._log = Log4Moz.repository.getLogger("People.LinkedInImporter");
@@ -51,7 +53,7 @@ function LinkedInImporter() {
 }
 LinkedInImporter.prototype = {
   __proto__: ImporterBackend.prototype,
-  get name() "LinkedIn",
+  get name() "linkedin",
   get displayName() "LinkedIn Contacts",
   get iconURL() "chrome://people/content/images/linkedin.png",
 
@@ -201,37 +203,52 @@ LinkedInImporter.prototype = {
     }
   ],
 
-
-  import: function LinkedInImporter_import(completionCallback, progressFunction) {
-    this._log.debug("Importing LinkedIn contacts into People store");
-
+  tryAccess: function() {
+    // see if we need to authenticate or do captcha
     let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
       .createInstance(Components.interfaces.nsIXMLHttpRequest);
-
     req.open('POST', 'http://www.linkedin.com/addressBookExport', false);
     req.send("exportNetwork=Export&outputType=vcard");
 
     if (req.status != 200) {
-      this._log.debug("LinkedIn: HTTP error");
-      this._log.warn("Could not download contacts from LinkedIn " +
-                     "(status " + req.status + ")");
-      throw {error:"Unable to get contacts from LinkedIn", 
-						 message:"Could not download contacts from LinkedIn"};
+      this._log.debug("LinkedIn: HTTP error (status " + req.status + ")");
+      return false;
     }
     
     if (req.responseText.indexOf("Sign In to LinkedIn") >= 0) {
       this._log.debug("LinkedIn: need session");
-
-      this._log.warn("Could not download contacts from LinkedIn: no current session");
-      throw {error:"Unable to get contacts from LinkedIn", 
-						 message:"Please <a href='http://www.linkedin.com'>sign in</a> to LinkedIn before importing."};
+      return false;
     }
 
     if (/captchaText-exportSettingsForm/.test(req.responseText)) {    
       this._log.debug("LinkedIn: need CAPTCHA.");
-      throw {error:"Need CAPTCHA", 
-						 message:"LinkedIn requires you to answer a security question.  Please <a target='_blank' href='http://www.linkedin.com/addressBookExport'>click here</a>, answer the question, and cancel the download, and then return here and click 'Connect' again."};
+      return false;
     }
+    return true;
+  },
+
+  import: function LinkedInImporter_import(completionCallback, progressCallback) {
+    this.completionCallback = completionCallback;
+    this.progressCallback = progressCallback;
+
+    if (this.tryAccess()) {
+      this.doImport(null);
+      return;
+    }
+    
+    // use our oauth dialog to authenticate and authorize
+    let loginURL = "http://www.linkedin.com/addressBookExport?exportNetwork=Export&outputType=vcard";
+    var svc = OAuthConsumer.getProvider(this.name, "", "", "http://www.linkedin.com/addressBookExport?exportNetworkRedirect");
+    svc.extensionID = "contacts@labs.mozilla.com";
+    svc.tokenRx = /(exportNetworkRedirect=)/gi;
+    let self = this;
+    OAuthConsumer.openDialog(loginURL, null, svc, function doImport(requestData, token) { self.doImport(null); });
+  },
+  
+  doImport: function LinkedInImporter_doImport(svc) {
+    this._log.debug("Importing LinkedIn contacts into People store");
+    let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+      .createInstance(Components.interfaces.nsIXMLHttpRequest);
 
     this._log.debug("Performing LinkedIn download.");
     req.open('GET', 'http://www.linkedin.com/addressBookExport?exportNetworkRedirect=&outputType=vcard', false);
@@ -243,12 +260,12 @@ LinkedInImporter.prototype = {
       throw {error:"Unable to get contacts from LinkedIn", 
 						 message:"Could not download contacts from LinkedIn"};
     }    
-    this._log.debug("Contact list downloaded, parsing:" + req.responseText);
-    progressFunction(0.25);
+    this._log.debug("Contact list downloaded, parsing");
+    this.progressCallback(0.25);
 
     let people = [], cur = {}, fencepost = true;
     for each (let line in req.responseText.split('\r\n')) {
-      progressFunction(0.50);
+      this.progressCallback(0.50);
       if (this.beginTest(line)) {
         if (fencepost) {
           fencepost = !fencepost;
@@ -271,12 +288,75 @@ LinkedInImporter.prototype = {
     }
 
     this._log.info("Adding " + people.length + " LinkedIn contacts to People store");
-    People.add(people, this, progressFunction);
-    progressFunction(0.75);
-		completionCallback(null);
+    People.add(people, this, this.progressCallback);
+    this.progressCallback(0.75);
+    this.completionCallback(null);
   }
 };
 
 
 
 PeopleImporter.registerBackend(LinkedInImporter);
+
+
+/**
+ * the following is an oauth based importer, with parsing of results unfinished
+ * the problem is that the oauth api does not return email addresses
+ * 
+
+function LinkedInOAuthImporter() {
+  this._log = Log4Moz.repository.getLogger("People.LinkedInImporter");
+  this._log.debug("Initializing importer backend for " + this.displayName);
+}
+
+LinkedInOAuthImporter.prototype = {
+  __proto__: OAuthBaseImporter.prototype,
+  get name() "linkedin2",
+  get displayName() "LinkedIn OAuth Contacts",
+  get iconURL() "chrome://people/content/images/linkedin.png",
+
+  completionCallback: null,
+  progressCallback: null,
+  oauthHandler: null,
+  authParams: null,
+  consumerToken: "Ro8OWZrx0j8HaZPHyRxB9IEx8ZPjSlWksYW4PcPXkyFBWNZEZmQ-sLYShtpMk1g7",
+  consumerSecret: "pmpd9ZHZu2tDHiwDn3rqiBuxLluzltrSbFjIjZbebwxQyHzA09VxT-cXrtEJxZ-t",
+  redirectURL: "http://oauthcallback.local/access.xhtml",
+  message: {
+    action: "http://api.linkedin.com/v1/people/~/connections",
+    method: "GET",
+    parameters: {}
+  },
+
+  handleResponse: function TwitterAddressBookImporter_handleResponse(req) {
+    this._log.debug("Importing LinkedIn contacts into People store");
+
+    if (req.status != 200) {
+      this._log.warn("Could not download contacts from LinkedIn " +
+                     "(status " + req.status + ": "+req.responseText+")");
+      throw {error:"Unable to get contacts from LinkedIn", 
+	     message:"Could not download contacts from LinkedIn"};
+    }    
+    this._log.debug("Contact list downloaded, parsing: "+req.responseText);
+    this.progressCallback(0.25);
+
+    let people = [], cur = {}, fencepost = true;
+    let iter = Utils.xpath(req.responseXML, "//*[local-name()='person']");
+    let elem;
+    while ((elem = iter.iterateNext())) {
+      // see 
+    }
+
+    this._log.info("Adding " + people.length + " LinkedIn contacts to People store");
+    People.add(people, this, progressFunction);
+    this.progressCallback(0.75);
+    this.completionCallback(null);
+  }
+};
+
+
+
+PeopleImporter.registerBackend(LinkedInOAuthImporter);
+
+*/
+

@@ -36,9 +36,9 @@
  * ***** END LICENSE BLOCK ***** */
 
 /* The people API injected into window.navigator objects. */
-
-window.navigator.people = {
-  find: function(attrs, fields, successCallback, failureCallback) {
-    find(window, attrs, fields, successCallback, failureCallback);
-  }
-};
+if (window && window.navigator)
+  window.navigator.people = {
+    find: function(attrs, fields, successCallback, failureCallback) {
+      find(window, attrs, fields, successCallback, failureCallback);
+    }
+  };

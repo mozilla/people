@@ -132,7 +132,6 @@ var INTERNAL_LINK_RELS = {
 
 function addLinksList(container, aList, defaultType, valueScheme, contentHandlerURL)
 {
-  var faviconService = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
 
   var already = {};
 	for each (let item in aList) {
@@ -155,6 +154,7 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
 		}
     let favicon = null;
     try {
+		  var faviconService = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
       var IOService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
       favicon = faviconService.getFaviconImageForPage(IOService.newURI(item.value, null, null));
     } catch (e) {
@@ -229,13 +229,17 @@ let PeopleManager = {
   
   render: function render()
   {
+		if (document.getElementById("contactpane").style.display == "none")
+			return;
     document.getElementById("contacts").innerHTML = "";
     document.getElementById("contactdetail").innerHTML = "";
 
     if (contactDisplayMode == 'table') {
+			document.getElementById("contactdetail").style.display = "block";
       PeopleManager.renderTable(PeopleManager.resultSet);        
       if (PeopleManager.selectedPersonGUID) selectPerson(PeopleManager.selectedPersonGUID);
     } else if (contactDisplayMode == 'cards') {
+			document.getElementById("contactdetail").style.display = "none";
       PeopleManager.renderContactCards(PeopleManager.resultSet);
     }  
   },
@@ -355,7 +359,7 @@ let PeopleManager = {
 
         let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
         a.setAttribute("class", "clink");
-        a.setAttribute("href", "javascript:selectPerson('" + person.guid + "')");
+        a.setAttribute("onclick", "selectPerson('" + person.guid + "')");
         a.appendChild(document.createTextNode(dN));
         contact.appendChild(a);
 
@@ -427,7 +431,7 @@ function renderDetailPane()
 
     let controls = createDiv("detailcontrols");
     let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
-    link.setAttribute("href", "javascript:renderDetailAttributionPane()");
+    link.setAttribute("onclick", "renderDetailAttributionPane()");
     link.appendChild(document.createTextNode("Where did this information come from?"));
     controls.appendChild(link);
     summary.appendChild(controls);
@@ -538,7 +542,7 @@ function renderDetailAttributionPane()
 
   let controls = createDiv("detailcontrols");
   let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
-  link.setAttribute("href", "javascript:renderDetailPane()");
+  link.setAttribute("onclick", "renderDetailPane()");
   link.appendChild(document.createTextNode("Back to the summary"));
   controls.appendChild(link);
   container.appendChild(controls);

@@ -46,7 +46,7 @@ Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
-
+Cu.import("resource://people/modules/oauthbase.js");
 
 function TwitterAddressBookImporter() {
   this._log = Log4Moz.repository.getLogger("People.TwitterAddressBookImporter");
@@ -54,121 +54,92 @@ function TwitterAddressBookImporter() {
 };
 
 TwitterAddressBookImporter.prototype = {
-  __proto__: ImporterBackend.prototype,
+  __proto__: OAuthBaseImporter.prototype,
   get name() "twitter",
   get displayName() "Twitter Address Book",
 	get iconURL() "chrome://people/content/images/twitter.png",
 
-  import: function NativeAddressBookImporter_import(completionCallback, progressFunction) {
-    this._log.debug("Importing Twitter address book contacts into People store");
-
-		// Look up saved twitter password; if we don't have one, log and bail out
-		login = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
-		let potentialURLs = ["https://twitter.com", "https://www.twitter.com", "http://twitter.com", "http://www.twitter.com"];
-
-		let logins = null;
-		for each (var u in potentialURLs) {
-			logins = login.findLogins({}, u, "https://twitter.com", null);
-      this._log.error("Checking for saved password at " + u +": found " + logins + " (length " + logins.length + ")");
-			if (logins && logins.length > 0) break;
+  completionCallback: null,
+  progressCallback: null,
+  oauthHandler: null,
+  authParams: null,
+  consumerToken: "lppkBgcpuhe2TKZIRVoQg",
+  consumerSecret: "M6hwPkgEyqxkDz583LFYAv5dTVg1AsKIXHFPiIFhsM",
+  redirectURL: "http://oauthcallback.local/access.xhtml",
+	cursor: -1,
+  get message() {
+		return {
+			action: "http://twitter.com/statuses/friends.json",
+			method: "GET",
+			parameters: {'cursor': this.cursor}
 		}
-		if (!logins || logins.length == 0) {
-			this._log.error("No saved twitter.com login information: can't import Twitter address book");
-			throw {error:"Unable to get contacts from Twitter", 
-						 message:"Could not download contacts from Twitter: please visit <a target='_blank' href='https://twitter.com'>Twitter.com</a> and save your password."};
-		}
+  },
 
-		// Okay, if there's more than one... which username should we use?
-		let aLogin = logins[0];
-		if (logins.length>1) {
-			this._log.info("More than one saved twitter.com login!  Using the first one.");
-		}
+  handleResponse: function TwitterAddressBookImporter_handleResponse(req, svc) {
+		if (req.status == 401) {
+			this._log.error("Twitter login failed.");
+			this.completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password"});
+		} else if (req.status != 200) {
+			this._log.error("Error " + req.status + " while accessing Twitter: " + req.responseText);
+			this.completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password (error " + req.status + ")"});
+		} else {
+			let result = JSON.parse(req.responseText);
+			this._log.info("Twitter discovery got " + result.users.length + " persons");
 
-    var twitLoad = getFriendRetrievalXHR(aLogin, this, completionCallback, progressFunction, -1);
-		twitLoad.send(null);
+			let people = [];
+			for (var i=0; i< result.users.length;i++) 
+			{
+				this.progressCallback(Math.floor( i * 100.0 / result.length ));
+				
+				var p = result.users[i];
+				if (typeof p.screen_name != 'undefined')
+				{
+					this._log.info(" Constructing person for " + p.screen_name + "; display " + p.name);
+					try {
+						person = {}
+						person.accounts = [{type:"twitter", username:p.screen_name, domain:"twitter.com"}]
+
+						if (p.name) {
+							person.displayName = p.name;
+							
+							// For now, let's assume European-style givenName familyName+
+							let split = p.name.split(" ");
+							
+							if (split.length == 2 && split[0].length > 0 && split[1].length > 0)
+							{
+								person.name = {};
+								person.name.givenName = split[0];
+								person.name.familyName = split.splice(1, 1).join(" ");
+							}
+						}
+						if (p.profile_image_url) 
+							person.photos = [{type:"thumbnail", value:p.profile_image_url}];
+						if (p.location && p.location.length > 0) 
+							person.location = [{type:"Location", value:p.location}] //???
+
+						if (p.url) 
+							person.urls = [{type:"URL", value:p.url}]
+						if (!person.urls) person.urls = [];
+						person.urls.push({type:"twitter.com", value:"http://twitter.com/" + p.screen_name});
+						
+						people.push(person);
+						
+					} catch (e) {
+						this._log.error("Twitter import error " + e + "\n");
+					}
+				}
+			}
+			this._log.info("Adding " + people.length + " Twitter address book contacts to People store");
+			People.add(people, this, this.progressCallback);
+			
+			if (result.next_cursor != 0) {
+				this.cursor = result.next_cursor;
+				this.doImport(svc);
+			} else {
+				this.completionCallback(null);
+			}
+		}
 	}
-}
-
-function getFriendRetrievalXHR(aLogin, importer, completionCallback, progressFunction, cursor)
-{
-  let twitLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-  // The XHR object only sends username/password if it sees a 401.  That's a problem in our case, because
-  // twitter performs IP-level quota tracking for unauthenticated requests.  So we have to hard-code an
-  // authentication header.
-  twitLoad.open('GET', "http://twitter.com/statuses/friends.json?cursor=" + cursor, true, aLogin.username, aLogin.password);
-  twitLoad.setRequestHeader('Authorization',  'Basic ' + btoa(aLogin.username + ':' + aLogin.password));
-
-  twitLoad.onreadystatechange = function (aEvt) {  
-    if (twitLoad.readyState == 4) {  
-      People._log.info("Twitter readystate change " + twitLoad.status + "\n");
-
-      if (twitLoad.status == 401) {
-        People._log.error("Twitter login failed.");
-        completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password"});
-
-      } else if (twitLoad.status != 200) {
-        People._log.error("Error " + twitLoad.status + " while accessing Twitter: " + twitLoad.responseText);
-        completionCallback({error:"login failed", message:"Unable to log into Twitter with saved username/password (error " + twitLoad.status + ")"});
-      } else {
-        let result = JSON.parse(twitLoad.responseText);
-        People._log.info("Twitter discovery got " + result.users.length + " persons");
-
-        let people = [];
-        for (var i=0; i< result.users.length;i++) 
-        {
-          progressFunction(Math.floor( i * 100.0 / result.length ));
-          
-          var p = result.users[i];
-          if (typeof p.screen_name != 'undefined')
-          {
-            People._log.info(" Constructing person for " + p.screen_name + "; display " + p.name);
-            try {
-              person = {}
-              person.accounts = [{type:"twitter", username:p.screen_name, domain:"twitter.com"}]
-
-              if (p.name) {
-                person.displayName = p.name;
-                
-                // For now, let's assume European-style givenName familyName+
-                let split = p.name.split(" ");
-                
-                if (split.length == 2 && split[0].length > 0 && split[1].length > 0)
-                {
-                  person.name = {};
-                  person.name.givenName = split[0];
-                  person.name.familyName = split.splice(1, 1).join(" ");
-                }
-              }
-              if (p.profile_image_url) 
-                person.photos = [{type:"thumbnail", value:p.profile_image_url}];
-              if (p.location && p.location.length > 0) 
-                person.location = [{type:"Location", value:p.location}] //???
-
-              if (p.url) 
-                person.urls = [{type:"URL", value:p.url}]
-              if (!person.urls) person.urls = [];
-              person.urls.push({type:"twitter.com", value:"http://twitter.com/" + p.screen_name});
-              
-              people.push(person);
-              
-            } catch (e) {
-              People._log.error("Twitter import error " + e + "\n");
-            }
-          }
-        }
-        People._log.info("Adding " + people.length + " Twitter address book contacts to People store");
-        People.add(people, importer, progressFunction);
-        
-        if (result.next_cursor != 0) {
-          var nextLoad = getFriendRetrievalXHR(aLogin, this, completionCallback, progressFunction, result.next_cursor);
-          nextLoad.send(null);
-        } else {
-          completionCallback(null);
-        }
-      }
-    }
-  }
-  return twitLoad;
 }
 
 PeopleImporter.registerBackend(TwitterAddressBookImporter);
