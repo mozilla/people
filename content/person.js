@@ -58,6 +58,11 @@ var gDisplayMode = CONTACT_CARD;
 
 var gDiscoveryCoordinator = null;
 
+var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
+                   .getService(Ci.nsIWindowMediator);
+var win = wm.getMostRecentWindow(null);
+window.openURL = win.openURL;
+
 function createDiv(clazz)
 {
 	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
@@ -114,9 +119,13 @@ function renderTypeValueList(title, objectType, list, options)
 
     var favicon= null;
     if (options && options.includeFavicon) {
+      let itemURL = IO_SERVICE.newURI(item.value, null, null);
       try {
-        favicon = FAVICON_SERVICE.getFaviconImageForPage(IO_SERVICE.newURI(item.value, null, null));
-      } catch (e) {}
+        favicon = FAVICON_SERVICE.getFaviconImageForPage(itemURL);
+      } catch (e) {
+        // could do, but is slow and not cached in tb
+        //favicon = IO_SERVICE.newURI("http://www.getfavicon.org/?url="+itemURL.host, null, null);
+      }
       if (favicon) {
         var faviconImg = createElem("img");
         faviconImg.setAttribute("src", favicon.spec);
@@ -129,14 +138,24 @@ function renderTypeValueList(title, objectType, list, options)
     
     if (options && options.linkify) {
       var link = createElem("a");
-      link.setAttribute("href", value);
-      link.setAttribute("target", "_blank");
+      if (options.onclick) {
+        link.setAttribute("onclick", "openURL('"+value+"')");
+        link.setAttribute("href", "javascript:void(null)");
+      } else {
+        link.setAttribute("href", value);
+        link.setAttribute("target", "_blank");
+      }
       link.appendChild(document.createTextNode(value));
       itemValueDiv.appendChild(link);
     } else if (options && options.linkToURL) {
       var link = createElem("a");
-      link.setAttribute("href", options.linkToURL + value);
-      link.setAttribute("target", "_blank");
+      if (options.onclick) {
+        link.setAttribute("onclick", "openURL('"+options.linkToURL +value+"')");
+        link.setAttribute("href", "javascript:void(null)");
+      } else {
+        link.setAttribute("href", options.linkToURL + value);
+        link.setAttribute("target", "_blank");
+      }
       link.appendChild(document.createTextNode(value));
       itemValueDiv.appendChild(link);    
     } else {
@@ -375,11 +394,11 @@ function renderContactCard(personBox)
 
   var emails = gPerson.getProperty("emails");
   if (emails) {
-    personBox.appendChild(renderTypeValueList("Email Addresses", "email", emails));
+    personBox.appendChild(renderTypeValueList("Email Addresses", "email", emails, {linkToURL:"mailto:",onclick:true}));
   }
   var phones = gPerson.getProperty("phoneNumbers");
   if (phones) {
-    personBox.appendChild(renderTypeValueList("Phone Numbers", "phone", phones));
+    personBox.appendChild(renderTypeValueList("Phone Numbers", "phone", phones, {linkToURL:"callto:",onclick:true}));
   }
   var locations = gPerson.getProperty("location");
   if (locations) {

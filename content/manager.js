@@ -34,6 +34,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
+var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                   .getService(Components.interfaces.nsIWindowMediator);
+var win = wm.getMostRecentWindow(null);
+window.openURL = win.openURL;
+
 function createDiv(clazz)
 {
 	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
@@ -84,9 +90,9 @@ function addFieldList(container, aList, defaultType, valueScheme, contentHandler
 			} else {
 				withScheme = valueScheme + ':' + escape(item.value);
 			}
-      value = '<a target="_blank" href="' + withScheme + '">' + htmlescape(item.value) + '</a>';
+      value = '<a target="_blank" href="javascript:void(null)" onclick="openURL(\'' + withScheme + '\')">' + htmlescape(item.value) + '</a>';
 		} else if (contentHandlerURL) {
-			value = '<a target="_blank" href="' + contentHandlerURL + encodeURIComponent(item.value).replace(/ /g, '+') + '">' + htmlescape(item.value) + '</a>';      
+			value = '<a target="_blank" href="javascript:void(null)" onclick="openURL(\'' + contentHandlerURL + encodeURIComponent(item.value).replace(/ /g, '+') + '\')">' + htmlescape(item.value) + '</a>';      
     } else {
 			value = htmlescape(item.value);
 		}
@@ -153,12 +159,14 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
 			label = defaultType;
 		}
     let favicon = null;
+		let IOService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+		let itemURL = IOService.newURI(item.value, null, null);
     try {
 		  var faviconService = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
-      var IOService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
-      favicon = faviconService.getFaviconImageForPage(IOService.newURI(item.value, null, null));
+      favicon = faviconService.getFaviconImageForPage(itemURL);
     } catch (e) {
       // that's okay
+      //favicon = IOService.newURI("http://www.getfavicon.org/?url="+itemURL.host, null, null);
     }
 
     value = '<a target="_blank" href="' + item.value + '">' + htmlescape(item.value) + '</a>';
@@ -285,7 +293,7 @@ let PeopleManager = {
 
         let identities = createDiv("identities");
         addFieldList(identities, person.getProperty("emails"), "email", "mailto");
-        addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
+        addFieldList(identities, person.getProperty("phoneNumbers"), "phone", "callto");
         addFieldList(identities, person.getProperty("ims"));
         addAccountsList(identities, person.getProperty("accounts"));
         addFieldList(identities, person.getProperty("urls"), "URL", "http");
