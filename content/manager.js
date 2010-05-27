@@ -169,7 +169,7 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
       //favicon = IOService.newURI("http://www.getfavicon.org/?url="+itemURL.host, null, null);
     }
 
-    value = '<a target="_blank" href="' + item.value + '">' + htmlescape(item.value) + '</a>';
+    value = '<a target="_blank" href="javascript:void(null)" onclick="openURL(\'' + item.value + '\')">' + htmlescape(item.value) + '</a>';
     if (favicon) value = "<img src='" + favicon.spec + "'/> " + value;
 		appendNameValueBlock(row, label, value);
 		container.appendChild(row);
@@ -350,7 +350,8 @@ let PeopleManager = {
 
         let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
         a.setAttribute("class", "clink");
-        a.setAttribute("href", "javascript:selectGroup('" + tag + "')");
+        a.setAttribute("href", "javascript:void(null)");
+        a.setAttribute("onclick", "selectGroup('" + tag + "')");
         a.appendChild(document.createTextNode(tag));
         group.appendChild(a);
         contactList.appendChild(group);
