@@ -179,7 +179,7 @@ let PeopleInjector = {
 					people = People.find(attrs);
 					let groupList = null;
 					let permissions = People.getSitePermissions(uri.spec);
-					
+          
 					if (permissions == null)
 					{
 						groupMap = {};
@@ -213,7 +213,6 @@ let PeopleInjector = {
 							for (g in groupMap) {
 								if (groupMap[g]) groupList.push(g);
 							}
-              dump("On exit, groupMap is " + JSON.stringify(groupMap) + "; made group list " + JSON.stringify(groupList) + "\n");
               
 							if (remember.value) {
 								People.storeSitePermissions(uri.spec, allowedFields, groupList);
@@ -247,11 +246,9 @@ let PeopleInjector = {
 					for each (p in people) {
             var personTags = p.getProperty("tags");
             
-            dump("Checking person tags " + JSON.stringify(personTags) + " against group list " + JSON.stringify(groupList) + "\n");
             if (groupsIncludeAll || 
                (personTags && groupList.some(function(e,i,a) {return personTags.indexOf(e) >= 0})))
             {
-              dump("YES\n");
 							// Convert from the multi-service internal representation
 							// to a simple, flat, single-schema representation:
               
@@ -278,7 +275,6 @@ let PeopleInjector = {
 						}
 					}
 					people = outputSet;
-          dump(JSON.stringify(outputSet) + "\n");
           
           // and sort them to spare pages the hassle
           people.sort(function(a,b) {
