@@ -442,7 +442,7 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 
 #permissionpane {
   font:small-caption;
-  width:610px;
+  width:710px;
   margin-left:16px;
   margin-top:16px;
 }
@@ -453,13 +453,13 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 
 
 .permissionsTableHead > .sitehead {
-  width:300px;
+  width:296px;
   font-weight:bold;
   background-color:#E0E0E0;
   display:inline-block;
 }
 .permissionsTableHead > .fieldhead {
-  width:300px;
+  width:194px;
   font-weight:bold;
   background-color:#E0E0E0;
   display:inline-block;
@@ -472,14 +472,14 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   font-weight:normal;
   width:300px;
   height:1.3em;
+  vertical-align:top;
   overflow:hidden;
   display:inline-block;
 }
 .permissionsTableBody > .row > .field {
   font-weight:normal;
-  width:300px;
-  height:1.3em;
-  overflow:hidden;
+  width:200px;
+  vertical-align:top;
   display:inline-block;
 }
 

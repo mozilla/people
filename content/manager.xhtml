@@ -111,15 +111,19 @@ function renderPermissions()
     let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     let aSite = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     let aFields = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let aGroups = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 
     aDiv.setAttribute("class", "row");
     aSite.setAttribute("class", "site");
     aFields.setAttribute("class", "field");
+    aGroups.setAttribute("class", "field");
 
     aDiv.appendChild(aSite);
     aDiv.appendChild(aFields);
+    aDiv.appendChild(aGroups);
     aSite.appendChild(document.createTextNode(perm.url));
-    aFields.appendChild(document.createTextNode(perm.fields));
+    aFields.appendChild(document.createTextNode(perm.fields.split(",").join(", ")));
+    aGroups.appendChild(document.createTextNode(perm.groups));
 
     permissionTable.appendChild(aDiv);
   }
@@ -335,6 +339,7 @@ to.
   <div class="permissionsTableHead">
     <div class="sitehead">Site</div>
     <div class="fieldhead">Data Fields</div>
+    <div class="fieldhead">Groups</div>
   </div>
   
   <div id='permissionsTableBody' class='permissionsTableBody'></div>

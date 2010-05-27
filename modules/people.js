@@ -1168,7 +1168,6 @@ PeopleService.prototype = {
 			try {
 				let params = {url:site};
 				stmt = this._dbCreateStatement(query, params);
-        stmt.reset();
         if (stmt.step()) {
           result = {fields:stmt.row.fields.split(','), groups:stmt.row.groups.split(',')};
         }
