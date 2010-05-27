@@ -319,6 +319,38 @@ let PeopleManager = {
     detail.setAttribute("id", "tabledetailpane");
     document.getElementById("contactdetail").appendChild(detail);
 
+    // Start with groups
+    let tagMap = {};
+    let tagArray = [];
+    for each (let person in peopleStore) {
+      let tags = person.getProperty("tags");
+      for each (let tag in tags) {
+        if (!tagMap[tag]) tagMap[tag] = 1;
+        else tagMap[tag] += 1;
+      }
+    }
+    for (tag in tagMap) tagArray.push(tag);
+    if (tagArray.length > 0) {
+      tagArray.sort();
+      for each (tag in tagArray) {
+        let group = createDiv("group");
+        let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+        img.setAttribute("width", "16");
+        img.setAttribute("height", "16");
+        img.setAttribute("src", "chrome://people/content/images/group.png");
+        group.appendChild(img);
+
+        let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+        a.setAttribute("class", "clink");
+        a.setAttribute("href", "javascript:selectGroup('" + tag + "')");
+        a.appendChild(document.createTextNode(tag));
+        group.appendChild(a);
+        contactList.appendChild(group);
+      }
+      let groupSep = createDiv("groupseparator");
+      contactList.appendChild(groupSep);
+    }
+    
     for each (let person in peopleStore) {
       try {
         
@@ -398,6 +430,22 @@ function selectPerson(guid)
   PeopleManager.selectedPerson = person;
   renderDetailPane();
 }
+
+function selectGroup(groupName)
+{
+  PeopleManager.selectedGroup = groupName;
+
+  let container = document.getElementById('tabledetailpane');
+  container.innerHTML = "";
+  let iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+  iframe.setAttribute("style", "border:0px");
+  iframe.setAttribute("src", "person:group:" + groupName);
+  iframe.setAttribute("border", "0");
+  iframe.setAttribute("width", "100%");
+  iframe.setAttribute("height", "100%");
+  container.appendChild(iframe);
+}
+
 
 function renderDetailPane()
 {

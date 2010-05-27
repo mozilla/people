@@ -10,6 +10,9 @@
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(NativeAddressCard, INativeAddressCard)
 
+void appendEscapingQuotes(CFMutableStringRef theString, const CFStringRef appendedString);
+
+
 NativeAddressCard::NativeAddressCard() 
 {
   /* member initializers and constructor code */
@@ -19,6 +22,10 @@ NativeAddressCard::NativeAddressCard()
 	mDepartment = NULL;
 	mTitle = NULL;
 	mEmails = NULL;
+  mGroupsJSON = NULL;
+  mGroups = CFArrayCreateMutable (NULL, 0, NULL);
+
+  
 	mNumEmails = mEmailsSize = 0;
 	mPhones = NULL;
 	mNumPhones = mPhonesSize = 0;
@@ -35,6 +42,7 @@ NativeAddressCard::~NativeAddressCard()
 	if (mLastName) CFRelease(mLastName);
 	if (mOrganization) CFRelease(mOrganization);
 	if (mTitle) CFRelease(mTitle);
+	if (mGroupsJSON) CFRelease(mGroupsJSON);
 
 	int i;
 	if (mEmails) {
@@ -71,6 +79,9 @@ NS_IMETHODIMP NativeAddressCard::GetProperty(const char *name, PRUnichar **_retv
 		val = mDepartment;
 	} else if (!strcmp(name, "jobTitle")) {
 		val = mTitle;
+	} else if (!strcmp(name, "groups")) {
+    if (mGroupsJSON == NULL) buildGroupJSON();
+		val = mGroupsJSON;
 	}
 	
 	if (val) {
@@ -270,6 +281,30 @@ void NativeAddressCard::setTitle(const CFStringRef title)
   mTitle = title;
 }
 
+void NativeAddressCard::buildGroupJSON()
+{
+  mGroupsJSON = CFStringCreateMutable(NULL, 0);
+  int i;
+  
+  CFStringAppend(mGroupsJSON, CFSTR("["));
+  for (i=0;i<CFArrayGetCount(mGroups);i++)
+  {
+    if (i>0) CFStringAppend(mGroupsJSON, CFSTR(","));
+
+    CFStringRef group = (CFStringRef)CFArrayGetValueAtIndex(mGroups, i);
+  
+    CFStringAppend(mGroupsJSON, CFSTR("\""));
+    appendEscapingQuotes(mGroupsJSON, group);
+    CFStringAppend(mGroupsJSON, CFSTR("\""));  
+  }
+  CFStringAppend(mGroupsJSON, CFSTR("]"));
+}
+
+void NativeAddressCard::addGroup(const CFStringRef groupName)
+{
+  CFArrayAppendValue(mGroups, groupName);
+}
+
 
 void NativeAddressCard::setEmail(const CFStringRef type, const CFStringRef email)
 {
@@ -347,8 +382,6 @@ CFStringRef AddressField::getType()
 {
   return mType;
 }
-
-void appendEscapingQuotes(CFMutableStringRef theString, const CFStringRef appendedString);
 
 CFStringRef AddressField::getValue()
 {

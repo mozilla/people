@@ -97,33 +97,39 @@ FacebookImporter.prototype = {
   handleResponse: function FacebookImporter_handleResponse(req, svc) {
     if (req.readyState == 4) {
       if (req.status == 200) {
-	let response = JSON.parse(req.responseText);
-	let people = [];
-	for each (let fbPerson in response.data)
-	{
-	  let person = {};
-	  person.accounts = [{domain:"facebook.com", userid:fbPerson.id}];
-	  person.displayName = fbPerson.name;
-	  var splitName = person.displayName.split(" ");
-	  if (splitName.length > 1) {
-	    person.name = {};
-	    person.name.givenName = splitName[0];
-	    person.name.familyName = splitName.slice(1).join(" ");
-	  }
-	  people.push(person);
-	}
-	People.add(people, this, this.progressCallback);
-	this.completionCallback(null);
+        let response = JSON.parse(req.responseText);
+        let people = [];
+        for each (let fbPerson in response.data)
+        {
+          let person = {};
+          person.tags = ["Facebook"];
+          person.accounts = [{domain:"facebook.com", userid:fbPerson.id}];
+          person.displayName = fbPerson.name;
+          var splitName = person.displayName.split(" ");
+          if (splitName.length > 1) {
+            person.name = {};
+            person.name.givenName = splitName[0];
+            person.name.familyName = splitName.slice(1).join(" ");
+          }
+          person.photos = [
+            {type:"thumbnail", value:"https://graph.facebook.com/" + fbPerson.id + "/picture?type=square"},
+            {type:"profile", value:"https://graph.facebook.com/" + fbPerson.id + "/picture?type=large"}
+          ];
+          
+          people.push(person);
+        }
+        People.add(people, this, this.progressCallback);
+        this.completionCallback(null);
       } else if (req.status == 401) {
-	// expired, go refresh it
-	this.oauthHandler.reauthorize();
+        // expired, go refresh it
+        this.oauthHandler.reauthorize();
       } else {
-	gLogger.info("Error while accessing Facebook friend list: " + req.responseText);
-	let response = JSON.parse(req.responseText);
-	if (response.error.type == "OAuthException")
-	  this.oauthHandler.reauthorize();
-	else
-	  this.completionCallback({error:"API Error", message:"Error while accessing Facebook friend list: " + req.status+": "+req.responseText});
+        gLogger.info("Error while accessing Facebook friend list: " + req.responseText);
+        let response = JSON.parse(req.responseText);
+        if (response.error.type == "OAuthException")
+          this.oauthHandler.reauthorize();
+        else
+          this.completionCallback({error:"API Error", message:"Error while accessing Facebook friend list: " + req.status+": "+req.responseText});
       }
     }
   }

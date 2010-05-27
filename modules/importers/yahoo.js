@@ -108,6 +108,7 @@ YahooContactsImporter.prototype = {
       try
       {
         let person = {};
+        person.tags = ["Yahoo!"];
         
         for each (let aField in aContact.fields)
         {

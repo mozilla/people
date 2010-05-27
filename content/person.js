@@ -92,8 +92,11 @@ function renderTypeValueList(title, objectType, list, options)
         continue; // skip it.
       }
     }
-    if (already[item.type + item.value] != undefined) continue;
-    already[item.type + item.value] = 1;
+    var value = item.value;
+    if (options && options.itemRender) value = options.itemRender(item);
+        
+    if (already[value] != undefined) continue;
+    already[value] = 1;
 
     // Begin disclosure box, if needed...
     count++;
@@ -124,9 +127,6 @@ function renderTypeValueList(title, objectType, list, options)
         itemValueDiv.appendChild(faviconImg);
       }
     }
-    var value = item.value;
-    if (options && options.itemRender) value = options.itemRender(item);
-    
     if (options && options.linkify) {
       var link = createElem("a");
       link.setAttribute("href", value);
@@ -135,7 +135,7 @@ function renderTypeValueList(title, objectType, list, options)
       itemValueDiv.appendChild(link);
     } else if (options && options.linkToURL) {
       var link = createElem("a");
-      link.setAttribute("href", options.linkToURL + value);
+      link.setAttribute("href", options.linkToURL + escape(value));
       link.setAttribute("target", "_blank");
       link.appendChild(document.createTextNode(value));
       itemValueDiv.appendChild(link);    
@@ -196,6 +196,7 @@ function renderPhotoList(title, objectType, list, options)
     var theItem = createElem("li");
     var theImg = createElem("img");
     theImg.setAttribute("src", item.value);
+    theImg.setAttribute("class", "listedPhoto");
     theItem.appendChild(theImg);
     itemList.appendChild(theItem);
   }
@@ -300,7 +301,7 @@ function renderProgressIndicator()
       
       var text = "<div>";
       for each (d in gDiscoveryCoordinator._pendingDiscoveryMap) {
-        text += d + "<br/>";
+        text += htmlescape(d) + "<br/>";
       }
       text += "</div>";
       spinnerBox.appendChild(spinnerImg);
@@ -308,7 +309,12 @@ function renderProgressIndicator()
       var spinnerMouseover = createDiv("mouseover");
       spinnerMouseover.setAttribute("id", "progressBox");
       spinnerMouseover.setAttribute("style", "display:none");
-      spinnerMouseover.innerHTML = text;
+      try {
+        spinnerMouseover.innerHTML = text;
+      } catch (e) {
+        spinnerMouseover.innerHTML = "Whoops, got an error";
+        dump("Illegal spinner text: " + text + "\n");
+      }
       spinnerBox.appendChild(spinnerMouseover);
     }
   }
@@ -1031,3 +1037,4 @@ function htmlescape(html) {
     replace(/>/gmi, '&gt;').
     replace(/</gmi, '&lt;')
 }
+

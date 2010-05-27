@@ -121,7 +121,7 @@ WebfingerDiscoverer.prototype = {
         let domain = split[1];
 
         // Check for the host-meta
-        var hostmetaURL = "http://" + domain + "/.well-known/host-meta";
+        let hostmetaURL = "http://" + domain + "/.well-known/host-meta";
         let hostmeta = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
         hostmeta.open('GET', hostmetaURL, true);
         People._log.debug("Making hostmeta request to " + hostmetaURL);
@@ -131,6 +131,7 @@ WebfingerDiscoverer.prototype = {
           if (hostmeta.readyState == 4) {
             try {
               if (hostmeta.status != 200) {
+                dump("Status " + hostmeta.status + " accessing " + hostmetaURL);
                 throw {error:""+domain + " does not support webfinger."};
               }
               var template = extractLRDDTemplateFromHostMetaText(hostmeta.responseText);
@@ -180,6 +181,17 @@ WebfingerDiscoverer.prototype = {
                         newPerson.urls.push(obj);
                       } else {
                         People._log.debug("Unknown rel " + rel.value);
+                        // push it anyway
+                        let obj = {
+                          type:"Data",
+                          rel:rel.value, 
+                          value:link.attributes.href.value
+                        };
+                        if (link.attributes['type'] != undefined) {
+                          obj['content-type'] = link.attributes.type.value;
+                        }
+                        People._log.debug("Pushing unknown rel:" + obj.value);
+                        newPerson.urls.push(obj);
                       }
                     }
                   }

@@ -88,12 +88,14 @@ GmailImporter.prototype = {
       var headers = req.getAllResponseHeaders();
       if (headers.indexOf("oauth_problem=\"token_expired\"") > 0)
       {
-	this.oauthHandler.reauthorize();
+        this.oauthHandler.reauthorize();
         return;
       }
       this.completionCallback({error:"API Error", message:"Error while accessing Google Contacts: " + req.status+": "+req.responseText});  
       return;
     }
+
+    dump(req.responseText + "\n");
 
     let xmlDoc = req.responseXML;
     let root = xmlDoc.ownerDocument == null ?
@@ -110,26 +112,53 @@ GmailImporter.prototype = {
       try
       {
         let person = {};
+        person.tags = ["Gmail"];
 	
-	//<gd:email rel='http://schemas.google.com/g/2005#other' address='foobar@gmail.com' primary='true'/>
+        //<gd:email rel='http://schemas.google.com/g/2005#other' address='foobar@gmail.com' primary='true'/>
         let emailIter = evaluate(elem, "*[local-name()='email']");
-	var email;
-	while ((email = emailIter.iterateNext()))
-	{
-	  if (!person.emails) person.emails = [];
-	  let anEmail = {};
-	  anEmail.value = email.getAttribute('address');
-	  anEmail.type = "internet";
-	  person.emails.push(anEmail);
-	}
+        var email;
+        while ((email = emailIter.iterateNext()))
+        {
+          if (!person.emails) person.emails = [];
+          let anEmail = {};
+          anEmail.value = email.getAttribute('address');
+          anEmail.type = "internet";
+          person.emails.push(anEmail);
+        }
+
+        let orgIter = evaluate(elem, "*[local-name()='organization']");
+        let org = orgIter.iterateNext();
+        if (org) {
+          let orgNameIter = evaluate(org, "*[local-name()='orgName']");
+          let orgTitleIter = evaluate(org, "*[local-name()='orgTitle']");
+          let orgName = orgNameIter.iterateNext();
+          let orgTitle = orgTitleIter.iterateNext();
+          if (orgName || orgTitle) {
+            let orgObj = {};
+            if (orgName) orgObj.name = orgName;
+            if (orgTitle) orgObj.title = orgTitle;
+            person.organizations = [orgObj];
+          }
+        }
 
         let titleIter = evaluate(elem, "*[local-name()='title']");
-	let title = titleIter.iterateNext();
-	if (title && title.textContent) {
-	  person.displayName = title.textContent;
-	} else {
-	  person.displayName = person.emails[0].value;
-	}
+        let title = titleIter.iterateNext();
+        if (title && title.textContent) {
+          let displayName = title.textContent;
+          person.displayName = displayName;
+          let space = displayName.indexOf(" ");
+          if (space > 0) {
+            person.name = {givenName:displayName.substring(0, space), familyName:displayName.substring(space+1)};
+          } else {
+            person.name = {familyName:displayName};
+          }
+        } else {
+          person.displayName = person.emails[0].value;
+        }
+        
+        // TODO Process GMail groups - need to fetch groupMembershipInfo links to get names
+        // <gContact:groupMembershipInfo href="http://www.google.com/feeds/contacts/groups/jo%40gmail.com/base/1234a"/>
+        
         people.push(person);
       } catch (e) {
         this._log.info("Error importing GMail contact: " + e.stack);

@@ -67,9 +67,11 @@ lib:
 
 build:
 	echo $(platform_target)
-	cp -R -v ../components $(stage_dir)
-	cd src-$(platform_target)
-	mkdir -p $(stage_dir)/platform
-	cp -R -v * $(stage_dir)/platform
+	cp -R -v components $(stage_dir)
+	cd platform;mkdir -p ../$(stage_dir)/platform;cp -R -v * ../$(stage_dir)/platform
+
+#	cd src-$(platform_target)
+#	mkdir -p $(stage_dir)/platform
+#	cp -R -v * $(stage_dir)/platform
 
 rebuild_all: lib build

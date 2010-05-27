@@ -73,6 +73,7 @@ let KNOWN_HCARDS = {"digg.com":1, "twitter.com":1,"status.net":1,"blogger.com":1
 
 function isKnownHCardSite(parsedURI)
 {
+  return true;
   try {
     var hostName = parsedURI.host;
     var tld = hostName.lastIndexOf(".");
@@ -93,14 +94,12 @@ HCardDiscoverer.prototype = {
 	get iconURL() "",
 
   discover: function HCardDiscoverer_discover(forPerson, completionCallback, progressFunction) {
+    let that = this;
     for each (let link in forPerson.getProperty("urls")) {
-      let newPerson;
       try {
         var parsedURI = IO_SERVICE.newURI(link.value, null, null);
-      
         if (link.rel == 'http://microformats.org/profile/hcard' || isKnownHCardSite(parsedURI))
         {
-        
           let discoveryToken = "hcard:" + link.value;
           try 
           {
@@ -108,68 +107,85 @@ HCardDiscoverer.prototype = {
             this._log.debug("Resolving HCard at " + link.value);
             try {
               let hcardResource = new Resource(link.value);
-              let dom = hcardResource.get().dom;// Synchronous and slow. :(
-              if (newPerson == null) newPerson = {};
+              let targetValue = link.value;
+              // experiment:
+              let hcardXHR = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);  
+              hcardXHR.open('GET', link.value, true);
+              hcardXHR.onreadystatechange = function(aEvt) {
+                if (hcardXHR.readyState == 4) {
+                  let newPerson;
+                  if (hcardXHR.status == 200) {
+                    that._log.info("Got 200 for " + targetValue);
 
-              // First grab all the links with rel="me" -- 
-              let relMeIterator = Utils.xpath(dom, "//*[@rel='me']");
-              let anElement;
+                    let dom = hcardResource._parse(hcardResource._uri, hcardXHR.responseText); // get().dom;// Synchronous and slow. :(
 
-              var i;
-              var urlCheckMap = {};
-              while (true) {
-                anElement = relMeIterator.iterateNext();
-                if (anElement == null) break;
-                
-                // For some reason I can't fathom, attributes.href isn't working here.
-                // We'll use a helper function instead.
-                if (anElement.nodeType == Ci.nsIDOMNode.ELEMENT_NODE)
-                {
-                  if (anElement.tagName.toLowerCase() == 'a' || anElement.tagName.toLowerCase() == 'link')
-                  {
-                    var href = getAttribute(anElement, "href");
-                    var text = anElement.textContent;
-                    
-                    try {
-                      var targetURI = IO_SERVICE.newURI(href, null, parsedURI);
-                      this._log.debug("Resolved " + href + " to " + targetURI.spec + " (on " + parsedURI.spec+ ")");
+                    // First grab all the links with rel="me" -- 
+                    let relMeIterator = Utils.xpath(dom, "//*[@rel='me']");
+                    let anElement;
 
-                      // A couple special cases.
-                      if (targetURI.host == "twitter.com" && (href.indexOf("/following")>0 ||
-                          href.indexOf("/followers")>0 || href.indexOf("/memberships")>0)) continue;
-                      if (targetURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
+                    var i;
+                    var urlCheckMap = {};
+                    while (true) {
+                      anElement = relMeIterator.iterateNext();
+                      if (anElement == null) break;
+                      
+                      // For some reason I can't fathom, attributes.href isn't working here.
+                      // We'll use a helper function instead.
+                      if (anElement.nodeType == Ci.nsIDOMNode.ELEMENT_NODE)
+                      {
+                        if (anElement.tagName.toLowerCase() == 'a' || anElement.tagName.toLowerCase() == 'link')
+                        {
+                          var href = getAttribute(anElement, "href");
+                          var text = anElement.textContent;
+                          try {
+                            var targetURI = IO_SERVICE.newURI(href, null, parsedURI);
+                            that._log.debug("Resolved " + href + " to " + targetURI.spec + " (on " + parsedURI.spec+ ")");
 
+                            // A couple special cases.
+                            if (targetURI.host == "twitter.com" && (href.indexOf("/following")>0 ||
+                                href.indexOf("/followers")>0 || href.indexOf("/memberships")>0)) continue;
+                            if (targetURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
 
-                      // TODO: perform lookup from href domain, or text, to canonical rels
-                      var aLink = {
-                        type: text, rel: text, value: targetURI.spec
-                      };
-                      if (newPerson.urls == undefined) newPerson.urls = [];
-                      newPerson.urls.push(aLink);
-                      urlCheckMap[href] = 1;
-                    } catch (e) {
-                      this._log.debug("Error while processing hcard link: " + e);
+                            // TODO: perform lookup from href domain, or text, to canonical rels
+                            var aLink = {
+                              type: text, rel: text, value: targetURI.spec
+                            };
+                            if (newPerson == null) newPerson = {};
+                            if (newPerson.urls == undefined) newPerson.urls = [];
+                            newPerson.urls.push(aLink);
+                            urlCheckMap[href] = 1;
+                          } catch (e) {
+                            that._log.debug("Error while processing hcard link: " + e);
+                          }
+                        } 
+                      } else {
+                        that._log.debug("Got a rel=me on a non-link: " + anElement);
+                      }
                     }
-                  } 
-                } else {
-                  this._log.debug("Got a rel=me on a non-link: " + anElement);
+                    
+                    // And then look for other hcard fields...
+                    var uFcount = Microformats.count('hCard', dom, {recurseExternalFrames: false});
+                    if (uFcount > 0) {
+                      var uFlist = Microformats.get('hCard', dom, {recurseExternalFrames: false});
+                      var aPerson = uFlist[0];
+                      if (newPerson == null) newPerson = {};
+                      processPerson(aPerson, newPerson);
+                    }
+                  } else {
+                    that._log.info("Error " + hcardXHR.status + " while loading " + link.value);
+                  }
+                  that._log.info("Completion of " + discoveryToken + ": " + JSON.stringify(newPerson));
+                  completionCallback(newPerson, discoveryToken);
                 }
               }
-              
-              // And then look for other hcard fields...
-              var uFcount = Microformats.count('hCard', dom, {recurseExternalFrames: false});
-              if (uFcount > 0) {
-                var uFlist = Microformats.get('hCard', dom, {recurseExternalFrames: false});
-                var aPerson = uFlist[0];
-                processPerson(aPerson, newPerson);
-              }
+              hcardXHR.send(null);
             } catch (e) {
-              this._log.warn("Error while loading HCard: " + e);            
-            }
-            completionCallback(newPerson, discoveryToken);
-          } catch (e) {
-            if (e != "DuplicatedDiscovery") {
               this._log.warn("Error while loading HCard: " + e);
+              progressFunction("Error while handling HCardDiscoverer lookup: " + e);
+            }
+           } catch (e) {
+            if (e != "DuplicatedDiscovery") {
+              that._log.warn("Error while loading HCard: " + e);
               progressFunction("Error while handling HCardDiscoverer lookup: " + e);
             }
           }
@@ -216,7 +232,10 @@ function processPerson(aPerson, newPerson)
     for each (var anEmail in aPerson.email) {
       var email = {};
       if (anEmail.type) email.type = anEmail.type[0];// TODO handle other values
+      else email.type = "email";
+      
       if (anEmail.values) email.values = anEmail.values[0];// TODO handle other values
+      else if (anEmail.value) email.value = anEmail.value;
       newPerson.emails.push(email);
     }
   }
@@ -258,8 +277,12 @@ function processPerson(aPerson, newPerson)
     for each (var aTel in aPerson.tel) {
       var tel = {};
       if (aTel.type) tel.type = aTel.type;
+      else tel.type = "phone";
+
       if (aTel.tel) tel.value = aTel.tel;
-    if (newPerson.phoneNumbers == undefined) newPerson.phoneNumbers = [];
+      else if (aTel.value) tel.value = aTel.value;
+
+      if (newPerson.phoneNumbers == undefined) newPerson.phoneNumbers = [];
       newPerson.phoneNumbers.push(tel);
     }
   }

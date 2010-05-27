@@ -40,6 +40,8 @@
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+const ALL_GROUP_CONSTANT = "___all___";
+
 let PeopleInjector = {
   // URI module
   URI: null,
@@ -175,12 +177,12 @@ let PeopleInjector = {
 				{
 					// Check for saved site permissions; if none are found, present the disclosure box
 					people = People.find(attrs);
-					let peopleGuidMap = null;
-					let allowedFields = People.getSiteFieldPermissions(uri.spec);
+					let groupList = null;
+					let permissions = People.getSitePermissions(uri.spec);
 					
-					if (allowedFields == null)
+					if (permissions == null)
 					{
-						peopleGuidMap = {};
+						groupMap = {};
 						let fieldsActive = {};
 						let remember = {value:false};
 						let loc;
@@ -195,7 +197,7 @@ let PeopleInjector = {
 							fields: fields, 
 							fieldsActive: fieldsActive, // on exit, a map of fields to booleans
 							peopleList: people,
-							selectedPeople: peopleGuidMap, // on exit, a map of guids to booleans
+							selectedGroups: groupMap, // on exit, a map of tags to booleans
 							remember: remember,
 							cancelled: false
 						};
@@ -203,57 +205,110 @@ let PeopleInjector = {
  						if (!params.cancelled)
 						{
 							// Construct allowed field list...
-							var editedFields = [];
+							var allowedFields = [];
 							for each (f in fields) {
-								if (fieldsActive[f]) editedFields.push(f);
+								if (fieldsActive[f]) allowedFields.push(f);
 							}
-							allowedFields = editedFields;
-							People._log.info("remember is " + JSON.stringify(remember));
-
+              groupList = [];
+							for (g in groupMap) {
+								if (groupMap[g]) groupList.push(g);
+							}
+              dump("On exit, groupMap is " + JSON.stringify(groupMap) + "; made group list " + JSON.stringify(groupList) + "\n");
+              
 							if (remember.value) {
-								People._log.info("Disclosure dialog requests remember");
-							
-								People.storeSiteFieldPermissions(uri.spec, allowedFields);
-
+								People.storeSitePermissions(uri.spec, allowedFields, groupList);
 								// This blows up if uri doesn't have a host
 								permissionManager.add(uri, "people-find",
 																			Ci.nsIPermissionManager.ALLOW_ACTION);
-							} else {
-								People._log.info("Disclosure dialog requests NO remember");
 							}
 						} else {
 							// user cancelled
 							return onDeny();
 						}
-					} 
-					
-					// FIXME: right now, if you save permissions, we always use the entire people list.
-					// (this is signalled by personGuidMap == null)
-					// Storing individual guids is a big lose; perhaps groups can save us?
+					} else {
+            // saved permissions exist:
+            // set fields to the minimum overlapping set of saved permissions and what the site wanted.
+            var allowedFields = [];
+            for each (f in fields) {
+              if (permissions.fields.indexOf(f) >= 0) {
+                allowedFields.push(f);
+              }
+            }
+            
+            // and set groups to what the user saved
+            groupList = permissions.groups;
+          }
 					
 					// Limit the result data...
 					fields = allowedFields;
-					People._log.warn("got field set of " + fields);
-					if (peopleGuidMap) {
-						People._log.warn("using selected-person map");
-					} else {
-						People._log.warn("selecting all people");
-					}
-
 					let outputSet = [];
+          let groupsIncludeAll = groupList.indexOf(ALL_GROUP_CONSTANT) >= 0;
+
 					for each (p in people) {
-						if (peopleGuidMap == null || peopleGuidMap[p.guid]) {
-							
+            var personTags = p.getProperty("tags");
+            
+            dump("Checking person tags " + JSON.stringify(personTags) + " against group list " + JSON.stringify(groupList) + "\n");
+            if (groupsIncludeAll || 
+               (personTags && groupList.some(function(e,i,a) {return personTags.indexOf(e) >= 0})))
+            {
+              dump("YES\n");
 							// Convert from the multi-service internal representation
 							// to a simple, flat, single-schema representation:
+              
+              // Note that we need to reconstruct subobjects as we go.
+              
 							let newPerson = {}
 							for each (f in fields) {
-                newPerson[f] = p.getProperty(f);
+                var value = p.getProperty(f);
+                if (f.indexOf("/") > 0) {
+                  var terms = f.split("/");
+                  var obj = newPerson;
+                  for (var i=0;i<terms.length-1;i++) {
+                    if (!(terms[i] in obj)) {
+                      obj[terms[i]] = {};
+                    }
+                    obj = obj[terms[i]];
+                  }
+                  obj[terms[i]] = value;
+                } else {
+                  newPerson[f] = value;
+                }
               }
 							outputSet.push(newPerson);
 						}
 					}
 					people = outputSet;
+          dump(JSON.stringify(outputSet) + "\n");
+          
+          // and sort them to spare pages the hassle
+          people.sort(function(a,b) {
+           try {
+             if (a.name && b.name && a.name.familyName && b.name.familyName) {
+               var ret= a.name.familyName.localeCompare(b.name.familyName);
+               if (ret == 0) {
+                 return a.name.givenName.localeCompare(b.name.givenName);
+               } else {
+                 return ret;
+               }
+             } else if (a.name && a.name.familyName) {
+               return -1;
+             } else if (b.name && b.name.familyName) {
+               return 1;
+             } else if (a.displayName && b.displayName) {
+               return a.displayName.localeCompare(b.displayName);
+             } else if (a.displayName) {
+              return -1;
+             } else if (b.displayName) {
+              return 1;
+             } else {
+              return a.guid.localeCompare(b.guid);
+             }
+            } catch (e) {
+              People._log.warn("Sort error: " + e);
+              dump(e.stack + "\n");
+              return -1;
+            }
+          });
 				}
 				else
 				{

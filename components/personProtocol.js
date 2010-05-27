@@ -90,7 +90,12 @@ Protocol.prototype =
     // aURI is a nsIUri, so get a string from it using .spec
     var ios = Components.classes[kIOSERVICE_CONTRACTID].getService(nsIIOService);
     var term = aURI.spec.slice(7);
-    let uri = ios.newURI("chrome://people/content/person.xhtml?input=" + term, null, null);
+    let uri;
+    if (term.indexOf("group:") == 0) {
+      uri = ios.newURI("chrome://people/content/group.xhtml?input=" + term.slice(6), null, null);    
+    } else {
+      uri = ios.newURI("chrome://people/content/person.xhtml?input=" + term, null, null);
+    }
     return ios.newChannelFromURI(uri);
   },
 }

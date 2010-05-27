@@ -34,6 +34,56 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+let allFieldList = ["displayName", "emailhash", "emails", "phoneNumbers", "urls", "name/givenName", "name/familyName"];
+let fieldLabels = {displayName:"Name", 
+                    emailhash: "Unique Identifier (based on email, but not addressible)", 
+                    emails: "Email Addresses", 
+                    phoneNumbers: "Phone Numbers", 
+                    urls: "URLs (web site addresses)", 
+                    "name/givenName":"Given Name", 
+                    "name/familyName":"Family Name",
+                    "photos":"Photos"
+                  };
+let fieldActive = {
+                displayName:true, 
+                "name/familyName":true, 
+                "name/givenName":true, 
+                emailhash:true, 
+                emails:true, 
+                phoneNumbers:true, 
+                urls:true,
+                photos:true,
+                }
+let fieldList = allFieldList; // by default, ask for all fields
+
+let tagCountMap = {}, tagIDMap = {}, tagArray = [];
+
+let selectedGroups = {};
+let remember = {};
+
+function selectAll() { for (p in selectedGroups) { selectedGroups[p] = true; } PeopleDisclosure.render();}
+function unselectAll() { for (p in  selectedGroups) { selectedGroups[p] = false; } PeopleDisclosure.render();}
+
+
+function toggleRemember()
+{
+	remember.value = document.getElementById('remember').checked;
+}
+
+function toggleGroup(tagID)
+{
+  let grp = document.getElementById('group-' + tagID);
+  let grpTag = tagIDMap[tagID];
+  if (selectedGroups[grpTag]) {
+    selectedGroups[grpTag] = false;
+    grp.setAttribute("class", "groupUnselected");
+  } else {
+    selectedGroups[grpTag] = true;
+    grp.setAttribute("class", "groupSelected");  
+  }
+}
+
+
 function appendNameValueBlock(container, name, value)
 // Note that the name and value are not HTML-escaped prior to insertion into the DOM.
 {
@@ -59,6 +109,40 @@ function addFieldList(container, aList)
 	return any;
 }
 
+function createDiv(clazz)
+{
+	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+	aDiv.setAttribute("class", clazz);
+  return aDiv;
+}
+
+
+
+function constructTagMap(peopleStore) {
+  tagCountMap = {};
+  tagArray = [];
+  tagIDMap = {};
+  
+  for each (let person in peopleStore) {
+    let tags = person.getProperty("tags");
+    for each (let tag in tags) {
+      if (!tagCountMap[tag]) tagCountMap[tag] = 1;
+      else tagCountMap[tag] += 1;
+    }
+  }
+  for (tag in tagCountMap) tagArray.push(tag);
+  if (tagArray.length > 0) {
+    tagArray.sort();
+  }
+  
+  count = 1;
+  for each (var tag in tagArray) {
+    tagIDMap[count] = tag;
+    count += 1;
+  }
+}
+
+
 let PeopleDisclosure = {
   onLoad: function() {
 		result = People.find({});
@@ -66,11 +150,18 @@ let PeopleDisclosure = {
   },
 
 	onResult: function(peopleStore) {
+    try {
 		this.peopleResults = peopleStore;
-		for each (var p in peopleStore) {
-			selectedPeople[p.guid] = false;
+    constructTagMap(peopleStore);
+
+    for each (var grp in tagArray) {
+			selectedGroups[grp] = false;
 		}
 		this.render();
+    } catch (e) {
+      dump(e + "\n");
+      dump(e.stack+"\n");
+    }
 	},
 
 	render: function() {
@@ -78,11 +169,11 @@ let PeopleDisclosure = {
 		if (results) {
 			while (results.lastChild) results.removeChild(results.lastChild);
 		}
-		this.renderContactCards(this.peopleResults);
+		this.renderGroups(this.peopleResults);
 	},
 
-	renderContactCards : function(peopleStore)
-	{
+  renderGroups: function(peopleStore)
+  {
     let results = document.getElementById("results");
     if(results) {
 			if (peopleStore.length == 0) {
@@ -90,8 +181,8 @@ let PeopleDisclosure = {
 			}
 			else {
 				document.getElementById("message").innerHTML = "";
-			
-				// sort people...
+
+        // sort people...
 				peopleStore.sort(function(a,b) {
 					if (a.familyName && b.familyName) {
 						var ret= a.familyName.localeCompare(b.familyName);
@@ -108,85 +199,58 @@ let PeopleDisclosure = {
 						return a.displayName.localeCompare(b.displayName);
 					}
 				});
-			
-				for each (let person in peopleStore) {
-					let anyDataVisible = false;
-          let contact = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-          try {
-            contact.setAttribute("class", "contact");
 
-            let summary = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-            summary.setAttribute("class", "summary");
+        // Start with groups
+        if (tagArray.length > 0) {
+          let count = 1;
+          for each (tag in tagArray) {
+            let group = createDiv("group");
+            group.setAttribute("id", "group-" + count);
 
             let checkbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
             checkbox.setAttribute("type", "checkbox");
-            checkbox.setAttribute("name", person.guid);
+            checkbox.setAttribute("name", tag);
             checkbox.setAttribute("class", "disclosureCheckbox");
-            checkbox.setAttribute("onclick", "selectedPeople['" + person.guid + "']=this.checked");
-            if (selectedPeople[person.guid]) checkbox.setAttribute("checked", "true");
-            summary.appendChild(checkbox);
+            checkbox.setAttribute("onclick", "selectedGroups['" + tag + "']=this.checked");
+            if (selectedGroups[tag]) checkbox.setAttribute("checked", "true");
+            group.appendChild(checkbox);
 
-            let photo = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-            let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-            let photoURL = "chrome://people/content/images/person_grey.png"; 
-            for each (let photo in person.getProperty("photos")) {
-              if( photo.type == "thumbnail") {
-                photoURL = photo.value;
-              }
-            }
-            if (photoURL) {
-              img.setAttribute("src", photoURL);
-              photo.setAttribute("class", "photo");
-              photo.appendChild(img);
-              summary.appendChild(photo);
-            }
+            group.appendChild(document.createTextNode(tag));
 
-            let information = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-            information.setAttribute("class", "information");
-
-            let displayName = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-            displayName.setAttribute("class", "name");
-
-            if (fieldActive["displayName"] == true) {
-              displayName.innerHTML = htmlescape(person.getProperty("displayName"));
-              anyDataVisible = true;
-            }
-            information.appendChild(displayName);
-
-            summary.appendChild(information);
-            contact.appendChild(summary);
-
-            let identities = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-            identities.setAttribute("class", "identities");
-            if (fieldActive["emails"]== true) {
-              for each (let email in person.getProperty("emails")) {
-                anyDataVisible = true;
-                let identity = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-                identity.setAttribute("class", "identity");
-
-                let uri = encodeURIComponent(email.value);
-                appendNameValueBlock(identity, htmlescape(email.type) || "email", 
-                                    '<a href="mailto:'+escape(uri)+'">'+htmlescape(email.value)+'</a>');
-                identities.appendChild(identity);
-               }
-            }
-
-            if (fieldActive["phoneNumbers"] == true) anyDataVisible |= addFieldList(identities, person.getProperty("phoneNumbers"));
-            //addFieldList(identities, id.ims);
-            //addFieldList(identities, id.accounts);
-            if (fieldActive["links"] == true) anyDataVisible |= addFieldList(identities, person.getProperty("urls"));
-            //addFieldList(identities, id.location);
-
-            contact.appendChild(identities);
-          } catch (e) {
-            People._log.error("Error while rendering disclosure " + e);
+            let groupText = createDiv("groupText");
+            groupText.appendChild(document.createTextNode(" (" + tagCountMap[tag] + ")"));
+            group.appendChild(groupText);
+            
+            group.setAttribute("class", "groupUnselected");
+            group.setAttribute("onclick", "toggleGroup(" + count + ")");
+            
+            results.appendChild(group);
+            count += 1;
           }
-					if (anyDataVisible)
-						results.appendChild(contact);
-				 }
-			 }
-     }
-	}
+          let br = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+          br.setAttribute("class", "allSpacer");
+          results.appendChild(br);
+        }
+        
+        let allGroup = createDiv("group");
+        let checkbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.setAttribute("name", "___all___");
+        checkbox.setAttribute("class", "disclosureCheckbox");
+        checkbox.setAttribute("onclick", "selectedGroups['___all___']=this.checked");
+        if (selectedGroups["___all___"]) checkbox.setAttribute("checked", "true");
+        allGroup.appendChild(checkbox);
+        allGroup.appendChild(document.createTextNode("All"));
+        let groupText = createDiv("groupText");
+        groupText.appendChild(document.createTextNode(" (" + peopleStore.length + ")"));
+        allGroup.appendChild(groupText);
+        allGroup.setAttribute("class", "groupUnselected");
+        allGroup.setAttribute("onclick", "toggleGroup('all')");
+        results.appendChild(allGroup);
+        
+      }
+    }
+  }
 };
 
 
@@ -200,31 +264,51 @@ function htmlescape(html) {
     replace(/</gmi, '&lt;')
 }
 
+$(document).ready(function() {
+	Components.utils.import("resource://people/modules/people.js");
 
-/*
- The implicit canonical user for this rendering is:
- 
- aPerson: {
-	photos: [
-		{value:"http://photo", type:"thumbnail"},
-		{value:"http://photo", type:"somethingelse"}
-	],
-	displayName: "GivenName FamilyName",
-	organizations: [
-	  {name:"OrgName", title:"Title"}
-	],
-	emails: [
-		{type:"type",value:"user@somewhere"},
-		{type:"type",value:"user@somewhere"}
-	],
-	accounts: [
-		{type:"type",value:"value"},
-		{type:"type",value:"value"}
-	],
-	links: [
-		{type:"type",value:"value"},
-		{type:"type",value:"value"}
-	]
+	var targetURL  = window.top.arguments ? window.top.arguments[0].site : "This page";
+	var targetFields  = window.top.arguments ? window.top.arguments[0].fields : undefined;
+	remember  = window.top.arguments ? window.top.arguments[0].remember : undefined;
+	selectedGroups = window.top.arguments ? window.top.arguments[0].selectedGroups : {};
+	
+	if (targetFields != undefined) {
+		fieldList = targetFields;
+		fieldActive = window.top.arguments[0].fieldsActive;
+		for each (var f in fieldList) {
+			fieldActive[f] = true;
+		}
 	}
-*/
+	
+	let titleText = document.getElementById("titleText");
+	
+	// TODO: DO a better job extracting the host name from the target URL
+	if (targetURL != undefined) {
+		if (("" + targetURL).indexOf("file:") == 0) {
+			targetURL = "A file on your computer";
+		}
+	}
+	titleText.innerHTML = "The web site <span class='siteid'>" + targetURL + "</span> wants to access your contact data:";
+
+	let fields = document.getElementById("fieldselector");
+	for each (let aField in fieldList) {
+		let aLabel = fieldLabels[aField];
+		let aLabelDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+		aLabelDiv.innerHTML = aLabel;
+		aLabelDiv.setAttribute("class", "fieldLabel");
+
+		let aFieldCheckbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+		aFieldCheckbox.id = "field-" + aField;
+		aFieldCheckbox.setAttribute("type", "checkbox");
+		aFieldCheckbox.setAttribute("onclick", "fieldActive['" + aField + "']=!fieldActive['" + aField + "']; PeopleDisclosure.render()");
+		if (fieldActive[aField]) {
+			aFieldCheckbox.setAttribute("checked", "true");
+		}
+
+		aLabelDiv.insertBefore(aFieldCheckbox, aLabelDiv.firstChild);
+		fields.appendChild(aLabelDiv);
+	}
+	
+	PeopleDisclosure.onLoad();
+});
 

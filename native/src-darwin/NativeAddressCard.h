@@ -39,7 +39,6 @@ class AddressField : public TypedElement
 		CFStringRef mCountryCode;
 };
 
-/* Header file */
 class NativeAddressCard : public INativeAddressCard
 {
 public:
@@ -57,12 +56,16 @@ public:
 	void setEmail(const CFStringRef type, const CFStringRef email);
 	void setPhone(const CFStringRef type, const CFStringRef phone);
 	void setURL(const CFStringRef type, const CFStringRef url);
+  
+  void addGroup(const CFStringRef groupName);
+
 	void setAddress(const CFStringRef type, const CFStringRef streetPtr, const CFStringRef cityPtr, const CFStringRef statePtr, 
                   const CFStringRef zipPtr, const CFStringRef countryPtr, const CFStringRef countryCodePtr);
   
 private:
   ~NativeAddressCard();
-
+  void buildGroupJSON();
+  
 protected:
   /* additional members */
 	CFStringRef mFirstName;
@@ -70,7 +73,9 @@ protected:
 	CFStringRef mOrganization;
 	CFStringRef mDepartment;
 	CFStringRef mTitle;
-	
+  CFMutableArrayRef mGroups;
+  CFMutableStringRef mGroupsJSON;
+  
 	TaggedField **mEmails;
 	int mNumEmails, mEmailsSize;
 

@@ -41,6 +41,6 @@
 	id="disclosurePageLoader"
 	ondialogcancel="window.arguments[0].cancelled=true;" >
 
-<iframe type="chrome" src="disclosure.xhtml" flex="1" style="width:500px;height:700px;margin:0; padding:0;"/>
+<iframe type="chrome" src="disclosure.xhtml" flex="1" style="min-height:400px;height:500px;min-width:200px;margin:0; padding:0;"/>
 
 </dialog>

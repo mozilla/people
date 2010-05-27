@@ -57,6 +57,7 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
 {
 	ABAddressBookRef AB = ABGetSharedAddressBook();
 	CFArrayRef peopleFound = ABCopyArrayOfAllPeople(AB);
+  ABPersonRef me = ABGetMe (AB);
 
 	int i, j;
 	*cards = (INativeAddressCard **) nsMemory::Alloc(sizeof(INativeAddressCard*) * CFArrayGetCount(peopleFound));
@@ -82,6 +83,9 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
     CFTypeRef addresses = ABRecordCopyValue (person, kABAddressProperty);// multi-dictionary
 		CFTypeRef homePage = ABRecordCopyValue (person, kABHomePageProperty);// string - deprecated since 10.4
 		CFTypeRef urls = ABRecordCopyValue (person, kABURLsProperty);// kABMultiStringProperty
+
+    //CFDataRef image = ABPersonCopyImageData (person);
+    CFArrayRef groups = ABPersonCopyParentGroups (person);
 
 		if (firstName) {
 			card->setFirstName((CFStringRef)firstName);
@@ -143,7 +147,15 @@ NS_IMETHODIMP NativeAddressBook::GetCards(PRUint32 *count NS_OUTPARAM, INativeAd
 				card->setURL(label, url);
 			}
 		}
-
+    
+    if (groups) {
+      for (j=0;j<CFArrayGetCount(groups);j++)
+      {
+        ABGroupRef group = (ABGroupRef)CFArrayGetValueAtIndex(groups, j);
+        CFStringRef groupName = (CFStringRef)ABRecordCopyValue (group, kABGroupNameProperty);
+        card->addGroup(groupName);
+			}
+    }
 	}
 
 	return NS_OK;

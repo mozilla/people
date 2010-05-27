@@ -20,6 +20,7 @@
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
  *  Justin Dolske <dolske@mozilla.com>
+ *  Michael Hanson <mhanson@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,13 +42,21 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const DB_VERSION = 2; // The database schema version
+const DB_VERSION = 3; // The database schema version
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/ext/Observers.js");
+
+// If Activities is present, we will use it.
+try {
+  Cu.import("resource://activities/modules/activities.js");
+} catch (e) {
+}
+
+var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 
 function PeopleService() {
   this._initLogs();
@@ -97,8 +106,8 @@ PeopleService.prototype = {
               "guid TEXT UNIQUE NOT NULL, " +
               "json TEXT NOT NULL"
     },
-    index_tables: ["displayName", "givenName", "familyName", "emails"],
-    index_fields: ["displayName", "name/givenName", "name/familyName", "emails"]
+    index_tables: ["displayName", "givenName", "familyName", "emails", "tags"],
+    index_fields: ["displayName", "name/givenName", "name/familyName", "emails", "tags"]
   },
 
   get _dbFile() {
@@ -161,7 +170,7 @@ PeopleService.prototype = {
     }
 
 		this._db.createTable("site_permissions", "id INTEGER PRIMARY KEY, " +
-			"url TEXT UNIQUE NOT NULL, fields TEXT NOT NULL");
+			"url TEXT UNIQUE NOT NULL, fields TEXT NOT NULL, groups TEXT NOT NULL");
 		this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS site_permissions_url ON site_permissions (url)");
 
 		this._db.createTable("service_metadata", "id INTEGER PRIMARY KEY, " +
@@ -225,6 +234,14 @@ PeopleService.prototype = {
     this._db.createStatement("DROP TABLE site_permissions").execute();
     this._dbCreate();
   },
+
+  _dbMigrateToVersion3 : function _dbMigrateToVersion3() {
+    this._db.createTable("tags", "id INTEGER PRIMARY KEY, " +
+      "person_id INTEGER NOT NULL, val TEXT NOT NULL COLLATE NOCASE");
+    this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS tags_person_id ON tags(person_id)");
+    this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS tags_val ON tags(val)");
+  },
+
 
   /*
    * _dbAreExpectedColumnsPresent
@@ -1115,17 +1132,17 @@ PeopleService.prototype = {
     return null;
 	},
 	
-	storeSiteFieldPermissions: function storeSiteFieldPermissions(site, permissionList) {
+	storeSitePermissions: function storeSiteFieldPermissions(site, permissionList, groupList) {
 		let stmt = null;
 		try {
 
       this._db.beginTransaction();
       let params = {
         url: site,
-        fields: "" + permissionList // convert to string if necessary
+        fields: "" + permissionList, // convert to string if necessary
+        groups: "" + groupList
       };
-			People._log.warn("Saving permissions: INSERT OR REPLACE INTO site_permissions (url, fields) VALUES ('" + site + "', '" + permissionList + "')");
-			stmt = this._dbCreateStatement("INSERT OR REPLACE INTO site_permissions (url, fields) VALUES (:url, :fields)", params);
+			stmt = this._dbCreateStatement("INSERT OR REPLACE INTO site_permissions (url, fields, groups) VALUES (:url, :fields, :groups)", params);
       stmt.execute();
       this._db.commitTransaction();
 			
@@ -1138,22 +1155,23 @@ PeopleService.prototype = {
     return null;
 	},
 	
-	getSiteFieldPermissions: function getSiteFieldPermissions(site) {
+  /** Given a URL, return an object with 'fields' and 'groups'
+   * properties, which are both lists of strings. */
+	getSitePermissions: function getSitePermissions(site) {
 		let stmt = null;
+    let result = null;
 		try {
 
-			let query = "SELECT fields FROM site_permissions WHERE url = :url";
+			let query = "SELECT fields,groups FROM site_permissions WHERE url = :url";
 
 			// Look up the results, filtering on indexed terms
 			try {
 				let params = {url:site};
 				stmt = this._dbCreateStatement(query, params);
-				result = Utils.getRows(stmt.statement);
-				if (result && result.length>0) {
-					return result[0].split(',');
-				} else {
-					return null;
-				}
+        stmt.reset();
+        if (stmt.step()) {
+          result = {fields:stmt.row.fields.split(','), groups:stmt.row.groups.split(',')};
+        }
 			}
 			catch(ex) {
 				this._log.error("getSiteFieldPermissions failed during query: " + Utils.exceptionStr(ex));
@@ -1166,19 +1184,20 @@ PeopleService.prototype = {
     } finally {
       if (stmt) stmt.reset();
     }
+    return result;
 	},
   
   getAllPermissions: function getAllPermissions() {
     let stmt = null;
     var ret = [];
     try {
-      let query = "SELECT url,fields FROM site_permissions";
+      let query = "SELECT url,fields,groups FROM site_permissions";
       
       try {
         stmt = this._dbCreateStatement(query);
         stmt.reset();
         while (stmt.step()) {
-          ret.push({url:stmt.row.url, fields:stmt.row.fields});
+          ret.push({url:stmt.row.url, fields:stmt.row.fields, groups:stmt.row.groups});
         } 
         stmt.reset();
       }
@@ -1285,7 +1304,7 @@ Person.prototype = {
               // different rels.
               if (newObj.value == item.value) {
                 if (newObj.type == item.type) {
-                  if (newObj['rel'] == item.rel) {
+                  if (newObj.rel && newObj['rel'] == item.rel) {
                     return true;
                   }
                 } else if (newObj.type == "internet") {// gross hack for VCard email
@@ -1319,7 +1338,37 @@ Person.prototype = {
     
     // If it's not a list, first one wins.  TODO: Do better than that.
     return currentValue;
+  },
+  
+  // If Activities is present, register this user's activity streams with it
+  follow: function(progressCallback) {
+    if (Activities)
+    {
+      let progressCounter = 0;
+      let progressFn = function(result) {
+        progressCounter -= 1;
+        if (result.success && result.id) {
+          let theSource = Activities.getSourceByID(result.id);
+          if (theSource) theSource.update(progressCallback); // kick off a refresh right away
+        }
+        progressCallback(progressCounter);
+      }
+      var urls = this.getProperty("urls");
+      for each (url in urls) {
+        if (url.atom) {
+          progressCounter += 1;
+          Activities.addSource("person:" + this.guid, "atom", url.value, progressFn);
+        } else if (url.rss) {
+          progressCounter += 1;
+          Activities.addSource("person:" + this.guid, "rss", url.value, progressFn);
+        } else if (url.value.indexOf("http") == 0) {
+          progressCounter += 1;
+          Activities.addSource("person:" + this.guid, null, url.value, progressFn);
+        }
+      }
+    }
   }
+  
   
 };
 
@@ -1339,8 +1388,96 @@ function objectEquals(obj1, obj2) {
   return true;
 }
 
+function DiscoveryCoordinator(person, persist, personUpdatedFn, progressFn) {
+  this._person = person;
+  this._pendingDiscoveryCount = 0;
+  this._pendingDiscoveryMap = {};
+  this._completedDiscoveryMap = {};
+  this._persist = persist;
+  this._personUpdatedFn = personUpdatedFn;
+  this._progressFn = progressFn;
+}
+
+/** DiscoveryCoordinator is responsible for invoking discovery
+ * engines until we've completed a full spanning walk of the
+ * connection graph.
+ *
+ * The current scheme is as follows:
+ *
+ *   When start() is called, every engine is invoked on
+ * the current person record.  Each engine is responsible 
+ * for calling the progressFunction with an an object that
+ * has an "initiate" property containing a unique discoveryToken for
+ * the discovery task, and a "msg" property containing a human-
+ * readable progress message.
+ *
+ *  If the "initiate" property has been seen before, DiscoveryCoordinator
+ * will throw "DuplicatedDiscovery".  Discovery engines are
+ * required to watch for and catch this exception silently.
+ *
+ *  Otherwise the engine may proceed as necessary.  When
+ * discovery is complete, the engine is required to call the
+ * completionFunction with the new person data and the 
+ * same discoveryToken provided in "initiate".
+ *
+ *  The coordinator will re-initiate discovery when every engine has
+ * had a chance to run; this leads to a breadth-first walk through
+ * the discovery graph.
+*/
+DiscoveryCoordinator.prototype = {
+  anyPending: function() {
+    return this._pendingDiscoveryCount > 0;
+  },
+  
+  start: function() {
+    var discoverers = PeopleImporter.getDiscoverers();
+    var that = this;
+    for (var d in discoverers) {
+      let discoverer = PeopleImporter.getDiscoverer(d);
+      if (discoverer) {
+        let engine = d;
+        try {
+          discoverer.discover(this._person, 
+            function completion(newDoc, discoveryToken) {
+
+              that._pendingDiscoveryCount -= 1;
+              if (!discoveryToken) discoveryToken = engine;
+              that._completedDiscoveryMap[discoveryToken] = 1;
+              
+              delete that._pendingDiscoveryMap[discoveryToken];
+              if (newDoc) {
+                that._person.obj.documents[discoveryToken] = newDoc;
+                if (that._persist) {
+                  People._update(that._person,obj);
+                }
+                that._personUpdatedFn(that);
+              }
+              that._progressFn();
+              
+              // If we've finished everything, go look again.  Repeat until we start nothing.
+              if (that._pendingDiscoveryCount == 0) {
+                that._progressFn();
+                that.start();
+              }
+            },
+            function progress(msg) {
+              if (msg.initiate) {
+                if (that._completedDiscoveryMap[msg.initiate] ||
+                    that._pendingDiscoveryMap[msg.initiate]) throw "DuplicatedDiscovery";
+
+                that._pendingDiscoveryCount += 1;
+                that._pendingDiscoveryMap[msg.initiate] = msg.msg;
+                that._progressFn();
+              }
+            }
+          );
+        } catch (e) {
+          dump(e + "\n");
+        }
+      }
+    }
+  }
+};
 
 let People = new PeopleService();
-People._log.info("At end of people; created PeopleService");
-
 Cu.import("resource://people/modules/import.js");

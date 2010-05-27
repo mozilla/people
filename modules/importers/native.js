@@ -71,12 +71,13 @@ NativeAddressBookImporter.prototype = {
         progressFunction(Math.floor( i * 100.0 / allCards.length ));
         
 				person = {}
+        person.tags = ["On My Computer"];
 				let fname = allCards[i].getProperty("firstName");
 				let lname = allCards[i].getProperty("lastName");
         let org = allCards[i].getProperty("organization");
         let dept = allCards[i].getProperty("department");
         let jobTitle = allCards[i].getProperty("jobTitle");
-				// let email = allCards[i].getProperty("email");
+        let groups = allCards[i].getProperty("groups");
 				
 				if (!fname && !lname) continue; // skip anonymous cards for now
 				
@@ -92,6 +93,11 @@ NativeAddressBookImporter.prototype = {
 				person.name = {}
 				person.name.givenName = fname;
 				person.name.familyName = lname;
+        try {
+          person.tags = JSON.parse(groups);
+        } catch (e) {
+          this._log.debug("Error while parsing groups: " + e);
+        }
 
         if (org || jobTitle) {
           person.organizations = [];

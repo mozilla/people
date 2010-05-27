@@ -97,6 +97,7 @@ TwitterAddressBookImporter.prototype = {
 					this._log.info(" Constructing person for " + p.screen_name + "; display " + p.name);
 					try {
 						person = {}
+            person.tags = ["Twitter"];
 						person.accounts = [{type:"twitter", username:p.screen_name, domain:"twitter.com"}]
 
 						if (p.name) {
