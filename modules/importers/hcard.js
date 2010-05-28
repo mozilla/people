@@ -58,8 +58,8 @@ function HCardDiscoverer() {
 
 function getAttribute(element, name)
 {
-  var attrs = element.attributes;
-  var i;
+  let attrs = element.attributes;
+  let i;
   for(i=attrs.length-1; i>=0; i--) {
     if (attrs[i].name == name) {
       return attrs[i].value;
@@ -75,10 +75,10 @@ function isKnownHCardSite(parsedURI)
 {
   return true;
   try {
-    var hostName = parsedURI.host;
-    var tld = hostName.lastIndexOf(".");
+    let hostName = parsedURI.host;
+    let tld = hostName.lastIndexOf(".");
     if (tld > 0) {
-      var rootDomainIdx = hostName.lastIndexOf(".", tld-1);
+      let rootDomainIdx = hostName.lastIndexOf(".", tld-1);
       hostName = hostName.slice(rootDomainIdx+1);
     }
     if (KNOWN_HCARDS[hostName]) return true;
@@ -98,7 +98,7 @@ HCardDiscoverer.prototype = {
     let that = this;
     for each (let link in forPerson.getProperty("urls")) {
       try {
-        var parsedURI = IO_SERVICE.newURI(link.value, null, null);
+        let parsedURI = IO_SERVICE.newURI(link.value, null, null);
         if (link.rel == 'http://microformats.org/profile/hcard' || isKnownHCardSite(parsedURI))
         {
           let discoveryToken = "hcard:" + link.value;
@@ -124,8 +124,8 @@ HCardDiscoverer.prototype = {
                     let relMeIterator = Utils.xpath(dom, "//*[@rel='me']");
                     let anElement;
 
-                    var i;
-                    var urlCheckMap = {};
+                    let i;
+                    let urlCheckMap = {};
                     while (true) {
                       anElement = relMeIterator.iterateNext();
                       if (anElement == null) break;
@@ -136,10 +136,10 @@ HCardDiscoverer.prototype = {
                       {
                         if (anElement.tagName.toLowerCase() == 'a' || anElement.tagName.toLowerCase() == 'link')
                         {
-                          var href = getAttribute(anElement, "href");
-                          var text = anElement.textContent;
+                          let href = getAttribute(anElement, "href");
+                          let text = anElement.textContent;
                           try {
-                            var targetURI = IO_SERVICE.newURI(href, null, parsedURI);
+                            let targetURI = IO_SERVICE.newURI(href, null, parsedURI);
                             that._log.debug("Resolved " + href + " to " + targetURI.spec + " (on " + parsedURI.spec+ ")");
 
                             // A couple special cases.
@@ -148,7 +148,7 @@ HCardDiscoverer.prototype = {
                             if (targetURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
 
                             // TODO: perform lookup from href domain, or text, to canonical rels
-                            var aLink = {
+                            let aLink = {
                               type: text, rel: text, value: targetURI.spec
                             };
                             if (newPerson == null) newPerson = {};
@@ -165,10 +165,10 @@ HCardDiscoverer.prototype = {
                     }
                     
                     // And then look for other hcard fields...
-                    var uFcount = Microformats.count('hCard', dom, {recurseExternalFrames: false});
+                    let uFcount = Microformats.count('hCard', dom, {recurseExternalFrames: false});
                     if (uFcount > 0) {
-                      var uFlist = Microformats.get('hCard', dom, {recurseExternalFrames: false});
-                      var aPerson = uFlist[0];
+                      let uFlist = Microformats.get('hCard', dom, {recurseExternalFrames: false});
+                      let aPerson = uFlist[0];
                       if (newPerson == null) newPerson = {};
                       processPerson(aPerson, newPerson);
                     }
@@ -203,8 +203,8 @@ function processPerson(aPerson, newPerson)
 {
   if (aPerson.adr) {
     if (newPerson.addresses == undefined) newPerson.addresses = [];
-    for each (var anAdr in aPerson.adr) {
-      var addr = {};
+    for each (let anAdr in aPerson.adr) {
+      let addr = {};
       if (anAdr.type) {
         // TODO traverse all types
         addr.type = anAdr.type[0]; 
@@ -230,8 +230,8 @@ function processPerson(aPerson, newPerson)
   }
   if (aPerson.email) {
     if (newPerson.emails == undefined) newPerson.emails = [];
-    for each (var anEmail in aPerson.email) {
-      var email = {};
+    for each (let anEmail in aPerson.email) {
+      let email = {};
       if (anEmail.type) email.type = anEmail.type[0];// TODO handle other values
       else email.type = "email";
       
@@ -270,13 +270,13 @@ function processPerson(aPerson, newPerson)
   }
   if (aPerson.photo) {
     if (newPerson.photos == undefined) newPerson.photos = [];
-    for each (var aPhoto in aPerson.photo) {
+    for each (let aPhoto in aPerson.photo) {
       newPerson.photos.push( {type:"profile", value:aPhoto} );
     }
   }
   if (aPerson.tel) {
-    for each (var aTel in aPerson.tel) {
-      var tel = {};
+    for each (let aTel in aPerson.tel) {
+      let tel = {};
       if (aTel.type) tel.type = aTel.type;
       else tel.type = "phone";
 
@@ -291,7 +291,7 @@ function processPerson(aPerson, newPerson)
   Dropping these for now.  If they're not rel=me, we frequently don't want them.
 
   if (aPerson.url) {
-    for each (var aURL in aPerson.url) {
+    for each (let aURL in aPerson.url) {
       if (newPerson.urls == undefined) newPerson.urls = [];
       // need to make sure we haven't already caught these with the rel=me check.
       if (urlCheckMap[aURL]) continue;
