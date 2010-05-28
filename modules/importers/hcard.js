@@ -92,6 +92,7 @@ HCardDiscoverer.prototype = {
   get name() "HCardProfile",
   get displayName() "HCard Profile Discovery",
 	get iconURL() "",
+  get description() "Checks whether any of the web pages of a contact have contact data in the HCard microformat.",
 
   discover: function HCardDiscoverer_discover(forPerson, completionCallback, progressFunction) {
     let that = this;

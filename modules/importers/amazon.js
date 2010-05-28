@@ -59,6 +59,7 @@ AmazonAccountDiscoverer.prototype = {
   get name() "Amazon",
   get displayName() "Amazon Account Discoverer",
 	get iconURL() "",
+  get description() "Searches Amazon for a public profile page that belongs to each of the e-mail addresses associated with a contact.",
 
   discover: function AmazonAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
     for each (let email in forPerson.getProperty("emails")) {

@@ -96,6 +96,11 @@ function deleteAll()
   displayServices();  
 }
 
+function export()
+{
+  PeopleManager.export();
+}
+
 function setContactDisplayMode(mode)
 {
  contactDisplayMode = mode;
@@ -183,7 +188,9 @@ function displayServices()
 function renderServices()
 {
   let services = PeopleImporter.getBackends();  
+  let discoverers = PeopleImporter.getDiscoverers();  
   let importers = document.getElementById('importerbadges');
+  let discovererDiv = document.getElementById('discoverybadges');
   importers.innerHTML = "";
   let connected = People.connectedServices();
   
@@ -231,6 +238,32 @@ function renderServices()
       People._log.warn("Error while rendering service " + service + ": " + e);
     }
   }
+
+  for (let d in discoverers) {
+    try {
+      let discoverer = PeopleImporter.getDiscoverer(d);
+      let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcDiv.setAttribute("class", "discovererbadge");
+      let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+      svcImg.setAttribute("src", discoverer.iconURL);
+      svcImg.setAttribute("id", d+"-badge");
+      svcDiv.appendChild(svcImg);
+      let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcLabel.setAttribute("class", "discovererlabel");
+      svcLabel.appendChild(document.createTextNode(discoverer.displayName));
+      svcDiv.appendChild(svcLabel);
+
+      let desc = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      desc.setAttribute("class", "discoverertext");
+      desc.appendChild(document.createTextNode(discoverer.description));
+      svcDiv.appendChild(desc);
+
+      discovererDiv.appendChild(svcDiv);
+    } catch (e) {
+      People._log.warn("Error while rendering discoverer " + d + ": " + e);
+    }
+  }
+
 }
 
 function setsrc(id, u)
@@ -239,7 +272,7 @@ function setsrc(id, u)
 }
   
 var contactDisplayMode = "table";  
-var PANES = ["contact", "service", "permission"];
+var PANES = ["contact", "service", "discoverers", "permission"];
 function selectPane(pane) {
   document.getElementById("contacts").style.display= (pane == "contact"?"block":"none");
   document.getElementById("contactdetail").style.display=(pane == "contact"  &amp;&amp; contactDisplayMode == "table"?"block":"none");
@@ -267,6 +300,12 @@ function selectPane(pane) {
     <img src="images/services.png"/><br/>
     <div class="controlbuttonlabel">Services</div>
   </div>
+
+  <div id="discovererspaneswitch" class="controlbutton" onclick="selectPane('discoverers')">
+    <img src="images/services.png"/><br/>
+    <div class="controlbuttonlabel">Finders</div>
+  </div>
+
   <div id="permissionpaneswitch" class="controlbutton" onclick="selectPane('permission')">
     <img src="images/lock.png"/><br/>
     Permissions
@@ -324,6 +363,43 @@ These are services that Firefox can load your contacts from.
 <div style="float:right"><input type="submit" onclick="javascript:deleteAll()" value="Empty Address Book"/></div>
 Remove all contacts (you can import them again)
 </p>
+
+<p>
+<div style="float:right"><input type="submit" onclick="javascript:export()" value="Export Contacts"/></div>
+Export contacts for use in another program
+</p>
+
+
+
+</div>
+
+<div style="display:none" id="discovererspane">
+
+<div id="servicesHeader">
+	<p><b>Firefox Contacts</b> can use the information in your contact list to access other data 
+  about people that is available on the web.  Firefox is not creating a database that other people
+  can access - it is just displaying information from the web in your browser.
+  </p>
+</div>
+
+<div class="controlsubhead">Contact Finder Services</div>
+<p>
+<div style="float:right">
+  <input type="submit" 
+    onclick="javascript:window.open('directory.xhtml', '_blank')" value="Find More Finders"/></div>
+These are services that Firefox uses to learn more about people you know.
+</p>
+
+
+<p>
+Run Contact Finder Services:<br/>
+<input type="radio" name="finderwhen" value="auto"/> Automatically when contacts are first added<br/>
+<input type="radio" name="finderwhen" value="onview"/> When a contact is viewed<br/>
+<input type="radio" name="finderwhen" value="onview"/> When requested from the contact detail view<br/>
+</p>
+
+<div id="discoverybadges">
+</div>
 
 </div>
 

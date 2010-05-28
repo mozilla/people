@@ -152,7 +152,8 @@ FacebookDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
   get name() "Facebook",
   get displayName() "Facebook Profile Discovery",
-  get iconURL() "",
+  get iconURL() "chrome://people/content/images/facebook.png",
+  get description() "Finds data on Facebook.com for a contact if their Facebook user ID is known, combining public data with private data that your account is allowed to read.",
 
   completionCallback: null,
   progressCallback: null,

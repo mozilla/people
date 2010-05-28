@@ -437,14 +437,55 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 
 
 
+#discovererspane {
+  position:relative;
+  padding-left:32px;
+  padding-top:12px;
+  width:800px;
+  font:small-caption;
+}
+
+.discovererbadge { 
+  position:relative;
+  display:block; 
+  min-height:48px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  -moz-user-select:none;
+  -moz-border-radius: 1em; 
+  background-color: rgba(255,255,255,1);
+  border: 1px solid rgba(185,185,185,1);
+	-moz-box-shadow: 
+		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+		inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+		rgba(0, 0, 0, 0.1) 0px 2px 0px;
+}
+
+.discovererlabel {
+  position:absolute;
+  left:54px;
+  top:12px;
+  display:inline;
+  margin-bottom:6px;
+}
+
+.discoverertext {
+  position:absolute;
+  left:240px;
+  top:12px;
+  font-weight:normal;
+  display:inline;
+  margin-bottom:6px;
+}
+
 
 /***** Permissions *****/
 
 #permissionpane {
   font:small-caption;
   width:710px;
-  margin-left:16px;
-  margin-top:16px;
+  padding-left:32px;
+  padding-top:12px;
 }
 
 #permissionsTable {

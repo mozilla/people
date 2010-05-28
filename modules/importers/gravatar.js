@@ -57,6 +57,7 @@ GravatarImageDiscoverer.prototype = {
   get name() "Gravatar",
   get displayName() "Gravatar Avatar Images",
 	get iconURL() "chrome://people/content/images/gravatar.png",
+  get description() "Checks whether any of the e-mail addresses of a contact have an avatar picture at Gravatar.",
 
   discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
     var discoveryToken;

@@ -58,6 +58,7 @@ FlickrAccountDiscoverer.prototype = {
   get name() "Flickr",
   get displayName() "Flickr Account",
 	get iconURL() "",
+  get description() "Searches Flickr for a public profile that belongs to each of the e-mail addresses associated with a contact.",
 
   discover: function FlickrAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
     let flickrKey = "c0727ed63fc7eef37d8b46c57eec4b2e";

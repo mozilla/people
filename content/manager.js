@@ -385,7 +385,7 @@ let PeopleManager = {
             } else {
               let orgs = person.getProperty("organizations");
               if (orgs && orgs.length > 0) {
-                dN = accounts[0].name;
+                dN = orgs[0].name;
               } else {
                 let urls = person.getProperty("urls");
                 if (urls && urls.length > 0) {
@@ -419,6 +419,71 @@ let PeopleManager = {
       }
     }
     $('#searchbox').liveUpdate($("#contactlist")).focus();
+  },
+  
+  export: function export(){
+    var result = "";
+
+    for each (p in this.resultSet)
+    {
+      result += "BEGIN:VCARD\nVERSION:3.0\n";
+      let name = p.getProperty("name");
+      let displayName = p.getProperty("displayName");
+      let orgs = p.getProperty("organizations");
+      let emails = p.getProperty("emails");
+      let phoneNumbers = p.getProperty("phoneNumbers");
+      let addresses = p.getProperty("addresses");
+      let urls = p.getProperty("urls");
+      
+      if (name) {
+        if (name.familyName && name.givenName) {
+          result += "N:" + name.familyName + ";" + name.givenName + ";\n";
+        } else if (name.familyName) {
+          result += "N:" + name.familyName + ";;\n";
+        } else if (name.givenName) {
+          result += "N:;" + name.givenName + ";\n";
+        }
+      }
+      if (displayName) {
+        result += "FN:" + displayName + "\n";
+      }
+      if (orgs) {
+        for each (var o in orgs) {
+          if (o.name) result += "ORG:" + o.name + ";\n";
+          if (o.title) result += "TITLE:" + o.title + ";\n";
+        }
+      }
+      if (phoneNumbers) {
+        for each (var pn in phoneNumbers) {
+          result += "TEL" + (pn.type ? (";type=" + pn.type) : "") + ":" + pn.value + "\n";
+        }
+      }
+      if (emails) {
+        for each (var em in emails) {
+          result += "EMAIL" + (em.type ? (";type=" + em.type) : "") + ":" + em.value + "\n";
+        }
+      }
+
+      function f(s) {
+        if (!s) return "";
+        
+        dump("Converting " + s + " to " + s.replace(/\n/g, " ") + "\n");
+        return s.replace(/\n/g, " ");
+      }
+      if (addresses) {
+        for each (var ad in addresses) {
+          result += "ADR" + (ad.type ? (";type=" + ad.type) : "") + ":" + f(ad.streetAddress) + ";" + 
+            f(ad.locality) + ";" + f(ad.region) + ";" + f(ad.postalCode) + ";" + f(ad.country) + "\n";
+        }
+      }
+      if (urls) {
+        for each (var u in urls) {
+          result += "URL" + (u.type ? (";type=" + u.type) : "") + ":" + u.value + "\n";
+        }      
+      }
+      result += "END:VCARD\n";
+    }
+    window.open("data:text/directory;base64," + window.btoa(result));
   }
 };
 

@@ -104,6 +104,7 @@ WebfingerDiscoverer.prototype = {
   get name() "Webfinger",
   get displayName() "Webfinger Service Discovery",
 	get iconURL() "",
+  get description() "Checks whether any of the e-mail addresses of a contact have public links available through the Webfinger protocol.",  
 
   discover: function WebfingerDiscoverer_discover(forPerson, completionCallback, progressFunction) {
     let that = this;
