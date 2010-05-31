@@ -38,6 +38,10 @@
 /* Inject the People content API into window.navigator objects. */
 /* Partly based on code in the Geode extension. */
 
+var Cu = Components.utils;
+var Ci = Components.interfaces;
+var Cc = Components.classes;
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const ALL_GROUP_CONSTANT = "___all___";
