@@ -421,7 +421,7 @@ let PeopleManager = {
     $('#searchbox').liveUpdate($("#contactlist")).focus();
   },
   
-  export: function export(){
+  exportVCard: function exportVCard(){
     var result = "";
 
     for each (p in this.resultSet)
@@ -483,9 +483,19 @@ let PeopleManager = {
       }
       result += "END:VCARD\n";
     }
-    window.open("data:text/directory;base64," + window.btoa(result));
+    window.open("data:text/directory;base64," + window.btoa(bytesFromString(result)));
   }
 };
+
+function bytesFromString(str) {
+ var converter =
+   Components.classes["@mozilla.org/intl/scriptableunicodeconverter"]
+     .createInstance(Components.interfaces.nsIScriptableUnicodeConverter);
+ converter.charset = "UTF-8";
+ var data = converter.ConvertFromUnicode(str);
+ return data + converter.Finish();
+}
+
 
 function selectPerson(guid)
 {

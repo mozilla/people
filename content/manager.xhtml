@@ -96,9 +96,9 @@ function deleteAll()
   displayServices();  
 }
 
-function export()
+function exportVCard()
 {
-  PeopleManager.export();
+  PeopleManager.exportVCard();
 }
 
 function setContactDisplayMode(mode)
@@ -365,7 +365,7 @@ Remove all contacts (you can import them again)
 </p>
 
 <p>
-<div style="float:right"><input type="submit" onclick="javascript:export()" value="Export Contacts"/></div>
+<div style="float:right"><input type="submit" onclick="javascript:exportVCard()" value="Export Contacts"/></div>
 Export contacts for use in another program
 </p>
 
