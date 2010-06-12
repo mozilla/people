@@ -6,20 +6,20 @@
  <link rel="stylesheet"
       href="chrome://people/content/directory.css"
       type="text/css" />
-<title>Contacts: Updated to 0.3.2</title>
+<title>Contacts: Updated to 0.4</title>
 </head>
 
 <body>
 
 <div class='head'>
-Firefox Contacts: Upgraded to version 0.3.2
+Firefox Contacts: Upgraded to version 0.4
 </div>
 
 
 <div class='dir'>
 <img style="float:right" src="images/experiment.png"/>
 <p>
-Firefox Contacts has been updated to version 0.3.2.
+Firefox Contacts has been updated to version 0.4
 </p>
 
 <p>
@@ -28,7 +28,56 @@ open the Contacts management screen.
 </p>
 
 <p>
-Please visit <a href="http://mozillalabs.com/conceptseries/identity/contacts/">our site</a>
+What's new in this release?
+</p>
+
+<p>
+<b>Support for Groups</b>
+</p>
+<p>
+Contacts now supports the collection of contacts into named groups.  Groups are displayed in the contact list.
+When a web page asks for access to your contacts, you may now restrict access to one, or some, of your groups.
+A contact can belong to any number of groups.
+</p>
+
+<p>
+The groups that Contacts displays are imported from your contact sources; if you have groups set up in your
+Google contact list, or your native address book application, they will be imported.  Firefox Contacts will
+also automatically create a group for each of your contact services.
+</p>
+
+<p>
+If you use exactly the same name for a group on two or more services, the groups will be combined.
+</p>
+
+<p>
+<b>Support for OAuth logins</b>
+</p>
+<p>
+Where possible, Contacts now uses the industry-standard OAuth login mechanism to access websites.  You will
+need to re-connect your browser to your services once to set it up.
+</p>
+
+<p>
+<b>"Export" command</b>
+</p>
+
+<p>
+Contacts can export the unified list of contacts as a VCard file for use in other applications.
+</p>
+
+<p>
+<b>Javascript API documentation</b>
+</p>
+
+<p>
+Documentation for the Contacts API is now <a href="xxx">posted on our site</a>.  Web developers are encouraged to
+experiment with it and provide feedback.
+</p>
+
+
+<p>
+Please visit <a href="http://mozillalabs.com/contacts/">our site</a>
 if you have any comments or feedback.
 </p>
 
@@ -38,31 +87,29 @@ if you have any comments or feedback.
 
 <p>
 <ul>
-<li>Support for Yahoo! import.  You will need to log in and retrieve a security code from Yahoo! to enable the importer.</li>
+<li>Visual refresh with new styling.</li>
 
-<li>Support for Facebook import and discovery.  When you connect to Facebook you will need to authorize Firefox Contacts to access your account.  
-This integration is using the brand-new Facebook Graph API, and may still have some hiccups.  You will need to disconnect and reconnect your
-Facebook connection now and then to make it work properly; we're working on making this better by maintaining a background session.</li>
+<li>Support for Groups.  The Portable Contacts "tags" attribute is used to construct a list of groups; each contact may
+belong to as many groups as desired.  Each importer automatically adds its own name as a tag.</li>
 
-<li>Support for "person:" addresses, and auto-completion of people in the AwesomeBar.  Just start typing a contact's name in the location bar and it will automatically suggest completions.</li>
+<li>Support for OAuth login for many contact services through the OAuthorizer library.  This also involved changing the
+GMail importer from VCard to the Google Contacts API.</li>
 
-<li>Much-enhanced people search capabilities.  The installed discovery modules will run automatically when you view a contact. 
- Discovery modules for Webfinger, HCard import, Google Social Graph, Facebook, Gravatar, Yelp, Amazon, and Flickr are included.</li>
+<li>Reworked web content permission dialog.  The user is prompted to select groups of contacts to make available
+to web content.</li>
 
-<li>Automatic combination of data discovered through discovery.  Firefox will load "profile pages" that it finds and combine 
-their information into the contact.  Because it is being run on the client, Firefox can access protected pages that are not
-visible to web-crawler-type systems; for example, it can access a Gowalla location trace from a friend, or a Facebook birthday,
- because it is already logged in as you.  Note that this only works with sites that support standard automatic discovery 
- mechanisms like HCard, RSS, and ActivityStreams.</li>
+<li>When permission is granted to a website, the permission is saved for the entire session.  If the "Remember" checkbox
+is checked, it is saved across multiple runs of Firefox.</li>
 
-<li>Support for non-contact people in the AwesomeBar.  You may enter "person:xxx", where xxx is any email address or URL, 
-and Firefox will do what it can to display information about that person.  Information from your local address book (if any) 
-will be combined with information that can be discovered from sources on the web.  You can use URLs from social networking 
-sites like Facebook, Twitter, Digg -- for example, try "<a href="person:http://www.facebook.com/zuck">person:http://www.facebook.com/zuck</a>"</li>
+<li>Improved performance of contact discovery services.</li>
 
-<li><i>0.3.2: Fixed a problem with Firefox 3.7 alpha builds</i></li>
-<li><i>0.3.2: Made AwesomeBar completion match on full strings only, e.g. "Mike", not "Mik"; clarified Facebook OAuth behavior; fixed bugs in "Disconnect" from Yahoo!</i></li>
+<li>Support for postal address and group import from Mac address book.</li>
 
+<li>Support for "callto:" protocol for phone numbers.</li>
+
+<li>Added "export" function to manager UI</li>
+
+TODO: HCard support in person page
 </ul>
 </p>
 

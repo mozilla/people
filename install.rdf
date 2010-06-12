@@ -6,11 +6,11 @@
   <Description about="urn:mozilla:install-manifest">
     <em:id>contacts@labs.mozilla.com</em:id>
     <em:name>Contacts</em:name>
-    <em:version>0.3.2</em:version>
+    <em:version>0.4</em:version>
 
     <em:description>A Mozilla Labs Experiment: Adds a database of information about people to Firefox.</em:description>
     <em:creator>Mozilla Labs Team</em:creator>
-    <em:homepageURL>http://mozillalabs.com/conceptseries/identity/contacts/</em:homepageURL>
+    <em:homepageURL>http://mozillalabs.com/contacts/</em:homepageURL>
     <em:updateURL>https://people.mozilla.com/~mhanson/contacts/update.rdf</em:updateURL>
 
     <em:targetApplication> <!-- Firefox -->

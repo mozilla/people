@@ -62,6 +62,14 @@ a {
   font:small-caption;
   font-weight:bold;
 }
+.displayName > a {
+  color:black;
+  text-decoration:none;
+}
+.displayName > a:hover {
+  color:#3875D7;
+  text-decoration:underline;
+}
 
 .updates {
   display:inline-block;

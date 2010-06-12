@@ -46,6 +46,7 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
 Cu.import("resource://people/modules/oauthbase.js");
+Cu.import("resource://oauthorizer/modules/oauthconsumer.js");
 
 // XXX portable contacts format is available, however it does not contain
 // email addresses, whereas the oauth contacts api does.
@@ -108,11 +109,12 @@ GmailImporter.prototype = {
     let people = [];
     let iter = evaluate(xmlDoc, "//*[local-name()='entry']");
     let elem;
+    let groupHrefMap = {}; // map from group hrefs to arrays of person records
+    
     while ((elem = iter.iterateNext())) {
       try
       {
         let person = {};
-        person.tags = ["Gmail"];
 	
         //<gd:email rel='http://schemas.google.com/g/2005#other' address='foobar@gmail.com' primary='true'/>
         let emailIter = evaluate(elem, "*[local-name()='email']");
@@ -156,8 +158,16 @@ GmailImporter.prototype = {
           person.displayName = person.emails[0].value;
         }
         
-        // TODO Process GMail groups - need to fetch groupMembershipInfo links to get names
+        // Process groups - need to fetch groupMembershipInfo links to get names
         // <gContact:groupMembershipInfo href="http://www.google.com/feeds/contacts/groups/jo%40gmail.com/base/1234a"/>
+        let groupMembershipIter = evaluate(elem, "*[local-name()='groupMembershipInfo']");
+        while ((group = groupMembershipIter.iterateNext()))
+        {
+          href = group.getAttribute("href");
+          if (!groupHrefMap[href]) groupHrefMap[href] = [];
+          groupHrefMap[href].push(person);
+          dump(person.displayName + " is in group " + href + "\n");
+        }
         
         people.push(person);
       } catch (e) {
@@ -165,9 +175,83 @@ GmailImporter.prototype = {
       }
     }
 
-    this._log.info("Adding " + people.length + " Yahoo address book contacts to People store");
-    People.add(people, this, this.progressCallback);
-    this.completionCallback(null);  
+    // At this point we have all the people, and the groupMap contains
+    // all of the groupMembershipInfo hrefs that we encountered.  We now
+    // need to fetch all those groups to find their names.
+    let msg = {
+      action: 'http://www.google.com/m8/feeds/groups/default/full',
+      method:"GET",
+      parameters:{'v':'2'}
+    };
+    let self = this;
+    this.oauthHandler = OAuthConsumer.authorize(
+        this.name,
+        this.consumerToken,
+        this.consumerSecret,
+        this.redirectURL,
+        function doGroupsImport(svc) { 
+
+          OAuthConsumer.call(svc, msg, function GmailGroupImportCallHandler(req) {
+            if (req.status != 200) {
+              dump("Error " + req.status + " while fetching GMail groups: " + req.responseText + "\n");
+            } else {
+              let xmlDoc = req.responseXML;
+              let root = xmlDoc.ownerDocument == null ?
+                xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;
+              let nsResolver = xmlDoc.createNSResolver(root);
+              function evaluate(elem, xpathString) xmlDoc.evaluate(xpathString, elem, nsResolver,
+                        Ci.nsIDOMXPathResult.ANY_TYPE, null);
+
+              let iter = evaluate(xmlDoc, "//*[local-name()='entry']");
+              while ((elem = iter.iterateNext())) {
+              
+                let idIter = evaluate(elem, "*[local-name()='id']");
+                let id = idIter.iterateNext();
+                if (id) id = id.textContent;
+                dump("Handling gmail contact group " + id + "\n");
+              
+                if (id) {
+                  if (groupHrefMap[id]) { 
+                    let titleIter = evaluate(elem, "*[local-name()='title']");
+                    let title = titleIter.iterateNext();
+                    if (title) title = title.textContent;
+                    dump(" Got title " + title + "\n");
+                    if (title) {
+                      if (title.indexOf("System Group: ") == 0) {
+                        title = title.substring(14); // strip off System Group
+                      }
+                      for each (let p in groupHrefMap[id]) {
+                        dump("Pushing group " + title + " on person " + p.displayName + "\n");
+                        if (!p.tags) p.tags = [];
+                        p.tags.push(title);
+                      }
+                    }
+                  } else {
+                    dump(" unused\n");
+                  }
+                }
+              }
+
+              // Now - if a person is not in -any- group, they are a harvested address.
+              // We don't want those.
+              let peopleToImport = [];
+              for each (let p in people)
+              {
+                if (p.tags && p.tags.length > 0)
+                {
+                  peopleToImport.push(p);
+                  p.tags.push("Gmail");
+                }
+              }
+              self._log.info("Adding " + peopleToImport.length + " Gmail address book contacts to People store");
+              People.add(peopleToImport, self, self.progressCallback);
+              self.completionCallback(null);
+            }
+          });
+
+    },
+    this.authParams,
+    "contacts@labs.mozilla.com");
   }
 
 };

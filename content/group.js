@@ -181,7 +181,10 @@ function renderPerson(person, peopleBox)
   var dN = person.getProperty("displayName");
   if (dN) {
     var displayNameDiv = createDiv("displayName");
-    displayNameDiv.appendChild(document.createTextNode(dN));
+    var nameLink = createElem("a");
+    nameLink.appendChild(document.createTextNode(dN));
+    nameLink.setAttribute("href", "person:guid:" + person.guid);
+    displayNameDiv.appendChild(nameLink);
     personBox.appendChild(displayNameDiv);
   }
 }
