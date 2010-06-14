@@ -96,11 +96,23 @@ HCardDiscoverer.prototype = {
 
   discover: function HCardDiscoverer_discover(forPerson, completionCallback, progressFunction) {
     let that = this;
-    for each (let link in forPerson.getProperty("urls")) {
+    let urlList = forPerson.getProperty("urls");
+    for each (let link in urlList) {
       try {
         let parsedURI = IO_SERVICE.newURI(link.value, null, null);
         if (link.rel == 'http://microformats.org/profile/hcard' || isKnownHCardSite(parsedURI))
         {
+          // suppress recursive discovery down into a site we've already flagged...
+          let isPrefix = false;
+          for each (let prefixCheck in urlList) {
+            if (link.value.length > prefixCheck.value.length && link.value.indexOf(prefixCheck.value) == 0) {
+              this._log.debug("Suppressing potential HCard " + link.value + " because we've done " + prefixCheck.value + "already.");
+              isPrefix = true;
+              break;
+            }
+          }
+          if (isPrefix) continue;
+        
           let discoveryToken = "hcard:" + link.value;
           try 
           {
@@ -114,7 +126,7 @@ HCardDiscoverer.prototype = {
               hcardXHR.open('GET', link.value, true);
               hcardXHR.onreadystatechange = function(aEvt) {
                 if (hcardXHR.readyState == 4) {
-                  let newPerson;
+                  let newPerson = {"_refreshDate":new Date().getTime()}; 
                   if (hcardXHR.status == 200) {
                     that._log.info("Got 200 for " + targetValue);
 
@@ -148,6 +160,8 @@ HCardDiscoverer.prototype = {
                             if (targetURI.host == "digg.com" && (href.indexOf("/friends/")>0)) continue;
 
                             // TODO: perform lookup from href domain, or text, to canonical rels
+                            if (text.indexOf("http://") == 0) text = text.substring(7);
+                            
                             let aLink = {
                               type: text, rel: text, value: targetURI.spec
                             };

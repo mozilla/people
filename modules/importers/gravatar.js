@@ -76,7 +76,7 @@ GravatarImageDiscoverer.prototype = {
         gravLoad.onreadystatechange = function (aEvt) {
           try {
             if (gravLoad.readyState == 4) {
-              let newPerson = null;
+              let newPerson = {"_refreshDate":new Date().getTime()}; 
               if (gravLoad.status == 200) {
                 newPerson= {};
                 newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
