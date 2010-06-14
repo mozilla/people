@@ -47,6 +47,7 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
 Cu.import("resource://people/modules/oauthbase.js");
+let IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
 
 function TwitterAddressBookImporter() {
   this._log = Log4Moz.repository.getLogger("People.TwitterAddressBookImporter");
@@ -118,8 +119,16 @@ TwitterAddressBookImporter.prototype = {
 						if (p.location && p.location.length > 0) 
 							person.location = [{type:"Location", value:p.location}] //???
 
-						if (p.url) 
-							person.urls = [{type:"URL", value:p.url}]
+						if (p.url) {
+              try {
+                let parsedURI = IO_SERVICE.newURI(p.url, null, null);
+                let host = parsedURI.host;
+                if (host.indexOf("www.") == 0) host = host.substring(4);
+                person.urls = [{type:host, value:p.url}]
+              } catch (e) {
+                person.urls = [{type:"URL", value:p.url}]
+              }
+            }
 						if (!person.urls) person.urls = [];
 						person.urls.push({type:"twitter.com", value:"http://twitter.com/" + p.screen_name});
 						
