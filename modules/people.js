@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let EXPORTED_SYMBOLS = ["People", "Person"];
+let EXPORTED_SYMBOLS = ["People", "Person", "DiscoveryCoordinator"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -1387,7 +1387,7 @@ function objectEquals(obj1, obj2) {
   return true;
 }
 
-function DiscoveryCoordinator(person, persist, personUpdatedFn, progressFn) {
+function DiscoveryCoordinator(person, persist, personUpdatedFn, progressFn, completedFn) {
   this._person = person;
   this._pendingDiscoveryCount = 0;
   this._pendingDiscoveryMap = {};
@@ -1395,6 +1395,7 @@ function DiscoveryCoordinator(person, persist, personUpdatedFn, progressFn) {
   this._persist = persist;
   this._personUpdatedFn = personUpdatedFn;
   this._progressFn = progressFn;
+  this._completedFn = completedFn;
 }
 
 /** DiscoveryCoordinator is responsible for invoking discovery
@@ -1447,7 +1448,7 @@ DiscoveryCoordinator.prototype = {
               if (newDoc) {
                 that._person.obj.documents[discoveryToken] = newDoc;
                 if (that._persist) {
-                  People._update(that._person,obj);
+                  People._update(that._person.obj);
                 }
                 that._personUpdatedFn(that);
               }
@@ -1457,12 +1458,21 @@ DiscoveryCoordinator.prototype = {
               if (that._pendingDiscoveryCount == 0) {
                 that._progressFn();
                 that.start();
+                if (that._pendingDiscoveryCount == 0) {
+                  that._completedFn();
+                }
               }
             },
             function progress(msg) {
               if (msg.initiate) {
                 if (that._completedDiscoveryMap[msg.initiate] ||
                     that._pendingDiscoveryMap[msg.initiate]) throw "DuplicatedDiscovery";
+
+                // Check for a saved discovery: we could potentially put a freshness date on this
+                if (that._person.obj.documents[msg.initiate]) {
+                  People._log.debug("Using cached " + msg.initiate);
+                  throw "DuplicatedDiscovery";
+                }
 
                 that._pendingDiscoveryCount += 1;
                 that._pendingDiscoveryMap[msg.initiate] = msg.msg;
