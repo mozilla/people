@@ -109,7 +109,12 @@ FacebookImporter.prototype = {
           if (splitName.length > 1) {
             person.name = {};
             person.name.givenName = splitName[0];
-            person.name.familyName = splitName.slice(1).join(" ");
+            if (splitName.length > 2) {
+              person.name.middleName = splitName[1];
+              person.name.familyName = splitName.slice(2).join(" ");
+            } else {
+              person.name.familyName = splitName.slice(1).join(" ");
+            }
           }
           person.photos = [
             {type:"thumbnail", value:"https://graph.facebook.com/" + fbPerson.id + "/picture?type=square"},
@@ -165,9 +170,6 @@ FacebookDiscoverer.prototype = {
   },
 
   discover: function FacebookDiscoverer_discover(forPerson, completionCallback, progressCallback) {
-    this.progressCallback = progressCallback;
-    this.completionCallback = completionCallback;
-
     // Look for urls and accounts that reference a Facebook ID
     for each (let link in forPerson.getProperty("urls")) {
       if (link.type.indexOf("facebook") >= 0 || link.value.indexOf("facebook") >= 0) {
@@ -195,7 +197,7 @@ FacebookDiscoverer.prototype = {
             this._log.info("Couldn't figure out how to parse Facebook URL: " + link.value);
             continue;
           }
-          this.startFacebookDiscovery(fbid, "root");
+          this.startFacebookDiscovery(fbid, "root", completionCallback, progressCallback);
         }
       }
     }
@@ -203,26 +205,26 @@ FacebookDiscoverer.prototype = {
       if (account.domain.indexOf("facebook") >= 0) {
         let fbid = account.userid ? account.userid : account.username;
         if (fbid) {
-          this.startFacebookDiscovery(fbid, "root");
+          this.startFacebookDiscovery(fbid, "root", completionCallback, progressCallback);
         }
       }
     }
   },
   
-  startFacebookDiscovery : function startFacebookDiscovery(fbid, type) {
+  startFacebookDiscovery : function startFacebookDiscovery(fbid, type, completionCallback, progressCallback) {
     try {
-      this.progressCallback({initiate:"Facebook:"+ type + ":" + fbid, msg:"Resolving Facebook profile for " + fbid});
+      progressCallback({initiate:"Facebook:"+ type + ":" + fbid, msg:"Resolving Facebook profile for " + fbid});
       let self = this;
       function facebookDiscovery(svc) {
-	self.createFacebookDiscoveryHandler(svc, fbid, type);
+        self.createFacebookDiscoveryHandler(svc, fbid, type, completionCallback, progressCallback);
       }
       this.oauthHandler = OAuthConsumer.authorize('facebook',
-			    MozillaLabsContactsApplicationID,
-			    MozillaLabsContactsApplicationSecret,
-			    COMPLETION_URI,
-			    facebookDiscovery,
-			    gAuthParams,
-			    "contacts@labs.mozilla.com");
+        MozillaLabsContactsApplicationID,
+        MozillaLabsContactsApplicationSecret,
+        COMPLETION_URI,
+        facebookDiscovery,
+        gAuthParams,
+        "contacts@labs.mozilla.com");
     } catch (e) {
       if (e != "DuplicatedDiscovery") {
         this._log.info("Error while looking up Facebook profile: " + e);
@@ -230,83 +232,87 @@ FacebookDiscoverer.prototype = {
     }
   },
   
-  createFacebookDiscoveryHandler : function(svc, id, type) {
-    this.call.action = "https://graph.facebook.com/" + id;
+  createFacebookDiscoveryHandler : function(svc, id, type, completionCallback, progressCallback) {
+    let call = {
+      action: "https://graph.facebook.com/" + id,
+      method: "GET",
+      parameters: {}
+    }
     let self = this;
-    OAuthConsumer.call(svc, this.call, function FacebookDiscovererCallHandler(req) {
-      self.handleResponse(req, id, type);
+    OAuthConsumer.call(svc, call, function FacebookDiscovererCallHandler(req) {
+      self.handleResponse(req, id, type, completionCallback, progressCallback);
     });
   },
   
-  handleResponse: function(req, id, type) {
-      if (req.readyState != 4) {
-          this._log.debug("Request response not handled, state "+req.readyState);
-	  return;
-      }
-      if (req.status == 401) {
-	this._log.info("Received 401 error while accessing Facebook; renewing access token");
-	this.oauthHandler.reauthorize();
-      } else if (req.status == 200) {
-	let response = JSON.parse(req.responseText);
-	
-	switch (type) {
-	  case "root":
-	    let newPerson = {};
-	    if (response.name) newPerson.displayName = response.name;
-	    if (response["first_name"]) {
-	      if (!newPerson.name ) newPerson.name={};
-	      newPerson.name.givenName = response["first_name"];
-	    }
-	    if (response["last_name"]) {
-	      if (!newPerson.name) newPerson.name={};
-	      newPerson.name.familyName = response["last_name"];
-	    }
-	    if (response.birthday) {
-	      newPerson.birthday = response.birthday;
-	    }
-	    if (response.about) {
-	      newPerson.notes = [{type:"About", value:response.about}];
-	    }
-	    if (response.website) {
-	      var websites = response.website.split("\n");
-	      for each (var site in websites) {
-		if (!newPerson.urls) newPerson.urls = [];
-		
-		if (site.length > 0) {
-		  if (site.indexOf("http://") != 0) {
-		    site = "http://" + site;
-		  }
-		  newPerson.urls.push({type:"URL", value:site})
-		}
-	      }
-	    }
-	    
-	    var username=null;
-	    if (response.link) {
-	      if (!newPerson.urls) newPerson.urls = [];
-	      newPerson.urls.push({type:"facebook.com", value:response.link});
+  handleResponse: function(req, id, type, completionCallback, progressCallback) {
+    if (req.readyState != 4) {
+        this._log.debug("Request response not handled, state "+req.readyState);
+        return;
+    }
+    if (req.status == 401) {
+      this._log.info("Received 401 error while accessing Facebook; renewing access token");
+      this.oauthHandler.reauthorize();
+    } else if (req.status == 200) {
+      let response = JSON.parse(req.responseText);
+      
+      switch (type) {
+        case "root":
+          let newPerson = {};
+          if (response.name) newPerson.displayName = response.name;
+          if (response["first_name"]) {
+            if (!newPerson.name ) newPerson.name={};
+            newPerson.name.givenName = response["first_name"];
+          }
+          if (response["last_name"]) {
+            if (!newPerson.name) newPerson.name={};
+            newPerson.name.familyName = response["last_name"];
+          }
+          if (response.birthday) {
+            newPerson.birthday = response.birthday;
+          }
+          if (response.about) {
+            newPerson.notes = [{type:"About", value:response.about}];
+          }
+          if (response.website) {
+            var websites = response.website.split("\n");
+            for each (var site in websites) {
+              if (!newPerson.urls) newPerson.urls = [];
+              
+              if (site.length > 0) {
+                if (site.indexOf("http://") != 0) {
+                  site = "http://" + site;
+                }
+                newPerson.urls.push({type:"URL", value:site})
+              }
+            }
+          }
 
-	      var lastIdx = response.link.lastIndexOf("/");
-	      username = response.link.slice(lastIdx+1);
-	      if (username.indexOf("profile.php?id=") == 0) username = username.slice(15);
+          var username=null;
+          if (response.link) {
+            if (!newPerson.urls) newPerson.urls = [];
+            newPerson.urls.push({type:"facebook.com", value:response.link});
 
-	      newPerson.accounts = [{domain:"facebook.com", username:username}];
-	    }
-	    newPerson.photos = [
-	      {type:"thumbnail", value:"https://graph.facebook.com/" + (username ? username : id) + "/picture?type=square"},
-	      {type:"profile", value:"https://graph.facebook.com/" + (username ? username : id) + "/picture?type=large"}
-	    ];
-	    this.completionCallback(newPerson, "Facebook:root:" + id);
-	    break;
-	}
+            var lastIdx = response.link.lastIndexOf("/");
+            username = response.link.slice(lastIdx+1);
+            if (username.indexOf("profile.php?id=") == 0) username = username.slice(15);
+
+            newPerson.accounts = [{domain:"facebook.com", username:username}];
+          }
+          newPerson.photos = [
+            {type:"thumbnail", value:"https://graph.facebook.com/" + (username ? username : id) + "/picture?type=square"},
+            {type:"profile", value:"https://graph.facebook.com/" + (username ? username : id) + "/picture?type=large"}
+          ];
+          completionCallback(newPerson, "Facebook:root:" + id);
+          break;
+        }
       } else {
-	this._log.info("Error while accessing Facebook friend profile: " + req.responseText);
-	let response = JSON.parse(req.responseText);
-	if (response.error.type == "OAuthException")
-	  this.oauthHandler.reauthorize();
-	else
-	  this.completionCallback({error:"API Error", message:"Error while accessing Facebook friend list: " + req.status+": "+req.responseText});
-      }
+        this._log.info("Error while accessing Facebook friend profile: " + req.responseText);
+        let response = JSON.parse(req.responseText);
+        if (response.error.type == "OAuthException")
+          this.oauthHandler.reauthorize(); // TODO There _may_ be a very subtle re-entrancy bug hiding in here, if two pages try to reauth simultaneously
+        else
+          completionCallback({error:"API Error", message:"Error while accessing Facebook friend list: " + req.status+": "+req.responseText});
+    }
   }
 }
 
