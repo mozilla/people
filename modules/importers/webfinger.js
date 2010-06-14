@@ -49,11 +49,11 @@ Cu.import("resource://people/modules/import.js");
 
 
 let REL_DICTIONARY = {
-  'http://portablecontacts.net/spec/1.0':'Portable Contacts API',
+  'http://portablecontacts.net/spec/1.0':'data',
   'http://webfinger.net/rel/profile-page':'profile',
   'http://microformats.org/profile/hcard':'profile',
   'http://gmpg.org/xfn/11':'profile', // Hrm.. really?
-  'http://specs.openid.net/auth/2.0/provider':'OpenID Provider',
+  'http://specs.openid.net/auth/2.0/provider':'data',
   'describedby':'profile',
   // describedby/@type=application/rdf+xml ... how to handle this one?
   'http://schemas.google.com/g/2010#updates-from':'updates' // type='application/atom+xml'
@@ -66,12 +66,12 @@ function WebfingerDiscoverer() {
 
 function extractLRDDTemplateFromHostMetaText(text, progressFn)
 {
-  var parser = Components.classes["@mozilla.org/xmlextras/domparser;1"].createInstance(Components.interfaces.nsIDOMParser);
-  var parsedDoc = parser.parseFromString(text, "text/xml");
+  let parser = Components.classes["@mozilla.org/xmlextras/domparser;1"].createInstance(Components.interfaces.nsIDOMParser);
+  let parsedDoc = parser.parseFromString(text, "text/xml");
   if (parsedDoc.documentElement.nodeName == "parsererror") {
     throw {error:"Unable to parse host-meta file for " + domain};
   }
-  var host = parsedDoc.documentElement.getElementsByTagNameNS("http://host-meta.net/xrd/1.0", "Host");
+  let host = parsedDoc.documentElement.getElementsByTagNameNS("http://host-meta.net/xrd/1.0", "Host");
   if (!host || host.length == 0) {
     host = parsedDoc.documentElement.getElementsByTagName("Host"); // hm, well, try it without a namespace
     if (!host || host.length == 0) {
@@ -83,14 +83,14 @@ function extractLRDDTemplateFromHostMetaText(text, progressFn)
 // if (host[0].textContent != domain) {
 // 	return "Error: Host-meta contained a Host specification that did not match the host of the account.  Domain aliasing is not supported.";
 //	}
-  var links = parsedDoc.documentElement.getElementsByTagName("Link")
-  var userXRDURL = null;
+  let links = parsedDoc.documentElement.getElementsByTagName("Link")
+  let userXRDURL = null;
   for (var i in links) {
-    var link = links[i];
-    var rel = link.getAttribute("rel");
+    let link = links[i];
+    let rel = link.getAttribute("rel");
     if (rel) {
       if (rel.toLowerCase() == "lrdd") {
-        var template = link.getAttribute("template");
+        let template = link.getAttribute("template");
         return template;
       }
     }  
@@ -98,6 +98,48 @@ function extractLRDDTemplateFromHostMetaText(text, progressFn)
   return null;
 }
 
+NO_HOST_META = "NO";
+let gHostMetaCache = {}; // contains domain to template string
+
+function retrieveTemplateForDomain(domain, continueFn, errorFn)
+{
+  if (gHostMetaCache[domain]) {
+    if (gHostMetaCache[domain] == NO_HOST_META) {
+      People._log.debug("HostMeta cache hit (negative) for " + domain);
+      errorFn("NoHostMeta");
+    } else {
+      People._log.debug("HostMeta cache hit (positive) for " + domain);
+      continueFn(gHostMetaCache[domain]);
+    }
+  }
+  else
+  {
+    let hostmetaURL = "http://" + domain + "/.well-known/host-meta";
+    let hostmeta = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);  
+    hostmeta.open('GET', hostmetaURL, true);
+    People._log.debug("Making hostmeta request to " + hostmetaURL);
+
+    hostmeta.onreadystatechange = function (aEvt) {
+      if (hostmeta.readyState == 4) {
+        try {
+          if (hostmeta.status != 200) {
+            dump("Status " + hostmeta.status + " accessing " + hostmetaURL);
+            throw {error:""+domain + " does not support webfinger."};
+          }
+          dump("Loaded hostmeta for " + domain + "\n");
+          let template = extractLRDDTemplateFromHostMetaText(hostmeta.responseText);
+          gHostMetaCache[domain] = template;
+          continueFn(template);
+        } catch (e) {
+          People._log.debug("Webfinger: "+ e + "; " + e.error);
+          gHostMetaCache[domain] = NO_HOST_META;
+          errorFn(e);
+        }
+      }
+    }
+    hostmeta.send(null);
+  }
+}
 
 WebfingerDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
@@ -110,6 +152,7 @@ WebfingerDiscoverer.prototype = {
     let that = this;
     for each (let email in forPerson.getProperty("emails")) {
       try {
+        let emailValue = email.value;
         let discoveryToken = "Webfinger:" + email.value;
         progressFunction({initiate:discoveryToken, msg:"Checking for webfinger for address " + email.value});
         People._log.debug("Checking for webfinger for address " + email.value);
@@ -121,97 +164,57 @@ WebfingerDiscoverer.prototype = {
         let id = split[0];
         let domain = split[1];
 
-        // Check for the host-meta
-        let hostmetaURL = "http://" + domain + "/.well-known/host-meta";
-        let hostmeta = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);  
-        hostmeta.open('GET', hostmetaURL, true);
-        People._log.debug("Making hostmeta request to " + hostmetaURL);
-        hostmeta.email = email.value;
-        hostmeta.onreadystatechange = function (aEvt) {
-          let hmToken = discoveryToken;
-          if (hostmeta.readyState == 4) {
-            try {
-              if (hostmeta.status != 200) {
-                dump("Status " + hostmeta.status + " accessing " + hostmetaURL);
-                throw {error:""+domain + " does not support webfinger."};
-              }
-              var template = extractLRDDTemplateFromHostMetaText(hostmeta.responseText);
-              var userXRDURL = null;
-              if (template) userXRDURL = template.replace("{uri}", encodeURI(hostmeta.email));
+        retrieveTemplateForDomain(domain, function gotTemplate(template)
+        {
+          let userXRDURL = null;
+          if (template) userXRDURL = template.replace("{uri}", encodeURI(emailValue));
+          if (userXRDURL == null) {
+            throw {error:"" + domain + " does not support webfinger (no Link with an lrdd rel and template attribute)"};
+          }
+          let xrdLoader = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+          People._log.debug(userXRDURL);
+          xrdLoader.open('GET', userXRDURL, true);
+          xrdLoader.onreadystatechange = function (aEvt) {
+            if (xrdLoader.readyState == 4) {
+              let newPerson = {"_refreshDate":new Date().getTime()};
+              if (xrdLoader.status == 200) {
+                let dom = xrdLoader.responseXML;
+                let linkList = dom.documentElement.getElementsByTagName("Link");
+                if (newPerson == undefined) newPerson = {};
+              
+                for (var i=0;i<linkList.length;i++)
+                {
+                  let link = linkList[i];
+                  if (newPerson.urls == undefined) newPerson.urls =[];
 
-              if (userXRDURL == null) {
-                throw {error:"" + domain + " does not support webfinger (no Link with an lrdd rel and template attribute)"};
-              }
-              let xrdLoader = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-              People._log.debug(userXRDURL);
-              xrdLoader.open('GET', userXRDURL, true);
-
-              xrdLoader.onreadystatechange = function (aEvt) {
-                let xrdToken = hmToken;
-                if (xrdLoader.readyState == 4) {
-                  let newPerson;
-                  if (xrdLoader.status == 200) {
-                    let dom = xrdLoader.responseXML;
-                    let linkList = dom.documentElement.getElementsByTagName("Link");
-                    if (newPerson == undefined) newPerson = {};
-                    
-                    // not sure how useful this is.
-                    // var aliasList = dom.documentElement.getElementsByTagName("Alias");                  
-                    /*for (var alias in aliasList) {
-                      if (newPerson.links == undefined) newPerson.links =[];
-                      newPerson.links.push( {type:"Alias", alias.textContent} );
-                    }*/
+                  let rel = link.attributes.rel;
                   
-                    // Many XRDs include duplicated links that map to the same user concept.
-                    for (var i=0;i<linkList.length;i++)
-                    {
-                      let link = linkList[i];
-                      if (newPerson.urls == undefined) newPerson.urls =[];
-                      let rel = link.attributes.rel;
-                      if (rel.value in REL_DICTIONARY) {
-
-                        let obj = {
-                          type:REL_DICTIONARY[rel.value], 
-                          rel:rel.value, 
-                          value:link.attributes.href.value
-                        };
-                        if (link.attributes['type'] != undefined) {
-                          obj['content-type'] = link.attributes.type.value;
-                        }
-                        People._log.debug("Pushing " + obj.type + ":" + obj.value);
-                        newPerson.urls.push(obj);
-                      } else {
-                        People._log.debug("Unknown rel " + rel.value);
-                        // push it anyway
-                        let obj = {
-                          type:"Data",
-                          rel:rel.value, 
-                          value:link.attributes.href.value
-                        };
-                        if (link.attributes['type'] != undefined) {
-                          obj['content-type'] = link.attributes.type.value;
-                        }
-                        People._log.debug("Pushing unknown rel:" + obj.value);
-                        newPerson.urls.push(obj);
-                      }
-                    }
+                  let type = "data";
+                  if (REL_DICTIONARY[rel]) type = REL_DICTIONARY[rel];
+                  let obj = {
+                    type:type,
+                    rel:rel.value, 
+                    value:link.attributes.href.value
+                  };
+                  if (link.attributes['type'] != undefined) {
+                    obj['content-type'] = link.attributes.type.value;
                   }
-                  completionCallback(newPerson, xrdToken);
+                  newPerson.urls.push(obj);
                 }
               }
-              xrdLoader.send(null);
-            } catch (e) {
-              People._log.debug("Webfinger: "+ e + "; " + e.error);
-              completionCallback(null, hmToken);
+              completionCallback(newPerson, discoveryToken);
             }
           }
-        }
-        hostmeta.send(null);
+          xrdLoader.send(null);
+        }, function gotError(e) {
+          People._log.debug("Webfinger: "+ e + "; " + e.error);
+          completionCallback({"_refreshDate":new Date().getTime()}, discoveryToken);
+        });
       } catch (e) {
         if (e != "DuplicatedDiscovery") {
           People._log.warn("Error while handling Webfinger lookup: " + e);
           try {
-            if (discoveryToken) completionCallback(null, discoveryToken);
+            if (discoveryToken) completionCallback({"_refreshDate":new Date().getTime()}, discoveryToken);
           } catch (e) {}
         }
       }
