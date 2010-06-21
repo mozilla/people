@@ -1653,20 +1653,36 @@ function constructDataVaultPostService(url) {
     method: function(dataKey, data, callback) {
       let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
       load.open('POST', url.value + "/" + dataKey, false);
-      load.send(JSON.stringify(data));
+      load.send("data=" + escape(JSON.stringify(data)));
       callback();
     }
   };
 }
 
+function constructDataVaultPostAuthenticatedService(url) {
+  return {
+    methodName: "addDataAuth",
+    method: function(dataKey, data, accessKey, callback) {
+      let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+      load.open('POST', url.value + "/" + dataKey, false);
+      load.send("accesskey=" + escape(accessKey) + "&data=" + escape(JSON.stringify(data)));
+      callback();
+    }
+  };
+}
+
+
 PersonServiceFactory.registerLinkService("http://mozillalabs.com/experimental/data_vault_1", constructDataVaultGetService);
 PersonServiceFactory.registerLinkService("http://mozillalabs.com/experimental/data_vault_1", constructDataVaultPostService);
+PersonServiceFactory.registerLinkService("http://mozillalabs.com/experimental/data_vault_1", constructDataVaultPostAuthenticatedService);
 
 PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(person, container) {
   container.innerHTML = "";
   if (person.services.pictureCollectionsBy) {
     let collectionArray = [];
     dump("invoking person.services.pictureCollectionsBy\n");
+    
+    let thumbnailRetrievalQueue = [];
     person.services.pictureCollectionsBy(function(collections) {
       collectionArray = collectionArray.concat(collections);
       container.innerHTML = "";
@@ -1688,6 +1704,9 @@ PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(p
         let thumbnail = container.ownerDocument.createElement("img");
 
         if (c.primaryPhotoThumbnailURL) thumbnail.src = c.primaryPhotoThumbnailURL;
+        else {
+          thumbnailRetrievalQueue.push({img:thumbnail, collection:c});
+        }
         thumbnail.setAttribute("border", "0");
         thumbnail.setAttribute("style", "background-color:#E0D8D8;max-width:75px;max-height:75px");
         thumbnailDiv.appendChild(thumbnail);
@@ -1703,6 +1722,17 @@ PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(p
           link.appendChild(nameDiv);
         }
         container.appendChild(d);
+      }
+      
+      if (thumbnailRetrievalQueue.length > 0) 
+      {
+        for each (let thumb in `rievalQueue)
+        {
+          let targetImg = thumb.img;
+          thumb.collection.getPhotos(function render(photos) {
+            targetImg.src = photos[0].photoThumbnailURL;
+          });
+        }
       }
     });
   }
@@ -1781,6 +1811,9 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
       });
       for each (let upd in updateArray)
       {
+      
+        dump("" + JSON.stringify(upd) + "\n");
+      
         let d= container.ownerDocument.createElement("div");
         d.setAttribute("class", "update");
         d.setAttribute("style", "font:caption;padding-top:4px;padding-bottom:4px;border:1px dotted #E0E0E0;width:90%;");
@@ -1799,7 +1832,11 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
 
         if (upd.link) {
           let titleLink = container.ownerDocument.createElement("a");
-          titleLink.setAttribute("href", upd.link.spec);
+          if (upd.link.spec) {
+            titleLink.setAttribute("href", upd.link.spec);
+          } else {
+            titleLink.setAttribute("href", upd.link);
+          }
           titleLink.setAttribute("target", "_blank");
           titleLink.setAttribute("style", "color:black;text-decoration:none");
           titleLink.appendChild(container.ownerDocument.createTextNode(upd.text));

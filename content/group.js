@@ -109,10 +109,14 @@ function initGroup(container, identifier)
   gContainer.appendChild(gFeedback);
 
   renderPeople();
+  /*
+  
+  disabled automatic group discovery for the moment.
+  
   for each (p in gPeople) {
     p.coordinator = new DiscoveryCoordinator(p, false, personUpdated, discoveryProgressFn);
     p.coordinator.start();
-  }
+  }*/
 }
 
 function renderPeople()

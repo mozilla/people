@@ -381,6 +381,17 @@ FacebookGraphLoader.prototype =
 // This is currently believed to be a better user experience than including
 // two different facebook IDs which are actually the same person.
 
+function getPhotoNormalizeCallback(toCallback) {
+  return function(result) {
+    for each (let photo in result) {
+      photo.photoThumbnailURL = photo.picture;
+      photo.name = photo.title;
+      photo.homeURL = photo.link;          
+    }
+    toCallback(result);
+  }
+}
+
 function constructFacebookPicturesOfService(account) {
   return {
     identifier: "facebook:picturesOf",
@@ -388,15 +399,7 @@ function constructFacebookPicturesOfService(account) {
     method: function(callback) {
       let fb = new FacebookGraphLoader();
       let id = (account.username ? account.username : account.userid);
-      fb.startFacebookGraphLoad(id, "photos", function(result) {
-        // normalize to standard photo API
-        for each (let photo in result) {
-          photo.photoThumbnailURL = photo.picture;
-          photo.name = photo.title;
-          photo.homeURL = photo.link;          
-        }
-        callback(result);
-      });
+      fb.startFacebookGraphLoad(id, "photos", getPhotoNormalizeCallback(callback));
     }
   };
 }
@@ -413,7 +416,7 @@ function constructFacebookPicturesByService(account) {
         for each (let coll in result) {
           let theID = coll.id;
           coll.getPhotos = function(getPhotoCallback) {
-            new FacebookGraphLoader().startFacebookGraphLoad(theID, "photos", getPhotoCallback);
+            new FacebookGraphLoader().startFacebookGraphLoad(theID, "photos", getPhotoNormalizeCallback(getPhotoCallback));
           };
           coll.primaryPhotoURL = coll.link;
 
