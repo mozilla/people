@@ -126,11 +126,20 @@ build: native
 	
 xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
 xpi_files := chrome.manifest components content install.rdf locale modules platform
+oauth_bundle_xpi_name:= contacts-$(contacts_version)-relbundle-$(xpi_type).xpi
 
 xpi: build
 	rm -f $(xpi_dir)/$(xpi_name)
 	cd $(stage_dir);zip -9r $(xpi_name) $(xpi_files)
 	mv $(stage_dir)/$(xpi_name) $(xpi_dir)/$(xpi_name)
+
+oauth_bundle: 
+	rm -f $(xpi_dir)/$(oauth_bundle_xpi_name)
+	cp bundle_install.rdf $(xpi_dir)/install.rdf
+	cp $(oauth_xpi_path) $(xpi_dir)
+	cd $(xpi_dir);zip -9r $(oauth_bundle_xpi_name) $(xpi_name) oauthorizer-0.1-dev.xpi install.rdf
+	rm $(xpi_dir)/install.rdf
+
 
 clean:
 	rm -rf $(objdir)
