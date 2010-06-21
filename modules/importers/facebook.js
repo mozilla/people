@@ -170,7 +170,7 @@ FacebookDiscoverer.prototype = {
   discover: function FacebookDiscoverer_discover(forPerson, completionCallback, progressCallback) {
     // Look for urls and accounts that reference a Facebook ID
     for each (let link in forPerson.getProperty("urls")) {
-      if (link.type.indexOf("facebook") >= 0 || link.value.indexOf("facebook") >= 0) {
+      if (link.type && (link.type.indexOf("facebook") >= 0 || link.value.indexOf("facebook") >= 0)) {
         // Deal with the various sorts of Facebook URLs that are out in the wild.
         // These include:
         //  http://[www.]facebook.com/<username>

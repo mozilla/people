@@ -1726,7 +1726,7 @@ PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(p
       
       if (thumbnailRetrievalQueue.length > 0) 
       {
-        for each (let thumb in `rievalQueue)
+        for each (let thumb in thumbnailRetrievalQueue)
         {
           let targetImg = thumb.img;
           thumb.collection.getPhotos(function render(photos) {
@@ -1829,7 +1829,6 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
 
         let textDiv = container.ownerDocument.createElement("div");
         textDiv.setAttribute("style", "display:inline-block; vertical-align:top");
-
         if (upd.link) {
           let titleLink = container.ownerDocument.createElement("a");
           if (upd.link.spec) {
@@ -1870,6 +1869,36 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
     });
   }
 });
+
+PersonServiceFactory.registerServiceDefaultUI("sendPrivateMessageTo", function(person, container) {
+  container.innerHTML = "";
+  if (person.services.sendPrivateMessageTo) {
+    let form = container.ownerDocument.createElement("form");
+    let input = container.ownerDocument.createElement("input");
+    input.setAttribute("id", "sendPrivateMessageTo_default_input_text");
+    input.setAttribute("type", "text");
+    let button = container.ownerDocument.createElement("input");
+    button.setAttribute("type", "button");
+    button.setAttribute("value", "Send Message");
+    let br = container.ownerDocument.createElement("br");
+    let resultArea = container.ownerDocument.createElement("div");
+    form.appendChild(input);
+    form.appendChild(button);
+    form.appendChild(br);
+    form.appendChild(resultArea);
+    container.appendChild(form);
+
+    button.onclick = function() {
+      person.services.sendPrivateMessageTo(input.value, function() {
+        resultArea.innerHTML = "Message sent.";
+      });
+    }
+  }
+});
+  
+        
+
+
 
 function formatDate(dateStr)
 {

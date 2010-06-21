@@ -165,11 +165,11 @@ function TwitterOAuthLoader() {
 
 TwitterOAuthLoader.prototype = 
 {
-  startTwitterLoad : function startTwitterLoad(uri, callback) {
+  startTwitterLoad : function startTwitterLoad(uri, method, parameters, callback) {
     try {
       let self = this;
       function twitterLoad(svc) {
-        self.createTwitterHandler(svc, uri, callback);
+        self.createTwitterHandler(svc, uri, method, parameters, callback);
       }
       this.oauthHandler = OAuthConsumer.authorize('twitter',
         TwitterApplicationID,
@@ -183,11 +183,12 @@ TwitterOAuthLoader.prototype =
     }
   },
 
-  createTwitterHandler: function(svc, uri, callback) {
+  createTwitterHandler: function(svc, uri, method, parameters, callback) {
+    if (parameters == null) parameters = {};
     let call = {
       action: uri,
-      method: "GET",
-      parameters: {}
+      method: method,
+      parameters: parameters
     }
     let self = this;
     OAuthConsumer.call(svc, call, function TwitterOAuthCallHandler(req) {
@@ -201,6 +202,7 @@ TwitterOAuthLoader.prototype =
         return;
     }
     dump("Got Twitter OAuth response - " + req.responseText.length + " bytes\n");
+    dump("Got Twitter OAuth response - " + req.responseText + "\n");
     if (req.status == 401) {
       this._log.info("Received 401 error while accessing Twitter; renewing access token");
       this.oauthHandler.reauthorize();
@@ -224,7 +226,7 @@ function constructTwitterUpdatesService(account) {
       let fb = new TwitterOAuthLoader();
       let uri = "http://twitter.com/statuses/user_timeline/" + account.username + ".rss";
 
-      fb.startTwitterLoad(uri, function(result) {
+      fb.startTwitterLoad(uri, "GET", null, function(result) {
         let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
         try {
           parser.listener = {
@@ -303,73 +305,30 @@ TwitterAccountDiscoverer.prototype = {
   }
 };
 
-/*
-function constructTwitterUpdatesService(account) {
+
+
+function constructTwitterPrivateMessageToService(account) {
   return {
-    identifier: "twitter:updates:" + account.username,
-    methodName: "updates",
-    method: function(callback) {
+    identifier: "twitter:sendPrivateMessageTo:" + account.username,
+    methodName: "sendPrivateMessageTo",
+    method: function(text, callback) {
     
-      dump("Doing twitter update\n");
-    
-      try {
-      let url = "http://twitter.com/statuses/user_timeline/" + account.username + ".rss";
-      dump("twitter url " + url + "\n");
-      let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);  
-      dump("twitter made xhr\n");
-      xhr.open('GET', url, true);
-      dump("twitter did open\n");
-      xhr.onreadystatechange = function(aEvt) {
-        if (xhr.readyState == 4) {
-          if (xhr.status == 200) {
-            dump("Got twitter update\n");
-            let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
-            try {
-              parser.listener = {
-              
-                handleResult: function(result) {
-                  var feed = result.doc;
-                  feed.QueryInterface(Components.interfaces.nsIFeed);
-                  let updates = [];
-                  for (i=0; i<feed.items.length; i++) {
-                    try {
-                      let update = {};
-                      var theEntry = feed.items.queryElementAt(i, Components.interfaces.nsIFeedEntry);
-                      var date = theEntry.updated ? theEntry.updated : (theEntry.published ? theEntry.published : null);
-                      if (date) {
-                        update.time = new Date(date);
-                      }
-                      update.text = theEntry.title.plainText();
-                      update.source = "Twitter";
-                      update.sourceLink = "http://twitter.com/" + account.username;
-                      updates.push(update);
-                    } catch (e) {
-                      dump(e + "\n");
-                    }
-                  }
-                  callback(updates);
-                }
-              };
-              parser.parseFromString(xhr.responseText, IO_SERVICE.newURI(url, null, null));
-            } catch (e) {
-              dump("twitter error: " + e + "\n");
-            }
-          }
-        }
-      };
-      dump("twitter set readyStateChange\n");
-      
-      xhr.send(null);
-      dump("twitter did send\n");
-      } catch (e) {
-        dump(e + "\n");
-        dump(e.stack + "\n");
-      }
+      People._log.debug("Invoking twitter sendPrivateMessageTo");
+      let fb = new TwitterOAuthLoader();
+      let uri = "http://api.twitter.com/1/direct_messages/new.json";
+
+      fb.startTwitterLoad(uri, "POST", {user:account.username, text:escape(text)}, function(result) {
+        dump("Got sendMessage callback\n");
+        callback({status:"ok"});
+      });
     }
   };
 }
-*/
+
+
 
 PeopleImporter.registerBackend(TwitterAddressBookImporter);
 PeopleImporter.registerDiscoverer(TwitterAccountDiscoverer);
 PersonServiceFactory.registerAccountService("twitter.com", constructTwitterUpdatesService);
+PersonServiceFactory.registerAccountService("twitter.com", constructTwitterPrivateMessageToService);
+
