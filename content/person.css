@@ -82,7 +82,11 @@ a:hover {
   padding-bottom:16px;
   min-height:40px;
 }
-
+.org {
+  font:caption;
+  font-size:90%;
+  font-weight:normal;
+}
 .vlist_title {
   font:small-caption;
 /*  border-bottom:1px dotted #808080;*/
@@ -198,6 +202,11 @@ a:hover {
 .update > .source > a:hover {
   color:#3875D7;
   text-decoration:underline
+}
+
+.service {
+  margin-left:74px;
+  font:small-caption;
 }
 
 .servicedetail {

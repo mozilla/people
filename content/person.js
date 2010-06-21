@@ -1,4 +1,4 @@
-/* ***** BEGIN LICENSE BLOCK *****
+  /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -71,6 +71,14 @@ function createDiv(clazz)
   return aDiv;
 }
 
+function createSpan(clazz, text)
+{
+	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "span");
+	aDiv.setAttribute("class", clazz);
+  if (text) aDiv.appendChild(document.createTextNode(text));
+  return aDiv;
+}
+
 function createElem(type, clazz)
 {
 	let anElem = document.createElementNS("http://www.w3.org/1999/xhtml", type);
@@ -99,13 +107,22 @@ function renderTypeValueList(title, objectType, list, options)
       }
     }
     var value = item.value;
-    if (options && options.itemRender) value = options.itemRender(item);
+    if (options && options.itemRender) {
+      value = options.itemRender(item);
+      if (value == null) continue;
+    }
     if (options && options.skipTypeList) {
       if (options.skipTypeList.indexOf(item.type) >= 0) continue;
     }
-        
-    if (already[value] != undefined) continue;
-    already[value] = 1;
+    if (options && options.skipPathSubstringList) {
+      if (options.skipPathSubstringList.some(function(e) {return item.value.indexOf(e) >= 0})) continue;
+    }
+
+    // Normalize trailing slash for duplicate check
+    let alreadyKey = value;
+    if (alreadyKey.length > 0 && alreadyKey[alreadyKey.length - 1] == '/') alreadyKey = alreadyKey.substring(0, alreadyKey.length - 1);
+    if (already[alreadyKey] != undefined) continue;
+    already[alreadyKey] = 1;
 
     // Begin disclosure box, if needed...
     count++;
@@ -151,8 +168,21 @@ function renderTypeValueList(title, objectType, list, options)
       }
       
       if (!options.useHistoryTitles) {
+        let theURI = IO_SERVICE.newURI(item.value, null, null);
+        let title = HISTORY_SERVICE.getPageTitle(theURI);
+        if (title && title.length > 0 && title[0] != '/') {
+          link.appendChild(document.createTextNode(title));        
+        } else {
+          link.appendChild(document.createTextNode(value));        
+        }
+        
+        /*
         let query = HISTORY_SERVICE.getNewQuery();
         let options = HISTORY_SERVICE.getNewQueryOptions();
+        options.sortingMode = options.SORT_BY_DATE_DESCENDING;
+        // options.resultType = options.RESULTS_AS_FULL_VISIT; not implemented, see bug 320831.
+        // Note that this bug blocks us from properly following redirects to get the title.
+        
         let queryURI = IO_SERVICE.newURI(item.value, null, null);
         query.uri = queryURI;
 
@@ -165,7 +195,7 @@ function renderTypeValueList(title, objectType, list, options)
           link.appendChild(document.createTextNode(node.title));        
         } else {
           link.appendChild(document.createTextNode(value));        
-        }
+        }*/
       }
       else
       {
@@ -257,6 +287,7 @@ function revealOverflow(objectType)
   
 }
 
+let gPersistDiscovery = false;
 function initPerson(container, identifier)
 {
   gContainer = container;
@@ -277,12 +308,13 @@ function initPerson(container, identifier)
     gDocuments = {input:input};
     gPerson = new Person({documents:gDocuments});
   }
+  if (gPerson.guid) gPersistDiscovery = true;
+  gPerson.services = gPerson.constructServices();
   renderPerson();
   
   window.setTimeout('startDiscovery()', 3000);
 }
 
-let gPersistDiscovery = true;
 function startDiscovery() 
 {
   gDiscoveryCoordinator = new DiscoveryCoordinator(gPerson, gPersistDiscovery, renderPerson, renderProgressIndicator, renderPerson);
@@ -373,7 +405,9 @@ function renderProgressIndicator()
 function renderPerson()
 {  
   try {
-    var personBox = createDiv("person");
+    gPerson.services = gPerson.constructServices();
+  
+    var personBox = createDiv("person vcard contact");
     personBox.setAttribute("id", "person");
     renderProgressIndicator();
     
@@ -423,10 +457,24 @@ function renderContactCard(personBox)
 
   var dN = gPerson.getProperty("displayName");
   if (dN) {
-    var displayNameDiv = createDiv("displayName");
+    var displayNameDiv = createDiv("displayName fn");
     displayNameDiv.appendChild(document.createTextNode(dN));
     personBox.appendChild(displayNameDiv);
     document.title = dN;
+
+    var orgs = gPerson.getProperty("organizations");
+    if (orgs && orgs.length > 0) {
+      var orgDiv = createDiv("org");
+      var org = orgs[0];
+      if (org.title) {
+        orgDiv.appendChild(createSpan("title", org.title));
+        if (org.name) orgDiv.appendChild(document.createTextNode(", "));
+      }
+      if (org.name) {
+        orgDiv.appendChild(createSpan("summary", org.name)); 
+      }
+      displayNameDiv.appendChild(orgDiv);
+    }
   }
   
   renderContactMethods(gPerson, personBox);
@@ -487,6 +535,8 @@ function renderContactMethods(person, personBox)
         val += item.country;
         val += " ";
       }
+      // remove dupes from locations
+      if (locations && locations.some(function(e) {return (e.value == val.trim());})) return null;
       if (val.length == 0 && item.value) return item.value;
       return val;
      }, linkToURL:"http://maps.google.com/maps?q="}));
@@ -521,7 +571,9 @@ function renderContentLinks(person, personBox)
     urls = selectTopLevelUrls(urls);
     any = true;
     contentBox.appendChild(renderTypeValueList("Links", "url", urls, 
-      {includeFavicon:true, linkify:true, hideLongList:true, skipTypeList:["data"]}
+      {includeFavicon:true, linkify:true, hideLongList:false, skipTypeList:["data"],
+       skipPathSubstringList:["/friend", "/contacts"]
+      }
     ));
   }
   var notes = person.getProperty("notes");
@@ -530,6 +582,7 @@ function renderContentLinks(person, personBox)
     contentBox.appendChild(renderTypeValueList("Notes", "note", notes));
   }
   
+  /*
   // Construct sorted union of all feed items...
   var allUpdates = [];
   for each (var u in urls)
@@ -652,6 +705,7 @@ function renderContentLinks(person, personBox)
     }
     contentBox.appendChild(itemsDiv);
   }
+  */
 
   if (any) {
     personBox.appendChild(contentBox);
@@ -661,8 +715,38 @@ function renderContentLinks(person, personBox)
 
 function renderServiceLinks(person, personBox)
 {
+  var serviceBox = createDiv("services");
+  var any = false;
+
+  var heading = createDiv("subsecHead");
+  heading.appendChild(document.createTextNode("Services:"));
+  serviceBox.appendChild(heading);
+
+  for (let k in person.services)
+  {
+    let aService = createDiv("service");
+
+    let link = createElem("a");
+    link.appendChild(document.createTextNode(k));
+    link.setAttribute("onclick", "invokeService(\"" + k + "\")");
+    //link.setAttribute("href", "#");
+
+    let container = createDiv("service_render_area");
+    container.setAttribute("id", "service_render_" + k);
+
+    aService.appendChild(link);
+    aService.appendChild(container);
+
+    serviceBox.appendChild(aService);
+  }
+  personBox.appendChild(serviceBox);
 }
 
+function invokeService(svc) {
+  let ui = PersonServiceFactory.getServiceDefaultUI(svc);
+  dump("Invoking service " + svc + "\n");
+  ui(gPerson, document.getElementById("service_render_" + svc));
+}
 
 function formatDate(dateStr)
 {

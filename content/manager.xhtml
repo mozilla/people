@@ -96,6 +96,12 @@ function deleteAll()
   displayServices();  
 }
 
+function deleteDiscovered()
+{
+  People.removeDiscoveryData();
+  navigator.people.find( {}, null, PeopleManager.loadComplete);
+}
+
 function exportVCard()
 {
   PeopleManager.exportVCard();
@@ -239,9 +245,12 @@ function renderServices()
     }
   }
 
+  let enabledDiscoverers = PeopleImporter.getEnabledDiscoverers();
   for (let d in discoverers) {
     try {
       let discoverer = PeopleImporter.getDiscoverer(d);
+      let enabled = (enabledDiscoverers[d] == true);
+      
       let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
       svcDiv.setAttribute("class", "discovererbadge");
       let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
@@ -251,6 +260,7 @@ function renderServices()
       let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
       svcLabel.setAttribute("class", "discovererlabel");
       svcLabel.appendChild(document.createTextNode(discoverer.displayName));
+      svcLabel.appendChild(document.createTextNode(enabled ? " Enabled": " Disabled"));
       svcDiv.appendChild(svcLabel);
 
       let desc = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
@@ -369,7 +379,10 @@ Remove all contacts (you can import them again)
 Export contacts for use in another program
 </p>
 
-
+<p>
+<div style="float:right"><input type="submit" onclick="javascript:deleteDiscovered()" value="Delete Found Data"/></div>
+Delete saved data that was found about contacts using the Finders.
+</p>
 
 </div>
 

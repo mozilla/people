@@ -53,8 +53,6 @@ Cu.import("resource://people/modules/import.js");
 Cu.import("resource://people/modules/oauthbase.js");
 let IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
 
-let Prefs = new Preferences("extensions.mozillalabs.contacts.importers.facebook.");
-
 let COMPLETION_URI = "http://mozillalabs.com/contacts/__signincomplete";
 
 var MozillaLabsContactsAPIKey = "873bb1ddcc201222004c053a25d07d12";
@@ -64,7 +62,7 @@ var MozillaLabsContactsApplicationID = "110879292285085";
 var gLogger = Log4Moz.repository.getLogger("People.FacebookImporter");
 
 var gAuthParams = {
-	'scope': 'friends_birthday,friends_online_presence,friends_photos,friends_website',
+	'scope': 'friends_birthday,friends_online_presence,friends_photos,friends_photo_video_tags,friends_website',
 	'type': "user_agent",
 	'display': "popup"
 	};
@@ -282,7 +280,16 @@ FacebookDiscoverer.prototype = {
                 if (site.indexOf("http://") != 0) {
                   site = "http://" + site;
                 }
-                newPerson.urls.push({type:"URL", value:site})
+                
+                let label = "URL";
+                try {
+                  let parsedURI = IO_SERVICE.newURI(site, null, null);
+                  let host = parsedURI.host;
+                  if (host.indexOf("www.") == 0) host = host.substring(4);
+                  label = host;
+                } catch (e) {
+                }
+                newPerson.urls.push({type:label, value:site})
               }
             }
           }
@@ -316,5 +323,145 @@ FacebookDiscoverer.prototype = {
   }
 }
 
+
+function FacebookGraphLoader() {
+
+}
+
+FacebookGraphLoader.prototype = 
+{
+  startFacebookGraphLoad : function startFacebookGraphLoad(objectID, connectionLabel, callback) {
+    try {
+      let self = this;
+      function facebookGraphLoad(svc) {
+        self.createFacebookGraphHandler(svc, objectID, connectionLabel, callback);
+      }
+      this.oauthHandler = OAuthConsumer.authorize('facebook',
+        MozillaLabsContactsApplicationID,
+        MozillaLabsContactsApplicationSecret,
+        COMPLETION_URI,
+        facebookGraphLoad,
+        gAuthParams,
+        "contacts@labs.mozilla.com");
+    } catch (e) {
+    }
+  },
+
+  createFacebookGraphHandler: function(svc, objectID, connectionLabel, callback) {
+    let call = {
+      action: "https://graph.facebook.com/" + objectID + "/" + connectionLabel,
+      method: "GET",
+      parameters: {}
+    }
+    let self = this;
+    OAuthConsumer.call(svc, call, function FacebookDiscovererCallHandler(req) {
+      self.handleResponse(req, objectID, callback);
+    });
+  },
+  
+  handleResponse: function(req, objectID, callback) {
+    if (req.readyState != 4) {
+        this._log.debug("Request response not handled, state "+req.readyState);
+        return;
+    }
+    dump("Got Facebook response - " + req.responseText.length + " bytes\n");
+    if (req.status == 401) {
+      this._log.info("Received 401 error while accessing Facebook; renewing access token");
+      this.oauthHandler.reauthorize();
+    } else if (req.status == 200) {
+      let response = JSON.parse(req.responseText);
+      callback(response.data);
+    }
+  }
+};
+
+// Note that we do not include the account ID with these service bundles.
+// That means that we will explicitly only identify one facebook account
+// per person.  If the person has more than one, the first one wins. 
+// This is currently believed to be a better user experience than including
+// two different facebook IDs which are actually the same person.
+
+function constructFacebookPicturesOfService(account) {
+  return {
+    identifier: "facebook:picturesOf",
+    methodName: "picturesOf",
+    method: function(callback) {
+      let fb = new FacebookGraphLoader();
+      let id = (account.username ? account.username : account.userid);
+      fb.startFacebookGraphLoad(id, "photos", function(result) {
+        // normalize to standard photo API
+        for each (let photo in result) {
+          photo.photoThumbnailURL = photo.picture;
+          photo.name = photo.title;
+          photo.homeURL = photo.link;          
+        }
+        callback(result);
+      });
+    }
+  };
+}
+
+function constructFacebookPicturesByService(account) {
+  return {
+    identifier: "facebook:pictureCollectionsBy", 
+    methodName: "pictureCollectionsBy",
+    method: function(callback) {
+      let fb = new FacebookGraphLoader();
+      let id = (account.username ? account.username : account.userid);
+      fb.startFacebookGraphLoad(id, "albums", function(result) {
+        // Decorate result set with getPhotos method
+        for each (let coll in result) {
+          let theID = coll.id;
+          coll.getPhotos = function(getPhotoCallback) {
+            new FacebookGraphLoader().startFacebookGraphLoad(theID, "photos", getPhotoCallback);
+          };
+          coll.primaryPhotoURL = coll.link;
+
+          // no easy way to get the primary photo thumbnail, unfortunately
+          // coll.primaryPhotoThumbnailURL = 
+          coll.homeURL = coll.link;
+          
+        }
+        callback(result);
+      });
+    }
+  };
+}
+
+function constructFacebookUpdatesService(account) {
+  return {
+    identifier: "facebook:updates",
+    methodName: "updates",
+    method: function(callback) {
+      let fb = new FacebookGraphLoader();
+      let id = (account.username ? account.username : account.userid);
+      fb.startFacebookGraphLoad(id, "feed", function(result) {
+        // normalize to standard updates API
+        let output = [];
+        for each (let update in result) {
+          if (update.from.id == id) {
+            output.push(update);
+            if (update.message) {
+              update.text = update.message;
+            } else if (update.caption) {
+              update.text = update.caption;            
+            } else if (update.name) {
+              update.text = update.name;
+            }
+            update.source = "Facebook";
+            update.sourceLink = "http://www.facebook.com/" + (account.username ? account.username : ("profile.php?id=" + account.userid));
+            update.time = new Date(update.created_time.replace("+0000", "Z"));
+          }
+        }
+        callback(output);
+      });
+    }
+  };
+}
+
+
 PeopleImporter.registerDiscoverer(FacebookDiscoverer);
 PeopleImporter.registerBackend(FacebookImporter);
+PersonServiceFactory.registerAccountService("facebook.com", constructFacebookPicturesOfService);
+PersonServiceFactory.registerAccountService("facebook.com", constructFacebookPicturesByService);
+PersonServiceFactory.registerAccountService("facebook.com", constructFacebookUpdatesService);

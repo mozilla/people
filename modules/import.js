@@ -47,10 +47,14 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/ext/md5.js");
 Cu.import("resource://people/modules/people.js");
 
+let PREF_SERVICES = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefService);
+let Prefs = PREF_SERVICES.getBranch("extensions.mozillalabs.contacts.");
+
 function PeopleImporterSvc() {
   this._backends = {};
   this._liveBackends = {};
   this._discoverers = {};
+  this._discoverersEnabled = {};
   this._liveDiscoverers = {};
   this._log = Log4Moz.repository.getLogger("People.Importer");
   this._log.debug("Importer service initialized");
@@ -61,8 +65,12 @@ PeopleImporterSvc.prototype = {
       this._liveBackends[name] = new this._backends[name]();
     return this._liveBackends[name];
   },
+  isBackend: function ImporterSvc_isBackend(name) {
+    if (this._liveBackends[name]) return true;
+    return false;
+  },  
   registerBackend: function ImporterSvc_register(backend) {
-    this._log.debug("Registering importer backend for " + backend.prototype.name);
+    // this._log.debug("Registering importer backend for " + backend.prototype.name);
     this._backends[backend.prototype.name] = backend;
   },
 	getBackends: function ImporterSvc_getBackends() {
@@ -74,12 +82,52 @@ PeopleImporterSvc.prototype = {
       this._liveDiscoverers[name] = new this._discoverers[name]();
     return this._liveDiscoverers[name];
   },
-  registerDiscoverer: function ImporterSvc_registerDiscoverer(disco) {
-    this._log.debug("Registering discoverer for " + disco.prototype.name);
+  registerDiscoverer: function ImporterSvc_registerDiscoverer(disco, defaultEnabled) {
+    // this._log.debug("Registering discoverer for " + disco.prototype.name);
+
+    if (defaultEnabled == null || defaultEnabled == undefined) defaultEnabled = true;
+    let enabled = defaultEnabled;
+    let enabledDiscoverers = null;
+    try {
+      enabledDiscoverers = Prefs.getCharPref("discoverersenabled");
+    } catch (e) {}
+
+    if (enabledDiscoverers) {
+      let list = enabledDiscoverers.split(",");
+      if (list.indexOf(disco.prototype.name) >= 0) enabled = true;
+      else enabled = false;
+    }
     this._discoverers[disco.prototype.name] = disco;
+    this._discoverersEnabled[disco.prototype.name] = enabled;
+  },
+  setDiscovererEnabled: function ImporterSvc_setDiscovererEnabled(name, value) 
+  {
+    let enabledDiscoverers = null;
+    try {
+      enabledDiscoverers = Prefs.getCharPref("discoverersenabled");
+    } catch (e) {}
+    
+    if (value) {
+      if (!enabledDiscoverers) enabledDiscoverers = name;
+      else {
+        let list = enabledDiscoverers.split(",");
+        if (list.indexOf(disco.prototype.name) < 0) enabledDiscoverers += "," + name;
+      }
+      Prefs.setCharPref("discoverersenabled", enabledDiscoverers);
+    } else {
+      if (enabledDiscoverers) {
+        let list = enabledDiscoverers.split(",");
+        let result = enabledDiscoverers.filter(function (e) {return (e != name)});
+        Prefs.setCharPref("discoverersenabled", result);
+      }
+    }
+    this._discoverersEnabled[name] = value;
   },
 	getDiscoverers: function ImporterSvc_getDiscoverers() {
 		return this._discoverers;
+	},
+	getEnabledDiscoverers: function ImporterSvc_getEnabledDiscoverers() {
+		return this._discoverersEnabled;
 	},
   
   getService: function getService(name) {
@@ -211,9 +259,9 @@ Cu.import("resource://people/modules/importers/twitter.js");
 Cu.import("resource://people/modules/importers/yahoo.js");
 
 Cu.import("resource://people/modules/importers/webfinger.js");
-Cu.import("resource://people/modules/importers/googleSocialGraph.js");
+//Cu.import("resource://people/modules/importers/googleSocialGraph.js");
 Cu.import("resource://people/modules/importers/gravatar.js");
 Cu.import("resource://people/modules/importers/flickr.js");
-Cu.import("resource://people/modules/importers/yelp.js");
+//Cu.import("resource://people/modules/importers/yelp.js");
 Cu.import("resource://people/modules/importers/hcard.js");
-Cu.import("resource://people/modules/importers/amazon.js");
+// Cu.import("resource://people/modules/importers/amazon.js");

@@ -70,20 +70,6 @@ function toggleRemember()
 	remember.value = document.getElementById('remember').checked;
 }
 
-function toggleGroup(tagID)
-{
-  let grp = document.getElementById('group-' + tagID);
-  let grpTag = tagIDMap[tagID];
-  if (selectedGroups[grpTag]) {
-    selectedGroups[grpTag] = false;
-    grp.setAttribute("class", "groupUnselected");
-  } else {
-    selectedGroups[grpTag] = true;
-    grp.setAttribute("class", "groupSelected");  
-  }
-}
-
-
 function appendNameValueBlock(container, name, value)
 // Note that the name and value are not HTML-escaped prior to insertion into the DOM.
 {
@@ -140,12 +126,14 @@ function constructTagMap(peopleStore) {
     tagIDMap[count] = tag;
     count += 1;
   }
+  tagIDMap["___all___"] = "___all___";
 }
 
 
 let PeopleDisclosure = {
   onLoad: function() {
-		result = People.find({});
+    result = window.top.arguments ? window.top.arguments[0].peopleList : {};
+		//result = People.find({});
 		PeopleDisclosure.onResult(result);
   },
 
@@ -182,24 +170,6 @@ let PeopleDisclosure = {
 			else {
 				document.getElementById("message").innerHTML = "";
 
-        // sort people...
-				peopleStore.sort(function(a,b) {
-					if (a.familyName && b.familyName) {
-						var ret= a.familyName.localeCompare(b.familyName);
-						if (ret == 0) {
-							return a.givenName.localeCompare(b.givenName);
-						} else {
-							return ret;
-						}
-					} else if (a.familyName) {
-						return -1;
-					} else if (b.familyName) {
-						return 1;
-					} else {
-						return a.displayName.localeCompare(b.displayName);
-					}
-				});
-
         // Start with groups
         if (tagArray.length > 0) {
           let count = 1;
@@ -234,6 +204,7 @@ let PeopleDisclosure = {
         
         let allGroup = createDiv("group");
         let checkbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+        allGroup.setAttribute("id", "group-___all___");
         checkbox.setAttribute("type", "checkbox");
         checkbox.setAttribute("name", "___all___");
         checkbox.setAttribute("class", "disclosureCheckbox");
@@ -241,17 +212,32 @@ let PeopleDisclosure = {
         if (selectedGroups["___all___"]) checkbox.setAttribute("checked", "true");
         allGroup.appendChild(checkbox);
         allGroup.appendChild(document.createTextNode("All"));
+        
         let groupText = createDiv("groupText");
         groupText.appendChild(document.createTextNode(" (" + peopleStore.length + ")"));
         allGroup.appendChild(groupText);
         allGroup.setAttribute("class", "groupUnselected");
-        allGroup.setAttribute("onclick", "toggleGroup('all')");
+        allGroup.setAttribute("onclick", "toggleGroup('___all___')");
         results.appendChild(allGroup);
         
       }
     }
   }
 };
+
+function toggleGroup(tagID)
+{
+  let grp = document.getElementById('group-' + tagID);
+  let grpTag = tagIDMap[tagID];
+  if (selectedGroups[grpTag]) {
+    selectedGroups[grpTag] = false;
+    grp.setAttribute("class", "groupUnselected");
+  } else {
+    selectedGroups[grpTag] = true;
+    grp.setAttribute("class", "groupSelected");  
+  }
+}
+
 
 
 function htmlescape(html) {

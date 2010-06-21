@@ -47,12 +47,18 @@ Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
 Cu.import("resource://people/modules/oauthbase.js");
+Cu.import("resource://oauthorizer/modules/oauthconsumer.js");
 let IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
 
 function TwitterAddressBookImporter() {
   this._log = Log4Moz.repository.getLogger("People.TwitterAddressBookImporter");
   this._log.debug("Initializing importer backend for " + this.displayName);
 };
+
+let TwitterApplicationID = "lppkBgcpuhe2TKZIRVoQg";
+let TwitterApplicationSecret = "M6hwPkgEyqxkDz583LFYAv5dTVg1AsKIXHFPiIFhsM";
+let CompletionURI= "http://oauthcallback.local/access.xhtml";
+
 
 TwitterAddressBookImporter.prototype = {
   __proto__: OAuthBaseImporter.prototype,
@@ -64,9 +70,9 @@ TwitterAddressBookImporter.prototype = {
   progressCallback: null,
   oauthHandler: null,
   authParams: null,
-  consumerToken: "lppkBgcpuhe2TKZIRVoQg",
-  consumerSecret: "M6hwPkgEyqxkDz583LFYAv5dTVg1AsKIXHFPiIFhsM",
-  redirectURL: "http://oauthcallback.local/access.xhtml",
+  consumerToken: TwitterApplicationID,
+  consumerSecret: TwitterApplicationSecret,
+  redirectURL: CompletionURI,
 	cursor: -1,
   get message() {
 		return {
@@ -152,4 +158,218 @@ TwitterAddressBookImporter.prototype = {
 	}
 }
 
+
+function TwitterOAuthLoader() {
+
+}
+
+TwitterOAuthLoader.prototype = 
+{
+  startTwitterLoad : function startTwitterLoad(uri, callback) {
+    try {
+      let self = this;
+      function twitterLoad(svc) {
+        self.createTwitterHandler(svc, uri, callback);
+      }
+      this.oauthHandler = OAuthConsumer.authorize('twitter',
+        TwitterApplicationID,
+        TwitterApplicationSecret,
+        CompletionURI,
+        twitterLoad,
+        null,
+        "contacts@labs.mozilla.com");
+    } catch (e) {
+      People._log.error("Twitter error " + e);
+    }
+  },
+
+  createTwitterHandler: function(svc, uri, callback) {
+    let call = {
+      action: uri,
+      method: "GET",
+      parameters: {}
+    }
+    let self = this;
+    OAuthConsumer.call(svc, call, function TwitterOAuthCallHandler(req) {
+      self.handleResponse(req, callback);
+    });
+  },
+  
+  handleResponse: function(req, callback) {
+    if (req.readyState != 4) {
+        this._log.debug("Request response not handled, state "+req.readyState);
+        return;
+    }
+    dump("Got Twitter OAuth response - " + req.responseText.length + " bytes\n");
+    if (req.status == 401) {
+      this._log.info("Received 401 error while accessing Twitter; renewing access token");
+      this.oauthHandler.reauthorize();
+    } else if (req.status == 200) {
+      People._log.debug("Twitter got response " + req.responseText + "\n");
+
+      callback(req.responseText);
+    }
+  }
+};
+
+
+
+function constructTwitterUpdatesService(account) {
+  return {
+    identifier: "twitter:updates:" + account.username,
+    methodName: "updates",
+    method: function(callback) {
+    
+      People._log.debug("Invoking twitter updates");
+      let fb = new TwitterOAuthLoader();
+      let uri = "http://twitter.com/statuses/user_timeline/" + account.username + ".rss";
+
+      fb.startTwitterLoad(uri, function(result) {
+        let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
+        try {
+          parser.listener = {
+
+            handleResult: function(result) {
+              var feed = result.doc;
+              feed.QueryInterface(Components.interfaces.nsIFeed);
+              let updates = [];
+              for (i=0; i<feed.items.length; i++) {
+                try {
+                  let update = {};
+                  var theEntry = feed.items.queryElementAt(i, Components.interfaces.nsIFeedEntry);
+                  var date = theEntry.updated ? theEntry.updated : (theEntry.published ? theEntry.published : null);
+                  if (date) {
+                    update.time = new Date(date);
+                  }
+                  update.text = theEntry.title.plainText();
+                  update.source = "Twitter";
+                  update.sourceLink = "http://twitter.com/" + account.username;
+                  updates.push(update);
+                } catch (e) {
+                  dump(e + "\n");
+                }
+              }
+              callback(updates);
+            }
+          };
+          parser.parseFromString(result, IO_SERVICE.newURI(uri, null, null));
+        } catch (e) {
+          People._log.error("twitter error: " + e);
+        }
+    });
+    }
+  };
+}
+
+
+/* A twitter URL will work, barely, with normal feed discovery logic.  But this
+* means that a) we can't send to the user, and b) we can't do authenticated
+* requests, which means we get throttled.
+*
+* So we look at every URL to see if it's a twitter URL, and if it is,
+* we pull the username out of it.
+*/
+function TwitterAccountDiscoverer() {
+  this._log = Log4Moz.repository.getLogger("People.TwitterAccountDiscoverer");
+  this._log.debug("Initializing importer backend for " + this.displayName);
+};
+
+TwitterAccountDiscoverer.prototype = {
+  __proto__: DiscovererBackend.prototype,
+  get name() "Twitter",
+  get displayName() "Twitter Account",
+	get iconURL() "",
+  get description() "Extracts twitter account names from twitter.com URLs.",
+
+  discover: function TwitterAccountDiscoverer(forPerson, completionCallback, progressFunction) {
+    for each (let url in forPerson.getProperty("urls")) {
+      let discoveryToken = "Twitter:" + url.value;
+      let re = RegExp("http(s)?://(www\\.)?twitter.com/(.*)", "gi"); 
+      let result = re.exec(url.value);
+      if (result) {
+        try {
+          progressFunction({initiate:discoveryToken, msg:"Analyzing twitter URL"});
+          let username = result[3];
+          if (username) {
+            let newPerson = {accounts:[{domain:"twitter.com", username:username}]};
+            completionCallback(newPerson, discoveryToken);
+          }
+        } catch (e) {
+          // consume all exceptions silently; this includes duplicates
+          completionCallback(null, discoveryToken);
+        }
+      }
+    }
+  }
+};
+
+/*
+function constructTwitterUpdatesService(account) {
+  return {
+    identifier: "twitter:updates:" + account.username,
+    methodName: "updates",
+    method: function(callback) {
+    
+      dump("Doing twitter update\n");
+    
+      try {
+      let url = "http://twitter.com/statuses/user_timeline/" + account.username + ".rss";
+      dump("twitter url " + url + "\n");
+      let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);  
+      dump("twitter made xhr\n");
+      xhr.open('GET', url, true);
+      dump("twitter did open\n");
+      xhr.onreadystatechange = function(aEvt) {
+        if (xhr.readyState == 4) {
+          if (xhr.status == 200) {
+            dump("Got twitter update\n");
+            let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
+            try {
+              parser.listener = {
+              
+                handleResult: function(result) {
+                  var feed = result.doc;
+                  feed.QueryInterface(Components.interfaces.nsIFeed);
+                  let updates = [];
+                  for (i=0; i<feed.items.length; i++) {
+                    try {
+                      let update = {};
+                      var theEntry = feed.items.queryElementAt(i, Components.interfaces.nsIFeedEntry);
+                      var date = theEntry.updated ? theEntry.updated : (theEntry.published ? theEntry.published : null);
+                      if (date) {
+                        update.time = new Date(date);
+                      }
+                      update.text = theEntry.title.plainText();
+                      update.source = "Twitter";
+                      update.sourceLink = "http://twitter.com/" + account.username;
+                      updates.push(update);
+                    } catch (e) {
+                      dump(e + "\n");
+                    }
+                  }
+                  callback(updates);
+                }
+              };
+              parser.parseFromString(xhr.responseText, IO_SERVICE.newURI(url, null, null));
+            } catch (e) {
+              dump("twitter error: " + e + "\n");
+            }
+          }
+        }
+      };
+      dump("twitter set readyStateChange\n");
+      
+      xhr.send(null);
+      dump("twitter did send\n");
+      } catch (e) {
+        dump(e + "\n");
+        dump(e.stack + "\n");
+      }
+    }
+  };
+}
+*/
+
 PeopleImporter.registerBackend(TwitterAddressBookImporter);
+PeopleImporter.registerDiscoverer(TwitterAccountDiscoverer);
+PersonServiceFactory.registerAccountService("twitter.com", constructTwitterUpdatesService);

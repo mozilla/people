@@ -183,6 +183,9 @@ let PeopleInjector = {
 					people = People.find(attrs);
 					let groupList = null;
 					let permissions = People.getSitePermissions(uri.spec);
+
+          // TODO: If the site has asked for a new field permission,
+          // ask the user again (but this could get annoying, hm)
           
 					if (permissions == null)
 					{
@@ -224,6 +227,10 @@ let PeopleInjector = {
 								permissionManager.add(uri, "people-find",
 																			Ci.nsIPermissionManager.ALLOW_ACTION);
 							}
+
+              // TODO: Checkbox to allow "just once"
+              People.setSessionSitePermissions(uri.spec, allowedFields, groupList);
+
 						} else {
 							// user cancelled
 							return onDeny();
@@ -275,6 +282,10 @@ let PeopleInjector = {
                   newPerson[f] = value;
                 }
               }
+              
+              // And if we need to attach services do that now
+              newPerson.services = p.constructServices();
+              
 							outputSet.push(newPerson);
 						}
 					}
@@ -358,16 +369,27 @@ let PeopleInjector = {
         return;
       }
 
-      switch(permissionManager.testPermission(uri, "people-find")) {
-        case Ci.nsIPermissionManager.ALLOW_ACTION:
-          onAllow();
-          return;
-        case Ci.nsIPermissionManager.DENY_ACTION:
-          onDeny();
-          return;
-        case Ci.nsIPermissionManager.UNKNOWN_ACTION:
-        default:
-          // fall through to the rest of the function.
+
+      // TODO HACK: To support session permissions,
+      // check sitePermissions here
+      let permissions = People.getSitePermissions(uri.spec);
+      if (permissions) {
+        onAllow();
+        return;
+      }
+      else
+      {
+        switch(permissionManager.testPermission(uri, "people-find")) {
+          case Ci.nsIPermissionManager.ALLOW_ACTION:
+            onAllow();
+            return;
+          case Ci.nsIPermissionManager.DENY_ACTION:
+            onDeny();
+            return;
+          case Ci.nsIPermissionManager.UNKNOWN_ACTION:
+          default:
+            // fall through to the rest of the function.
+        }
       }
 
       function getNotificationBox() {

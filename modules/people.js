@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let EXPORTED_SYMBOLS = ["People", "Person", "DiscoveryCoordinator"];
+let EXPORTED_SYMBOLS = ["People", "Person", "DiscoveryCoordinator", "PersonServiceFactory"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -50,6 +50,7 @@ Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/ext/Observers.js");
 
+
 // If Activities is present, we will use it.
 try {
   Cu.import("resource://activities/modules/activities.js");
@@ -57,15 +58,14 @@ try {
 }
 
 var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
 
 function PeopleService() {
   this._initLogs();
   this._dbStmts = [];
   this._dbInit();
   this._log.info("People store initialized");
-  
-  this.findDupTime = 0;
-  this.addTime = 0;
+  this._sessionPermissions = {};  
 }
 PeopleService.prototype = {
 
@@ -839,17 +839,24 @@ PeopleService.prototype = {
     }
 
     // Post-process to do the find on non-indexed fields
-    for (let [attr, val] in Iterator(attrs)) {
+    for (let attr in attrs) {
       if (attr == "guid" || this._dbSchema.index_tables.indexOf(attr) != -1)
         continue;
-			
-			let matchSet = []
-			for (let obj in result) {
+      let val = attrs[attr];
 
-        //////// TODO: Need to traverse all documents here
-				if (obj.attr == val) {
-					matchSet.push(obj);
-				}
+			let matchSet = []
+			for each (let obj in result) {
+        try {
+          let parsed = JSON.parse(obj);
+          for each (let d in parsed.documents) {
+            if (d && d[attr] && d[attr] == val) {
+              matchSet.push(obj);
+              break;
+            }
+          }
+        } catch (e) {
+          // silent fail on malformed records right now
+        }
 			}
 			result = matchSet;
     }
@@ -1041,6 +1048,34 @@ PeopleService.prototype = {
     this.deleteServiceMetadata(svcName);
 	},
 
+  removeDiscoveryData: function () {
+    let allPeople = this.find();
+    for each (let p in allPeople) {
+      let any = false;
+      for (let key in p.obj.documents) {
+        if (!PeopleImporter.isBackend(key))
+        {
+          this._log.debug("Removing " + key + " data from " + p.guid);
+          delete p.obj.documents[key];
+          any = true;
+        }
+      }
+      if (any)
+      {
+        var count=0;
+        for (var i in p.obj.documents) count++;
+        if (count > 0) {
+          this._log.debug("Removing found data from " + p.guid + "; updating");
+          this._update(p.obj);
+          this._updateIndexed(p.guid, p);
+        } else {
+          this._log.debug("Removed all data from " + p.guid + "; deleting object");
+          this.removeGUIDs([p.guid]);
+        }
+      }
+    }
+	},
+
   markServiceRefreshTimestamp : function markServiceRefreshTimestamp(svcName) {
     try {
       let params = {
@@ -1155,12 +1190,23 @@ PeopleService.prototype = {
     return null;
 	},
 	
+  setSessionSitePermissions: function(site, fields, groups) {
+    this._sessionPermissions[site] = {
+      fields:fields, groups:groups
+    };
+  },
+  
   /** Given a URL, return an object with 'fields' and 'groups'
    * properties, which are both lists of strings. */
 	getSitePermissions: function getSitePermissions(site) {
 		let stmt = null;
     let result = null;
 		try {
+      // First check session permissions:
+      if (this._sessionPermissions[site])
+      {
+        return this._sessionPermissions[site];
+      }
 
 			let query = "SELECT fields,groups FROM site_permissions WHERE url = :url";
 
@@ -1256,6 +1302,72 @@ Person.prototype = {
     return currentSet;
   },
 
+  constructServices: function constructServices()
+  {
+    let urls = this.getProperty("urls");
+    
+    // We'll first construct arrays of all the services,
+    // and then, if there's more than one, create multiplexing
+    // wrapper methods for them.
+    let serviceIdentifiersMap = {};
+
+    function addServiceToMap(s) {
+      if (!serviceIdentifiersMap[s.methodName]) serviceIdentifiersMap[s.methodName] = {};
+      if (!serviceIdentifiersMap[s.methodName][s.identifier]) serviceIdentifiersMap[s.methodName][s.identifier] = s;
+    }
+
+    for each (let url in urls)
+    {
+      if (url.rel)
+      {
+        let svc = PersonServiceFactory.constructLinkServices(url);
+        if (svc) {
+          for each (let s in svc) {
+            addServiceToMap(s);
+          }
+        }
+      }
+      else if (url.feed)
+      {
+        addServiceToMap(PersonServiceFactory.constructFeedService(url));
+      }
+    }
+
+    let accounts = this.getProperty("accounts");
+    for each (let account in accounts)
+    {
+      let svc = PersonServiceFactory.constructAccountServices(account);
+      if (svc) {
+        for each (let s in svc) {
+          addServiceToMap(s);
+        }
+      }
+    }
+    
+    // Now flatten it out
+    let services = {};
+    for (let key in serviceIdentifiersMap) {
+      let idMap = serviceIdentifiersMap[key];
+      let count = 0;
+      let s;
+      for (id in idMap) {
+        s = idMap[id];
+        count += 1;
+      }
+      if (count == 1) {
+        services[key] = s.method;
+      } else {
+        services[key] = function() {
+          for each (let s in idMap) {
+            s.method.apply(null, arguments);
+          }
+        }
+      }
+    }
+
+    return services;
+  },
+
   // Internal function: given an array of field-addressible objects,
   // searches for the given property in all of them.
   _searchCollection: function _searchCollection(property, collection, propertyNameContext)
@@ -1303,7 +1415,9 @@ Person.prototype = {
               // different rels.
               if (newObj.value == item.value) {
                 if (newObj.type == item.type) {
-                  if (newObj.rel && newObj['rel'] == item.rel) {
+                  if (newObj.rel && item.rel) {
+                    return (newObj['rel'] == item.rel);
+                  } else {
                     return true;
                   }
                 } else if (newObj.type == "internet") {// gross hack for VCard email
@@ -1326,6 +1440,9 @@ Person.prototype = {
 
           if (equalObjs.length == 0) { // no match, go ahead...
             currentValue.push(newObj);
+          } else {
+            // yes, merge values into equalObjs[0]...
+            this._mergeObject(equalObjs[0], newObj);
           }
         }
       }
@@ -1337,6 +1454,13 @@ Person.prototype = {
     
     // If it's not a list, first one wins.  TODO: Do better than that.
     return currentValue;
+  },
+  
+  _mergeObject: function(to, from) {
+    // existing values win.
+    for (let key in from) {
+      if (!to[key]) to[key] = from[key];
+    }
   },
   
   // If Activities is present, register this user's activity streams with it
@@ -1386,6 +1510,359 @@ function objectEquals(obj1, obj2) {
   }
   return true;
 }
+
+function PersonServiceFactoryService() {
+  this._relTable = {};
+  this._domainTable = {};
+  this._defaultUI = {};
+}
+PersonServiceFactoryService.prototype = {
+  registerLinkService: function register(rel, constructor) {
+    if (this._relTable[rel]) this._relTable[rel].push(constructor);
+    else this._relTable[rel] = [constructor];
+  },
+
+  registerAccountService: function register(domain, constructor) {
+    if (this._domainTable[domain]) this._domainTable[domain].push(constructor);
+    else this._domainTable[domain] = [constructor];
+  },
+
+  registerServiceDefaultUI: function registerServiceDefaultUI(methodName, uiHandler) {
+    this._defaultUI[methodName] = uiHandler;
+  },
+  
+  constructLinkServices: function constructService(urlObject) {
+    // urlObject has 'rel', 'type', and 'value' fields (at least)
+    let constructors = this._relTable[urlObject.rel];
+    if (constructors) {
+      let ret = []
+      for each (let c in constructors) {
+        ret.push(c(urlObject))
+      }
+      return ret;
+    } else {
+      return null;
+    }
+  },
+
+  constructAccountServices: function constructService(acctObject) {
+    // acctObject has 'domain', 'username', and maybe a  'userid' field
+    let constructors = this._domainTable[acctObject.domain];
+    if (constructors) {
+      let ret = []
+      for each (let c in constructors) {
+        ret.push(c(acctObject))
+      }
+      return ret
+    } else {
+      return null;
+    }
+  },
+  
+  // Feeds are a special case since they don't need any per-importer logic.
+  constructFeedService: function constructFeedService(urlObject) {
+    return {
+      identifier: "feed:updates:" + urlObject.feed,
+      methodName: "updates",
+      method: function(callback) {
+        try {
+          let url = urlObject.feed;
+          let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);  
+          xhr.open('GET', url, true);
+          xhr.onreadystatechange = function(aEvt) {
+            if (xhr.readyState == 4) {
+              if (xhr.status == 200) {
+                let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
+
+                let theURI = IO_SERVICE.newURI(urlObject.value, null, null);
+                let pageTitle = HISTORY_SERVICE.getPageTitle(theURI);
+                let title;
+                if (pageTitle && pageTitle.length > 0 && pageTitle[0] != '/') {
+                  title = pageTitle;
+                } else {
+                  title = theURI.spec;
+                }
+
+                try {
+                  parser.listener = {
+                  
+                    handleResult: function(result) {
+                      var feed = result.doc;
+                      feed.QueryInterface(Components.interfaces.nsIFeed);
+                      let updates = [];
+                      for (i=0; i<feed.items.length; i++) {
+                        try {
+                          let update = {};
+                          var theEntry = feed.items.queryElementAt(i, Components.interfaces.nsIFeedEntry);
+                          var date = theEntry.updated ? theEntry.updated : (theEntry.published ? theEntry.published : null);
+                          if (date) {
+                            update.time = new Date(date);
+                          }
+                          update.text = theEntry.title.plainText();
+                          update.source = title;
+                          update.sourceLink = url.value;
+                          if (theEntry.link) update.link = theEntry.link;
+                          updates.push(update);
+                        } catch (e) {
+                          dump(e + "\n");
+                        }
+                      }
+                      callback(updates);
+                    }
+                  };
+                  parser.parseFromString(xhr.responseText, IO_SERVICE.newURI(urlObject.value, null, null));
+                } catch (e) {
+                  dump("feed import error: " + e + "\n");
+                }
+              }
+            }
+          };
+          xhr.send(null);
+        } catch (e) {
+          dump(e + "\n");
+          dump(e.stack + "\n");
+        }
+      }
+    };
+  },
+  
+  getServiceDefaultUI: function getServiceDefaultUI(serviceMethod) {
+    return this._defaultUI[serviceMethod];
+  }
+}
+let PersonServiceFactory = new PersonServiceFactoryService();
+
+
+function constructDataVaultGetService(url) {
+  return {
+    methodName: "getData",
+
+    method: function(dataKey, callback) {
+      let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+      load.open('GET', url.value + "/" + dataKey, false);
+      load.send(null);
+      let response = JSON.parse(load.responseText);
+      callback(response);
+    }
+  };
+}
+
+function constructDataVaultPostService(url) {
+  return {
+    methodName: "addData",
+    method: function(dataKey, data, callback) {
+      let load = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+      load.open('POST', url.value + "/" + dataKey, false);
+      load.send(JSON.stringify(data));
+      callback();
+    }
+  };
+}
+
+PersonServiceFactory.registerLinkService("http://mozillalabs.com/experimental/data_vault_1", constructDataVaultGetService);
+PersonServiceFactory.registerLinkService("http://mozillalabs.com/experimental/data_vault_1", constructDataVaultPostService);
+
+PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(person, container) {
+  container.innerHTML = "";
+  if (person.services.pictureCollectionsBy) {
+    let collectionArray = [];
+    dump("invoking person.services.pictureCollectionsBy\n");
+    person.services.pictureCollectionsBy(function(collections) {
+      collectionArray = collectionArray.concat(collections);
+      container.innerHTML = "";
+      for each (let c in collectionArray)
+      {
+        let d= container.ownerDocument.createElement("div");
+
+        d.setAttribute("class", "picture_collection");
+        d.setAttribute("style", "display: inline-block; width: 180px; text-align: center; vertical-align: top;margin-bottom:6px");
+
+        let link = container.ownerDocument.createElement("a");
+        link.setAttribute("href", c.homeURL);
+        link.setAttribute("target", "_blank");
+        link.setAttribute("style", "color:black; text-decoration:none");
+        d.appendChild(link);
+
+        let thumbnailDiv = container.ownerDocument.createElement("div");
+        thumbnailDiv.setAttribute("style", "height:80px; width: 80px; text-align: center; margin: auto auto 4px; -moz-border-radius: 6px; border: 1px solid #D0D0D0; padding: 6px");
+        let thumbnail = container.ownerDocument.createElement("img");
+
+        if (c.primaryPhotoThumbnailURL) thumbnail.src = c.primaryPhotoThumbnailURL;
+        thumbnail.setAttribute("border", "0");
+        thumbnail.setAttribute("style", "background-color:#E0D8D8;max-width:75px;max-height:75px");
+        thumbnailDiv.appendChild(thumbnail);
+        link.appendChild(thumbnailDiv);
+
+        let nameDiv = container.ownerDocument.createElement("div");
+        nameDiv.appendChild(container.ownerDocument.createTextNode(c.name));
+        link.appendChild(nameDiv);
+        
+        if (c.location) {
+          let locDiv = container.ownerDocument.createElement("div");
+          locDiv.appendChild(container.ownerDocument.createTextNode(c.location));
+          link.appendChild(nameDiv);
+        }
+        container.appendChild(d);
+      }
+    });
+  }
+});
+
+PersonServiceFactory.registerServiceDefaultUI("picturesOf", function(person, container) {
+  container.innerHTML = "";
+  if (person.services.picturesOf) {
+    let pictureArray = [];
+    dump("invoking person.services.picturesOf\n");
+    person.services.picturesOf(function(pictures) {
+      pictureArray = pictureArray.concat(pictures);
+      container.innerHTML = "";
+      for each (let pic in pictureArray)
+      {
+        dump("Got pic: " + JSON.stringify(pic) + "\n");
+      
+        let d= container.ownerDocument.createElement("div");
+
+        d.setAttribute("class", "pictures");
+        d.setAttribute("style", "display: inline-block; width: 180px; text-align: center; vertical-align: top;margin-bottom:6px");
+
+        let link = container.ownerDocument.createElement("a");
+        link.setAttribute("href", pic.homeURL);
+        link.setAttribute("target", "_blank");
+        link.setAttribute("style", "color:black; text-decoration:none");
+        d.appendChild(link);
+
+        let thumbnailDiv = container.ownerDocument.createElement("div");
+        thumbnailDiv.setAttribute("style", "height:80px; width: 80px; text-align: center; margin: auto auto 4px; -moz-border-radius: 6px; border: 1px solid #D0D0D0; padding: 6px");
+        let thumbnail = container.ownerDocument.createElement("img");
+
+        if (pic.photoThumbnailURL) thumbnail.src = pic.photoThumbnailURL;
+        thumbnail.setAttribute("border", "0");
+        thumbnail.setAttribute("style", "background-color:#E0D8D8;max-width:75px;max-height:75px");
+        thumbnailDiv.appendChild(thumbnail);
+        link.appendChild(thumbnailDiv);
+
+        if (pic.name) {
+          let nameDiv = container.ownerDocument.createElement("div");
+          nameDiv.appendChild(container.ownerDocument.createTextNode(pic.name));
+          link.appendChild(nameDiv);
+        }
+        
+        if (pic.location) {
+          let locDiv = container.ownerDocument.createElement("div");
+          locDiv.appendChild(container.ownerDocument.createTextNode(pic.location));
+          link.appendChild(nameDiv);
+        }
+        container.appendChild(d);
+      }
+    });
+  }
+});
+
+
+PersonServiceFactory.registerServiceDefaultUI("updates", function(person, container) {
+  container.innerHTML = "";
+  if (person.services.updates) {
+    let updateArray = [];
+    dump("invoking person.services.updates\n");
+    person.services.updates(function(updates) {
+      updateArray = updateArray.concat(updates);
+      container.innerHTML = "";
+      
+      updateArray.sort(function timeCompare(a,b) {
+        if (a.time && b.time) {
+          return b.time - a.time;
+        } else if (a.time) {
+          return -1;
+        } else if (b.time) {
+          return 1;
+        } else {
+          return a.text.localeCompare(b.text);
+        }
+      });
+      for each (let upd in updateArray)
+      {
+        let d= container.ownerDocument.createElement("div");
+        d.setAttribute("class", "update");
+        d.setAttribute("style", "font:caption;padding-top:4px;padding-bottom:4px;border:1px dotted #E0E0E0;width:90%;");
+
+        if (upd.type == "photo") {
+          let photo = container.ownerDocument.createElement("div");
+          photo.setAttribute("style", "display:inline-block;padding-right:8px");
+          let img = container.ownerDocument.createElement("img");
+          img.setAttribute("src", upd.picture)
+          photo.appendChild(img);
+          d.appendChild(photo);
+        }
+
+        let textDiv = container.ownerDocument.createElement("div");
+        textDiv.setAttribute("style", "display:inline-block; vertical-align:top");
+
+        if (upd.link) {
+          let titleLink = container.ownerDocument.createElement("a");
+          titleLink.setAttribute("href", upd.link.spec);
+          titleLink.setAttribute("target", "_blank");
+          titleLink.setAttribute("style", "color:black;text-decoration:none");
+          titleLink.appendChild(container.ownerDocument.createTextNode(upd.text));
+          textDiv.appendChild(titleLink);
+        } else {  
+          textDiv.appendChild(container.ownerDocument.createTextNode(upd.text));
+        }
+
+        let timestamp = container.ownerDocument.createElement("span");
+        timestamp.setAttribute("style", "padding-left:8px;font:caption;font-size:90%;color:#909090");
+        timestamp.appendChild(container.ownerDocument.createTextNode(formatDate(upd.time)));
+        textDiv.appendChild(timestamp);
+        
+        let src = container.ownerDocument.createElement("span");
+        src.setAttribute("style", "font:caption;font-size:90%;color:#909090");
+        let srcLink = container.ownerDocument.createElement("a");
+        srcLink.setAttribute("href", upd.sourceLink);
+        srcLink.setAttribute("target", "_blank");
+        srcLink.setAttribute("style", "color:#909090");
+        src.appendChild(container.ownerDocument.createTextNode(" from "));
+        srcLink.appendChild(container.ownerDocument.createTextNode(upd.source));
+        src.appendChild(srcLink);
+        
+
+        textDiv.appendChild(src);
+        
+        
+        d.appendChild(textDiv);
+        container.appendChild(d);
+      }
+    });
+  }
+});
+
+function formatDate(dateStr)
+{
+  if (!dateStr) return "null";
+  
+  var now = new Date();
+  var then = new Date(dateStr);
+
+  if (then.getDate() != now.getDate())
+  {
+     var dayDelta = (new Date().getTime() - then.getTime() ) / 1000 / 60 / 60 / 24 // hours
+     if (dayDelta < 2) str = "yesterday";
+     else if (dayDelta < 7) str = Math.floor(dayDelta) + " days ago";
+     else if (dayDelta < 14) str = "last week";
+     else if (dayDelta < 30) str = Math.floor(dayDelta) + " days ago";
+     else str = Math.floor(dayDelta /30)  + " month" + ((dayDelta/30>2)?"s":"") + " ago";
+  } else {
+      var str;
+      var hrs = then.getHours();
+      var mins = then.getMinutes();
+      
+      var hr = Math.floor(Math.floor(hrs) % 12);
+      if (hr == 0) hr =12;
+      var mins = Math.floor(mins);
+      str = hr + ":" + (mins < 10 ? "0" : "") + Math.floor(mins) + " " + (hrs >= 12 ? "P.M." : "A.M.");
+  }
+  return str;
+}
+
+
 
 function DiscoveryCoordinator(person, persist, personUpdatedFn, progressFn, completedFn) {
   this._person = person;
@@ -1470,7 +1947,6 @@ DiscoveryCoordinator.prototype = {
 
                 // Check for a saved discovery: we could potentially put a freshness date on this
                 if (that._person.obj.documents[msg.initiate]) {
-                  People._log.debug("Using cached " + msg.initiate);
                   throw "DuplicatedDiscovery";
                 }
 
