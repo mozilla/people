@@ -55,8 +55,8 @@ function TwitterAddressBookImporter() {
   this._log.debug("Initializing importer backend for " + this.displayName);
 };
 
-let TwitterApplicationID = "lppkBgcpuhe2TKZIRVoQg";
-let TwitterApplicationSecret = "M6hwPkgEyqxkDz583LFYAv5dTVg1AsKIXHFPiIFhsM";
+let TwitterApplicationID = "cc3uj6jfjd1ZzzOojgBQ3Q"; // Lanakai is "lppkBgcpuhe2TKZIRVoQg";
+let TwitterApplicationSecret = "GQOGSaEYqXnmX3QWjWZM4Ays0fSJ9WJmAIozfzxTY"; // Lanakai is "M6hwPkgEyqxkDz583LFYAv5dTVg1AsKIXHFPiIFhsM";
 let CompletionURI= "http://oauthcallback.local/access.xhtml";
 
 
@@ -169,8 +169,11 @@ TwitterOAuthLoader.prototype =
     try {
       let self = this;
       function twitterLoad(svc) {
+        People._log.debug("Twitter OAuth handler invoked twitterLoad");
         self.createTwitterHandler(svc, uri, method, parameters, callback);
       }
+
+      People._log.debug("startTwitterLoad about to call OAuthConsumer.authorize");
       this.oauthHandler = OAuthConsumer.authorize('twitter',
         TwitterApplicationID,
         TwitterApplicationSecret,
@@ -191,9 +194,17 @@ TwitterOAuthLoader.prototype =
       parameters: parameters
     }
     let self = this;
-    OAuthConsumer.call(svc, call, function TwitterOAuthCallHandler(req) {
-      self.handleResponse(req, callback);
-    });
+
+    People._log.debug("createTwitterHandler about to call OAuthConsumer.call");
+    try {
+      OAuthConsumer.call(svc, call, function TwitterOAuthCallHandler(req) {
+        People._log.debug("OAuthConsumer.call invoked callback; got response");
+        self.handleResponse(req, callback);
+      });
+    } catch (e) {
+      People._log.debug("createTwitterHandler error: " + e);
+      People._log.debug("createTwitterHandler error stack: " + e.stack);
+    }
   },
   
   handleResponse: function(req, callback) {
@@ -223,10 +234,10 @@ function constructTwitterUpdatesService(account) {
     method: function(callback) {
     
       People._log.debug("Invoking twitter updates");
-      let fb = new TwitterOAuthLoader();
+      let twitOauth = new TwitterOAuthLoader();
       let uri = "http://twitter.com/statuses/user_timeline/" + account.username + ".rss";
 
-      fb.startTwitterLoad(uri, "GET", null, function(result) {
+      twitOauth.startTwitterLoad(uri, "GET", null, function(result) {
         let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
         try {
           parser.listener = {
@@ -314,10 +325,11 @@ function constructTwitterPrivateMessageToService(account) {
     method: function(text, callback) {
     
       People._log.debug("Invoking twitter sendPrivateMessageTo");
-      let fb = new TwitterOAuthLoader();
+      let twitOauth = new TwitterOAuthLoader();
       let uri = "http://api.twitter.com/1/direct_messages/new.json";
 
-      fb.startTwitterLoad(uri, "POST", {user:account.username, text:escape(text)}, function(result) {
+      People._log.debug("Starting Twitter OAuth for sendPrivateMessage");
+      twitOauth.startTwitterLoad(uri, "POST", {user:account.username, text:text/*escape(text)*/}, function(result) {
         dump("Got sendMessage callback\n");
         callback({status:"ok"});
       });
