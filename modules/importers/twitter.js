@@ -306,10 +306,14 @@ TwitterAccountDiscoverer.prototype = {
           if (username) {
             let newPerson = {accounts:[{domain:"twitter.com", username:username}]};
             completionCallback(newPerson, discoveryToken);
+          } else {
+            completionCallback(null, discoveryToken);
           }
         } catch (e) {
           // consume all exceptions silently; this includes duplicates
-          completionCallback(null, discoveryToken);
+          if (e != "DuplicatedDiscovery") {
+            completionCallback(null, discoveryToken);
+          }
         }
       }
     }
