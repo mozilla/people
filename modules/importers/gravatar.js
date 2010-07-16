@@ -80,6 +80,9 @@ GravatarImageDiscoverer.prototype = {
               if (gravLoad.status == 200) {
                 newPerson= {};
                 newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
+  
+                // and register a link for their profile page, which the HCard importer will pick up...
+                newPerson.urls = [{type:"profile", title:"Gravatar profile for " + checkedEmailValue, value:"http://www.gravatar.com/" + md5}];
                 People._log.info("Checked " + checkedEmailValue + ": found a Gravatar");
               } else {
                 People._log.info("Checked " + checkedEmailValue + ": no Gravatar");
