@@ -159,7 +159,6 @@ let PeopleInjector = {
     let URI = this.URI;
 
     return function(win, attrs, fields, successCallback, failureCallback) {
-
       win = XPCSafeJSObjectWrapper(win);
       attrs = XPCSafeJSObjectWrapper(attrs);
       successCallback = XPCSafeJSObjectWrapper(successCallback);
@@ -174,6 +173,8 @@ let PeopleInjector = {
 				// or automatically because a) they are in a built-in screen,
 				// or b) they've saved the permissions.
 			
+        try {
+        
 				let people = null;
 
 				if (win.location != "chrome://people/content/manager.xhtml" && 
@@ -186,6 +187,15 @@ let PeopleInjector = {
 
           // TODO: If the site has asked for a new field permission,
           // ask the user again (but this could get annoying, hm)
+          if (permissions) {
+            var extendedPermissions = false;
+            for each (f in fields) {
+              if (permissions.fields.indexOf(f) < 0) {
+                extendedPermissions = true;
+              }
+            }
+            if (extendedPermissions) permissions = null;
+          }
           
 					if (permissions == null)
 					{
@@ -267,19 +277,56 @@ let PeopleInjector = {
               
 							let newPerson = {}
 							for each (f in fields) {
-                var value = p.getProperty(f);
-                if (f.indexOf("/") > 0) {
-                  var terms = f.split("/");
-                  var obj = newPerson;
-                  for (var i=0;i<terms.length-1;i++) {
-                    if (!(terms[i] in obj)) {
-                      obj[terms[i]] = {};
+
+                if (f == "idHash")
+                {
+                
+                  try {
+                    var ch = Components.classes["@mozilla.org/security/hash;1"].
+                      createInstance(Components.interfaces.nsICryptoHash);                
+                    var converter = Components.classes["@mozilla.org/intl/scriptableunicodeconverter"].
+                      createInstance(Components.interfaces.nsIScriptableUnicodeConverter);
+                    var emails = p.getProperty("emails");
+                    var hashList = [];
+                    function toHexString(charCode)
+                    {
+                      return ("0" + charCode.toString(16)).slice(-2);
                     }
-                    obj = obj[terms[i]];
+
+                    if (emails) {
+                      for each (var e in emails) {
+                        converter.charset = "UTF-8";
+                        var result = {};
+                        var data = converter.convertToByteArray(e.value, result);
+                        ch.init(ch.MD5);
+                        ch.update(data, data.length);
+                        var hash = ch.finish(false);
+                        var s = [toHexString(hash.charCodeAt(i)) for (i in hash)].join("");                      
+                        hashList.push(s)
+                      }
+                    }
+                    newPerson["idHash"] = hashList;
+                  } catch (e) {
+                    dump("HASH error: " + e + "\n");
+                    dump(e.stack + "\n");
                   }
-                  obj[terms[i]] = value;
-                } else {
-                  newPerson[f] = value;
+                }
+                else
+                {
+                  var value = p.getProperty(f);
+                  if (f.indexOf("/") > 0) {
+                    var terms = f.split("/");
+                    var obj = newPerson;
+                    for (var i=0;i<terms.length-1;i++) {
+                      if (!(terms[i] in obj)) {
+                        obj[terms[i]] = {};
+                      }
+                      obj = obj[terms[i]];
+                    }
+                    obj[terms[i]] = value;
+                  } else {
+                    newPerson[f] = value;
+                  }
                 }
               }
               
@@ -334,6 +381,11 @@ let PeopleInjector = {
           Components.utils.reportError(ex);
         }
 
+
+        } catch (e) {
+          dump(e + "\n");
+          dump(e.stack + "\n");
+        }
       }
 
       function onDeny() {
@@ -450,7 +502,6 @@ let PeopleInjector = {
         box.removeNotification(oldBar);
     }
   }
-
 };
 
 Cu.import("resource://people/modules/ext/URI.js", PeopleInjector);
