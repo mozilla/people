@@ -179,7 +179,7 @@ function getFlickrUserDetails(nsID, newPerson, callback)
     }
     if (photosurl) {
       if (!newPerson.urls) newPerson.urls = [];
-      newPerson.urls.push({type:"Flickr", value:photosurl.textContent});
+      newPerson.urls.push({type:"Flickr", value:photosurl.textContent, title:"Flickr Photo Page"});
     }
     if (realname) {
       var n = realname.textContent;
@@ -208,6 +208,23 @@ function getFlickrUsernameFromURL(url)
   return null;
 }
 
+function postProcessFlickrPhotoList(photoset)
+{
+  for each (let photo in photoset.photo) 
+  {
+    photo.photoThumbnailURL = photo.url_s;
+    photo.photoFullURL = photo.url_l;
+    photo.name = photo.title;
+    try {
+      photo.created_time = photo.datetaken.replace(" ", "T");
+      photo.created_time_norm = new Date(photo.created_time);
+    } catch (e) {}
+    if (photoset.owner) {
+      photo.homeURL = "http://www.flickr.com/photos/" + photoset.owner + "/" + photo.id;
+    }
+  }
+}
+
 function constructFlickrPicturesOfService(account) {
   return {
     identifier: "flickr:picturesOf:" + account.userid,
@@ -222,11 +239,11 @@ function constructFlickrPicturesOfService(account) {
         false);
       load.send(null);
       let response = JSON.parse(load.responseText);      
-      for each (let photo in response.photos.photo) {
-        photo.photoThumbnailURL = photo.url_s;
-        photo.name = photo.title;
+      for each (var photo in response.photos.photo)
+      {
         photo.homeURL = "http://www.flickr.com/photos/" + photo.owner + "/" + photo.id;
       }
+      postProcessFlickrPhotoList(response.photos);
       callback(response.photos.photo);
     }
   };
@@ -243,43 +260,132 @@ function constructFlickrPicturesByService(account) {
       load.open('GET', 
         "http://api.flickr.com/services/rest/?method=flickr.photosets.getList&api_key=" + flickrKey + "&user_id=" + 
         encodeURIComponent(account.userid) + "&format=json&nojsoncallback=1", 
-        false);
-      // TODO figure why this isn't working async
-      load.send(null);
-
-      let name = (account.username ? account.username : account.userid);
-      let response = JSON.parse(load.responseText);
-
-      // Decorate each photoset with a getPhotos method
-      let result = response.photosets.photoset;
-      for each (let coll in result)
-      {
-        let collID = coll.id;
-        let primaryID = coll.primary;
-        coll.name = coll.title._content;
-        coll.location = null;
-        coll.create_time = null;
-        coll.primaryPhotoURL = "http://farm" + coll.farm + ".static.flickr.com/" + coll.server + "/" + coll.primary + "_" + coll.secret + ".jpg";
-        coll.primaryPhotoThumbnailURL = "http://farm" + coll.farm + ".static.flickr.com/" + coll.server + "/" + coll.primary + "_" + coll.secret + "_s.jpg";
-        coll.homeURL = "http://www.flickr.com/photos/" + account.userid + "/sets/" + coll.id + "/";
+        true);
         
-        coll.getPhotos = function(getPhotoCallback) {
-          let getPhotoLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
-          getPhotoLoad.open('GET', 
-            "http://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&photoset_id=" + collID + "&api_key=" + flickrKey + "&user_id=" + 
-            encodeURIComponent(account.userid) + "&extras=description,date_upload,date_taken,geo,tags,media,url_s,url_m,url_l&format=json&nojsoncallback=1", 
-            false);
-          getPhotoLoad.send(null);
-          let response = JSON.parse(getPhotoLoad.responseText);
-          getPhotoCallback(response.photoset.photo);
+      load.onreadystatechange = function() {
+        try {
+          if (load.readyState == 4) {
+            if (load.status == 200) {
+              processPhotosetsGetList(load, account,  callback);
+            }
+          }
+        } catch (e) {
+          dump("Flickr HTTP error: " + e + "\n");
+          dump(e.stack + "\n");
         }
-      }
-      callback(result);
+      };
+      load.send(null);
     }
   };
 }
 
+function processPhotosetsGetList(load, account, callback)
+{
+  try {
+  let name = (account.username ? account.username : account.userid);
+  
+  let response = JSON.parse(load.responseText);
 
+  // Decorate each photoset with a getPhotos method
+  let result = [];  
+  result.push(
+    {
+      name:"Photostream",
+      homeURL:"http://www.flickr.com/photos/" + account.userid ,
+      getPhotos:function(getPhotostreamCallback) {
+        try {
+          let photostreamLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+          photostreamLoad.open('GET', 
+            "http://api.flickr.com/services/rest/?method=flickr.people.getPublicPhotos&api_key=" + flickrKey + "&user_id=" + 
+            encodeURIComponent(account.userid) + "&extras=description,date_upload,date_taken,geo,tags,media,url_s,url_m,url_l&format=json&nojsoncallback=1", 
+            true);
+          photostreamLoad.onreadystatechange = function() {
+            if (photostreamLoad.readyState == 4) {
+              if (photostreamLoad.status == 200) {
+                try {
+                  let response = JSON.parse(photostreamLoad.responseText);
+                  response.photos.owner = account.userid;
+                  postProcessFlickrPhotoList(response.photos);          
+                  getPhotostreamCallback(response.photos.photo);
+                } catch (e) {
+                  dump(e);
+                  dump(e.stack + "\n");
+                }
+              }
+            }
+          }
+          photostreamLoad.send(null);
+        } catch (e) {
+          dump("Flickr HTTP error: " + e + "\n");
+          dump(e.stack + "\n");
+        }
+      }
+    }
+  );
+  for each (let coll in response.photosets.photoset)
+  {
+    let collID = coll.id;
+    let primaryID = coll.primary;
+    coll.name = coll.title._content;
+    coll.location = null;
+    coll.created_time = null;
+    coll.primaryPhotoURL = "http://farm" + coll.farm + ".static.flickr.com/" + coll.server + "/" + coll.primary + "_" + coll.secret + ".jpg";
+    coll.primaryPhotoThumbnailURL = "http://farm" + coll.farm + ".static.flickr.com/" + coll.server + "/" + coll.primary + "_" + coll.secret + "_s.jpg";
+    coll.homeURL = "http://www.flickr.com/photos/" + account.userid + "/sets/" + coll.id + "/";
+    
+    
+    let targetColl = coll;
+    coll.getPhotos = function(getPhotoCallback) {
+      let getPhotoLoad = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Components.interfaces.nsIXMLHttpRequest);
+      getPhotoLoad.open('GET', 
+        "http://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos&photoset_id=" + collID + "&api_key=" + flickrKey + "&user_id=" + 
+        encodeURIComponent(account.userid) + "&extras=description,date_upload,date_taken,geo,tags,media,url_s,url_m,url_l&format=json&nojsoncallback=1", 
+        true);
+      getPhotoLoad.onreadystatechange = function() {
+        try {
+          if (getPhotoLoad.readyState == 4) {
+            if (getPhotoLoad.status == 200) {
+              processPhotosetsGetPhotos(getPhotoLoad, targetColl, getPhotoCallback);
+            }
+          }
+        } catch (e) {
+          dump("Flickr HTTP error: " + e + "\n");
+          dump(e.stack + "\n");
+        }
+      };
+      getPhotoLoad.send(null);
+    }
+  }
+  result = result.concat(response.photosets.photoset)
+
+  callback(result);
+  } catch (e) {
+    dump(e + "\n");
+    dump(e.stack + "\n");
+  }
+}
+
+function processPhotosetsGetPhotos(getPhotoLoad, collection, callback)
+{
+  let response = JSON.parse(getPhotoLoad.responseText);
+  //dump("Photo list " + getPhotoLoad.responseText + "\n");
+  postProcessFlickrPhotoList(response.photoset);          
+
+  //dump("Timestamp is " + response.photoset.photo[0].datetaken + "\n");
+  var latest = null;
+  for each (var p in response.photoset.photo) {
+    try {
+      let d = new Date(p.created_time);
+      if (!latest || d > latest) latest = d;
+    } catch (e) {}
+  }
+  if (latest) { // this is an encapsulation violation - fix the canonical types, please!
+    collection.created_time_norm = latest;
+    collection.created_time = "" + latest;
+  }
+  callback(response.photoset.photo);
+
+}
 
 /*
         try {
