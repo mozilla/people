@@ -40,6 +40,8 @@ let fieldLabels = {displayName:"Name",
                     emails: "Email Addresses", 
                     phoneNumbers: "Phone Numbers", 
                     urls: "URLs (web site addresses)", 
+                    "name": "Name",
+                    "idHash": "Unique Anonymous Identifier",
                     "name/givenName":"Given Name", 
                     "name/familyName":"Family Name",
                     "photos":"Photos"
@@ -278,7 +280,12 @@ $(document).ready(function() {
 
 	let fields = document.getElementById("fieldselector");
 	for each (let aField in fieldList) {
-		let aLabel = fieldLabels[aField];
+    let aLabel;
+    if (fieldLabels[aField]) 
+      aLabel = fieldLabels[aField];
+    else
+      aLabel = aField;
+    
 		let aLabelDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 		aLabelDiv.innerHTML = aLabel;
 		aLabelDiv.setAttribute("class", "fieldLabel");
