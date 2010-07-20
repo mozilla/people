@@ -38,7 +38,11 @@
 
 # Pass rebuild_native=1 to build the native components.
 
-objdir=dist
+ifeq ($(TOPSRCDIR),)
+  export TOPSRCDIR = $(shell pwd)
+endif
+
+objdir=$(TOPSRCDIR)/dist
 stage_dir=$(objdir)/stage
 xpi_dir=$(objdir)/xpi
 error=exit 1
@@ -100,7 +104,9 @@ subst_names := \
 export $(subst_names)
 export substitute = perl -pe 's/@([^@]+)@/defined $$$$ENV{$$$$1} ? $$$$ENV{$$$$1} : $$$$&/ge'
 
+SLINK = ln -sf
 ifneq ($(findstring MINGW,$(shell uname -s)),)
+  SLINK = cp -r
   export NO_SYMLINK = 1
 endif
 
@@ -119,11 +125,16 @@ setup:
 native: setup
 	$(MAKE) -C native $(native_build_target)
 
-build: native 
-	cp -r chrome.manifest content install.rdf locale modules $(stage_dir)
-	mkdir -p $(stage_dir)/components  
+build: native
+	mkdir -p $(stage_dir)/components
 	cp -r components/* $(stage_dir)/components
+	$(SLINK) $(TOPSRCDIR)/chrome.manifest $(stage_dir)/chrome.manifest
+	$(SLINK) $(TOPSRCDIR)/install.rdf $(stage_dir)/install.rdf
+	$(SLINK) $(TOPSRCDIR)/content $(stage_dir)/content
+	$(SLINK) $(TOPSRCDIR)/locale $(stage_dir)/locale
+	$(SLINK) $(TOPSRCDIR)/modules $(stage_dir)/modules
 	
+
 xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
 xpi_files := chrome.manifest components content install.rdf locale modules platform
 oauth_bundle_xpi_name:= contacts-$(contacts_version)-relbundle-$(xpi_type).xpi
