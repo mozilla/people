@@ -40,7 +40,6 @@ const Cc = Components.classes;
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
 
-var FAVICON_SERVICE = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
 var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
 
@@ -224,6 +223,7 @@ function renderUpdates()
   for (var svc in map) {
     var svcBox = createDiv("svc");
     try {
+      var FAVICON_SERVICE = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
       var favicon = FAVICON_SERVICE.getFaviconImageForPage(IO_SERVICE.newURI("http://" + svc, null, null));
     } catch (e) {}
     if (favicon) {

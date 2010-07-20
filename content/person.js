@@ -43,10 +43,10 @@ Cu.import("resource://people/modules/import.js");
 try {
 // if the favicon service doesn't exist (e.g. Thunderbird) just ignore it
 var FAVICON_SERVICE = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
+var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
 } catch(e) {}
 var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
-var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
                                
 var gPerson = null;
 var gContainer;
@@ -169,7 +169,10 @@ function renderTypeValueList(title, objectType, list, options)
       
       if (!options.useHistoryTitles) {
         let theURI = IO_SERVICE.newURI(item.value, null, null);
-        let title = HISTORY_SERVICE.getPageTitle(theURI);
+	let title = null;
+        try {
+          title = HISTORY_SERVICE.getPageTitle(theURI);
+	} catch(e) {}
         if (title && title.length > 0 && title[0] != '/') {
           link.appendChild(document.createTextNode(title));        
         } else {

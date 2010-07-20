@@ -58,7 +58,11 @@ try {
 }
 
 var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+
+try {
+  var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+} catch (e) {
+}
 
 function PeopleService() {
   this._initLogs();
@@ -1575,8 +1579,10 @@ PersonServiceFactoryService.prototype = {
                 let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
 
                 let theURI = IO_SERVICE.newURI(urlObject.value, null, null);
-                let pageTitle = HISTORY_SERVICE.getPageTitle(theURI);
-                let title;
+		let pageTitle, title;
+		try {
+                  pageTitle = HISTORY_SERVICE.getPageTitle(theURI);
+		} catch(e) {}
                 if (pageTitle && pageTitle.length > 0 && pageTitle[0] != '/') {
                   title = pageTitle;
                 } else {
