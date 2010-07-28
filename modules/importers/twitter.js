@@ -76,7 +76,7 @@ TwitterAddressBookImporter.prototype = {
 	cursor: -1,
   get message() {
 		return {
-			action: "http://twitter.com/statuses/friends.json",
+			action: "https://twitter.com/statuses/friends.json",
 			method: "GET",
 			parameters: {'cursor': this.cursor}
 		}
@@ -235,7 +235,7 @@ function constructTwitterUpdatesService(account) {
     
       People._log.debug("Invoking twitter updates");
       let twitOauth = new TwitterOAuthLoader();
-      let uri = "http://twitter.com/statuses/user_timeline/" + account.username + ".rss";
+      let uri = "https://twitter.com/statuses/user_timeline/" + account.username + ".rss";
 
       twitOauth.startTwitterLoad(uri, "GET", null, function(result) {
         let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
@@ -256,7 +256,7 @@ function constructTwitterUpdatesService(account) {
                   }
                   update.text = theEntry.title.plainText();
                   update.source = "Twitter";
-                  update.sourceLink = "http://twitter.com/" + account.username;
+                  update.sourceLink = "https://twitter.com/" + account.username;
                   updates.push(update);
                 } catch (e) {
                   dump(e + "\n");
@@ -330,7 +330,7 @@ function constructTwitterPrivateMessageToService(account) {
     
       People._log.debug("Invoking twitter sendPrivateMessageTo");
       let twitOauth = new TwitterOAuthLoader();
-      let uri = "http://api.twitter.com/1/direct_messages/new.json";
+      let uri = "https://api.twitter.com/1/direct_messages/new.json";
 
       People._log.debug("Starting Twitter OAuth for sendPrivateMessage");
       twitOauth.startTwitterLoad(uri, "POST", {user:account.username, text:text/*escape(text)*/}, function(result) {
