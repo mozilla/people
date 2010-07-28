@@ -128,11 +128,11 @@ native: setup
 build: native
 	mkdir -p $(stage_dir)/components
 	cp -r components/* $(stage_dir)/components
-	$(SLINK) $(TOPSRCDIR)/chrome.manifest $(stage_dir)/chrome.manifest
-	$(SLINK) $(TOPSRCDIR)/install.rdf $(stage_dir)/install.rdf
-	$(SLINK) $(TOPSRCDIR)/content $(stage_dir)/content
-	$(SLINK) $(TOPSRCDIR)/locale $(stage_dir)/locale
-	$(SLINK) $(TOPSRCDIR)/modules $(stage_dir)/modules
+	test -d $(stage_dir)/chrome.manifest || $(SLINK) $(TOPSRCDIR)/chrome.manifest $(stage_dir)/chrome.manifest
+	test -d $(stage_dir)/install.rdf || $(SLINK) $(TOPSRCDIR)/install.rdf $(stage_dir)/install.rdf
+	test -d $(stage_dir)/content || $(SLINK) $(TOPSRCDIR)/content $(stage_dir)/content
+	test -d $(stage_dir)/locale || $(SLINK) $(TOPSRCDIR)/locale $(stage_dir)/locale
+	test -d $(stage_dir)/modules || $(SLINK) $(TOPSRCDIR)/modules $(stage_dir)/modules
 	
 
 xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
