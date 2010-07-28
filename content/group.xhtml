@@ -6,7 +6,7 @@
 <script type="text/javascript;version=1.8" src="chrome://people/content/group.js"></script>
 </head>
 <body>
-<div id="content">
+<div id="content" onclick="document.location.href = event.target">
 </div>
 <script>
 initGroup(document.getElementById('content'), unescape(document.location.href.slice(13)));
