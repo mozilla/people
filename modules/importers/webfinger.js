@@ -123,10 +123,10 @@ function retrieveTemplateForDomain(domain, continueFn, errorFn)
       if (hostmeta.readyState == 4) {
         try {
           if (hostmeta.status != 200) {
-            dump("Status " + hostmeta.status + " accessing " + hostmetaURL);
+            //dump("Status " + hostmeta.status + " accessing " + hostmetaURL);
             throw {error:""+domain + " does not support webfinger."};
           }
-          dump("Loaded hostmeta for " + domain + "\n");
+          //dump("Loaded hostmeta for " + domain + "\n");
           let template = extractLRDDTemplateFromHostMetaText(hostmeta.responseText);
           gHostMetaCache[domain] = template;
           continueFn(template);

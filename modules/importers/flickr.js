@@ -270,8 +270,7 @@ function constructFlickrPicturesByService(account) {
             }
           }
         } catch (e) {
-          dump("Flickr HTTP error: " + e + "\n");
-          dump(e.stack + "\n");
+	  People._log.error("Flickr HTTP error: " + e);
         }
       };
       load.send(null);
@@ -308,16 +307,14 @@ function processPhotosetsGetList(load, account, callback)
                   postProcessFlickrPhotoList(response.photos);          
                   getPhotostreamCallback(response.photos.photo);
                 } catch (e) {
-                  dump(e);
-                  dump(e.stack + "\n");
+	  	  People._log.error("Flickr Photostream error: " + e);
                 }
               }
             }
           }
           photostreamLoad.send(null);
         } catch (e) {
-          dump("Flickr HTTP error: " + e + "\n");
-          dump(e.stack + "\n");
+	  People._log.error("Flickr HTTP error: " + e);
         }
       }
     }
@@ -349,8 +346,7 @@ function processPhotosetsGetList(load, account, callback)
             }
           }
         } catch (e) {
-          dump("Flickr HTTP error: " + e + "\n");
-          dump(e.stack + "\n");
+	  People._log.error("Flickr HTTP error: " + e);
         }
       };
       getPhotoLoad.send(null);
@@ -360,18 +356,17 @@ function processPhotosetsGetList(load, account, callback)
 
   callback(result);
   } catch (e) {
-    dump(e + "\n");
-    dump(e.stack + "\n");
+    People._log.error("Flickr HTTP error: " + e);
   }
 }
 
 function processPhotosetsGetPhotos(getPhotoLoad, collection, callback)
 {
   let response = JSON.parse(getPhotoLoad.responseText);
-  //dump("Photo list " + getPhotoLoad.responseText + "\n");
+  ////dump("Photo list " + getPhotoLoad.responseText + "\n");
   postProcessFlickrPhotoList(response.photoset);          
 
-  //dump("Timestamp is " + response.photoset.photo[0].datetaken + "\n");
+  ////dump("Timestamp is " + response.photoset.photo[0].datetaken + "\n");
   var latest = null;
   for each (var p in response.photoset.photo) {
     try {
@@ -389,18 +384,18 @@ function processPhotosetsGetPhotos(getPhotoLoad, collection, callback)
 
 /*
         try {
-          dump("readystatechange " + load.readyState + "\n");
+          //dump("readystatechange " + load.readyState + "\n");
           if (load.readyState == 4) {
-            dump("Call returned; status is " + load.status + "\n");
+            //dump("Call returned; status is " + load.status + "\n");
             if (load.status == 200) {
-              dump("The result is " + load.responseText + "\n");
+              //dump("The result is " + load.responseText + "\n");
     
               let response = JSON.parse(load.responseText);
               callback(response.photos.photo);
             }
           }
         } catch (e) {
-          dump(e + "\n");
+          //dump(e + "\n");
         }
 */
 

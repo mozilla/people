@@ -212,8 +212,8 @@ TwitterOAuthLoader.prototype =
         this._log.debug("Request response not handled, state "+req.readyState);
         return;
     }
-    dump("Got Twitter OAuth response - " + req.responseText.length + " bytes\n");
-    dump("Got Twitter OAuth response - " + req.responseText + "\n");
+    //dump("Got Twitter OAuth response - " + req.responseText.length + " bytes\n");
+    //dump("Got Twitter OAuth response - " + req.responseText + "\n");
     if (req.status == 401) {
       this._log.info("Received 401 error while accessing Twitter; renewing access token");
       this.oauthHandler.reauthorize();
@@ -259,7 +259,7 @@ function constructTwitterUpdatesService(account) {
                   update.sourceLink = "https://twitter.com/" + account.username;
                   updates.push(update);
                 } catch (e) {
-                  dump(e + "\n");
+				          People._log.error("twitter error: " + e);
                 }
               }
               callback(updates);
@@ -334,7 +334,7 @@ function constructTwitterPrivateMessageToService(account) {
 
       People._log.debug("Starting Twitter OAuth for sendPrivateMessage");
       twitOauth.startTwitterLoad(uri, "POST", {user:account.username, text:text/*escape(text)*/}, function(result) {
-        dump("Got sendMessage callback\n");
+        //dump("Got sendMessage callback\n");
         callback({status:"ok"});
       });
     }

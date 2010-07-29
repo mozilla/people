@@ -1610,7 +1610,7 @@ PersonServiceFactoryService.prototype = {
                           if (theEntry.link) update.link = theEntry.link;
                           updates.push(update);
                         } catch (e) {
-                          dump(e + "\n");
+		          People._log.error(e);
                         }
                       }
                       callback(updates);
@@ -1618,15 +1618,14 @@ PersonServiceFactoryService.prototype = {
                   };
                   parser.parseFromString(xhr.responseText, IO_SERVICE.newURI(urlObject.value, null, null));
                 } catch (e) {
-                  dump("feed import error: " + e + "\n");
+		  People._log.error("feed import error: " + e);
                 }
               }
             }
           };
           xhr.send(null);
         } catch (e) {
-          dump(e + "\n");
-          dump(e.stack + "\n");
+	  People._log.error("feed service error: " + e);
         }
       }
     };
@@ -1686,7 +1685,7 @@ PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(p
   container.innerHTML = "";
   if (person.services.pictureCollectionsBy) {
     let collectionArray = [];
-    dump("invoking person.services.pictureCollectionsBy\n");
+    //dump("invoking person.services.pictureCollectionsBy\n");
     
     let thumbnailRetrievalQueue = [];
     person.services.pictureCollectionsBy(function(collections) {
@@ -1748,13 +1747,13 @@ PersonServiceFactory.registerServiceDefaultUI("picturesOf", function(person, con
   container.innerHTML = "";
   if (person.services.picturesOf) {
     let pictureArray = [];
-    dump("invoking person.services.picturesOf\n");
+    //dump("invoking person.services.picturesOf\n");
     person.services.picturesOf(function(pictures) {
       pictureArray = pictureArray.concat(pictures);
       container.innerHTML = "";
       for each (let pic in pictureArray)
       {
-        dump("Got pic: " + JSON.stringify(pic) + "\n");
+        //dump("Got pic: " + JSON.stringify(pic) + "\n");
       
         let d= container.ownerDocument.createElement("div");
 
@@ -1799,7 +1798,7 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
   container.innerHTML = "";
   if (person.services.updates) {
     let updateArray = [];
-    dump("invoking person.services.updates\n");
+    //dump("invoking person.services.updates\n");
     person.services.updates(function(updates) {
       updateArray = updateArray.concat(updates);
       container.innerHTML = "";
@@ -1818,7 +1817,7 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
       for each (let upd in updateArray)
       {
       
-        dump("" + JSON.stringify(upd) + "\n");
+        //dump("" + JSON.stringify(upd) + "\n");
       
         let d= container.ownerDocument.createElement("div");
         d.setAttribute("class", "update");
@@ -2029,7 +2028,7 @@ DiscoveryCoordinator.prototype = {
             }
           );
         } catch (e) {
-          dump(e + "\n");
+	  People._log.error("discovery coordinator error: " + e);
         }
       }
     }

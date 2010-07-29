@@ -194,7 +194,7 @@ HCardDiscoverer.prototype = {
                     
                     // And then look for other hcard fields...
                     let uFcount = Microformats.count('hCard', dom, {recurseExternalFrames: false});
-                    dump("hCard microformat found " + uFcount + " hcards\n");
+                    //dump("hCard microformat found " + uFcount + " hcards\n");
                     if (uFcount > 0) {
                       let uFlist = Microformats.get('hCard', dom, {recurseExternalFrames: false});
                       for (var j=0;j<uFcount;j++) {
@@ -272,24 +272,24 @@ function checkPageForFeed(baseURL, page)
 function processPerson(aPerson, newPerson)
 {
   if (true) {
-    dump("Got aPerson\n");
+    //dump("Got aPerson\n");
     for (let k in aPerson) {
       if ("" + aPerson[k] == "[object Object]") {
-        dump(k + ":\n");
+        //dump(k + ":\n");
         for (let k2 in aPerson[k]) {
           if ("" + aPerson[k][k2] == "[object Object]") {
-            dump("\t" + k2 + ":\n");
+            //dump("\t" + k2 + ":\n");
             for (let k3 in aPerson[k][k2]) {
-              dump("\t\t" + k3 + ": "+ aPerson[k][k2][k3] + "\n");
+              //dump("\t\t" + k3 + ": "+ aPerson[k][k2][k3] + "\n");
             }
           }
           else
           {
-            dump("\t" + k2 + ": "+ aPerson[k][k2] + "\n");
+            //dump("\t" + k2 + ": "+ aPerson[k][k2] + "\n");
           }
         }
       } else {  
-        dump(k + ": " + aPerson[k] + "\n");
+        //dump(k + ": " + aPerson[k] + "\n");
       }
     }
   }
