@@ -71,7 +71,7 @@ NativeAddressBookImporter.prototype = {
         progressFunction(Math.floor( i * 100.0 / allCards.length ));
         
 				person = {}
-        person.tags = ["On My Computer"];
+        person.tags = [];
 				let fname = allCards[i].getProperty("firstName");
 				let lname = allCards[i].getProperty("lastName");
         let org = allCards[i].getProperty("organization");
@@ -98,6 +98,7 @@ NativeAddressBookImporter.prototype = {
         } catch (e) {
           this._log.debug("Error while parsing groups: " + e);
         }
+				person.tags.push("On My Computer");
 
         if (org || jobTitle) {
           person.organizations = [];
