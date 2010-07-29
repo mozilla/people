@@ -70,8 +70,18 @@ ThunderbirdAddressBookImporter.prototype = {
 
 		try
 		{
+			this.importAB("moz-abmdbdirectory://abook.mab", completionCallback, progressFunction);
+			this.importAB("moz-abmdbdirectory://history.mab", completionCallback, progressFunction);
+			completionCallback(null);
+		} catch (e) {
+			this._log.info("Unable to access Thunderbird address book importer: " + e);
+			completionCallback({error:"Access Error",message:"Unable to access Thunderbird address book importer: " + e});
+		}
+	},
+	
+	importAB: function (bookurl, completionCallback, progressFunction) {
 			let abm = Cc["@mozilla.org/abmanager;1"].getService(Ci.nsIAbManager);
-			let book = abm.getDirectory("moz-abmdbdirectory://history.mab");
+			let book = abm.getDirectory(bookurl);
 	    let cards = book.childCards;
 			let people = [];
 			let allCards = [];
@@ -133,6 +143,8 @@ ThunderbirdAddressBookImporter.prototype = {
 					if (value)
 						person.phoneNumbers.push({value:value, type:type});
 				}
+				if (!person.tags) person.tags = [];
+				person.tags.push(book.dirName);
 
 	/*			person.urls = []
 				let urlLabels = card.getPropertyListLabels("urls", []);
@@ -145,12 +157,7 @@ ThunderbirdAddressBookImporter.prototype = {
 				people.push(person);
 			}
 			this._log.info("Adding " + people.length + " Thunderbird address book contacts to People store");
-      People.add(people, this, progressFunction);
-			completionCallback(null);
-		} catch (e) {
-			this._log.info("Unable to access Thunderbird address book importer: " + e);
-			completionCallback({error:"Access Error",message:"Unable to access Thunderbird address book importer: " + e});
-		}
+      People.add(people, this, progressFunction);		
 	}
 };
 
