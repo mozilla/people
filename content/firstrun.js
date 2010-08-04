@@ -37,18 +37,35 @@
 //--------------------------------------------------------
 // First Run implementation:
 //--------------------------------------------------------
+
+try {
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
+} catch(e) {
+  
+}
+
 var Prefs = Components.classes["@mozilla.org/preferences-service;1"]
                    .getService(Components.interfaces.nsIPrefService);
 Prefs = Prefs.getBranch("extensions.mozillalabs.contacts.");
 var Overlay = {
   init: function(){
-    var ver = -1, firstrun = true;
-
+    window.removeEventListener("load", Overlay.init, true);
+    if (typeof(AddonManager) != 'undefined') {
+      var self = this;
+      AddonManager.getAddonByID("contacts@labs.mozilla.com", function(addon) {
+	self._finalize_init(addon.version);
+      });
+      return;
+    }
     var gExtensionManager = Components.classes["@mozilla.org/extensions/manager;1"]
                             .getService(Components.interfaces.nsIExtensionManager);
     var current = gExtensionManager.getItemForID("contacts@labs.mozilla.com").version;
     //gets the version number.
-		
+    this._finalize_init(current);
+  },
+  _finalize_init: function(version) {
+    alert(version);
+    var ver = -1, firstrun = true;
     try{
       ver = Prefs.getCharPref("version");
       firstrun = Prefs.getBoolPref("firstrun");
@@ -74,7 +91,6 @@ var Overlay = {
         }, 1500); //Firefox 2 fix - or else tab will get closed
       }
     }
-    window.removeEventListener("load",function(){ Overlay.init(); },true);
   }
 };
-window.addEventListener("load",function(){ Overlay.init(); },true);
+window.addEventListener("load", Overlay.init, true);
