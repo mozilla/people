@@ -38,9 +38,12 @@
 /* Inject the People content API into window.navigator objects. */
 /* Partly based on code in the Geode extension. */
 
-var Cu = Components.utils;
-var Ci = Components.interfaces;
-var Cc = Components.classes;
+if (typeof(Cu)=='undefined')
+  var Cu = Components.utils;
+if (typeof(Ci)=='undefined')
+  var Ci = Components.interfaces;
+if (typeof(Cc)=='undefined')
+  var Cc = Components.classes;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 

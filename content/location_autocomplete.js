@@ -37,10 +37,16 @@
 
 let EXPORTED_SYMBOLS = [];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cm = Components.manager;
-const Cu = Components.utils;
+
+if (typeof(Cu)=='undefined')
+  var Cu = Components.utils;
+if (typeof(Ci)=='undefined')
+  var Ci = Components.interfaces;
+if (typeof(Cc)=='undefined')
+  var Cc = Components.classes;
+if (typeof(Cm)=='undefined')
+  var Cm = Components.manager;
+
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://people/modules/people.js");
 

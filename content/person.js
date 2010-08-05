@@ -33,9 +33,12 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-const Cu = Components.utils;
-const Ci = Components.interfaces;
-const Cc = Components.classes;
+if (typeof(Cu)=='undefined')
+  var Cu = Components.utils;
+if (typeof(Ci)=='undefined')
+  var Ci = Components.interfaces;
+if (typeof(Cc)=='undefined')
+  var Cc = Components.classes;
 
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");    
