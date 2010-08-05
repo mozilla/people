@@ -33,23 +33,17 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-if (typeof(Cu)=='undefined')
-  var Cu = Components.utils;
-if (typeof(Ci)=='undefined')
-  var Ci = Components.interfaces;
-if (typeof(Cc)=='undefined')
-  var Cc = Components.classes;
 
-Cu.import("resource://people/modules/people.js");
-Cu.import("resource://people/modules/import.js");    
+Components.utils.import("resource://people/modules/people.js");
+Components.utils.import("resource://people/modules/import.js");    
 
 try {
 // if the favicon service doesn't exist (e.g. Thunderbird) just ignore it
-var FAVICON_SERVICE = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
-var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+var FAVICON_SERVICE = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
+var HISTORY_SERVICE = Components.classes["@mozilla.org/browser/nav-history-service;1"].getService(Components.interfaces.nsINavHistoryService);
 } catch(e) {}
-var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
+var IO_SERVICE = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+var UNESCAPE_SERVICE = Components.classes["@mozilla.org/feed-unescapehtml;1"].getService(Components.interfaces.nsIScriptableUnescapeHTML);
                                
 var gPerson = null;
 var gContainer;
@@ -62,8 +56,8 @@ var gDisplayMode = CONTACT_CARD;
 
 var gDiscoveryCoordinator = null;
 
-var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-                   .getService(Ci.nsIWindowMediator);
+var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                   .getService(Components.interfaces.nsIWindowMediator);
 var win = wm.getMostRecentWindow(null);
 window.openURL = win.openURL;
 
@@ -664,7 +658,7 @@ function renderContentLinks(person, personBox)
           
           if (theEntry.entry.enclosures) {
             for (var e = 0; e < theEntry.entry.enclosures.length; ++e) {
-              var enc = theEntry.entry.enclosures.queryElementAt(e, Ci.nsIWritablePropertyBag2);
+              var enc = theEntry.entry.enclosures.queryElementAt(e, Components.interfaces.nsIWritablePropertyBag2);
               if (enc.hasKey("type")) {
                 var enctype = enc.get("type");
                 if (enctype.indexOf("image/") == 0)

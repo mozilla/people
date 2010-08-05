@@ -33,18 +33,11 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-if (typeof(Cu)=='undefined')
-  var Cu = Components.utils;
-if (typeof(Ci)=='undefined')
-  var Ci = Components.interfaces;
-if (typeof(Cc)=='undefined')
-  var Cc = Components.classes;
+Components.utils.import("resource://people/modules/people.js");
+Components.utils.import("resource://people/modules/import.js");
 
-Cu.import("resource://people/modules/people.js");
-Cu.import("resource://people/modules/import.js");
-
-var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
+var IO_SERVICE = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+var UNESCAPE_SERVICE = Components.classes["@mozilla.org/feed-unescapehtml;1"].getService(Components.interfaces.nsIScriptableUnescapeHTML);
 
 var gPeople = null;
 var gGroupName = null;
@@ -226,7 +219,7 @@ function renderUpdates()
   for (var svc in map) {
     var svcBox = createDiv("svc");
     try {
-      var FAVICON_SERVICE = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
+      var FAVICON_SERVICE = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
       var favicon = FAVICON_SERVICE.getFaviconImageForPage(IO_SERVICE.newURI("http://" + svc, null, null));
     } catch (e) {}
     if (favicon) {
@@ -290,7 +283,7 @@ function renderSingleUpdate(anUpdate, updateBox, renderContext)
 
 /*  if (anUpdate.entry.enclosures) {
     for (var e = 0; e < anUpdate.entry.enclosures.length; ++e) {
-      var enc = anUpdate.entry.enclosures.queryElementAt(e, Ci.nsIWritablePropertyBag2);
+      var enc = anUpdate.entry.enclosures.queryElementAt(e, Components.interfaces.nsIWritablePropertyBag2);
       if (enc.hasKey("type")) {
         var enctype = enc.get("type");
         if (enctype.indexOf("image/") == 0)
@@ -306,7 +299,7 @@ function renderSingleUpdate(anUpdate, updateBox, renderContext)
   }
   if (anUpdate.entry.mediaContent) {
     for (var e = 0; e < anUpdate.entry.mediaContent.length; ++e) {
-      var enc = anUpdate.entry.mediaContent.queryElementAt(e, Ci.nsIWritablePropertyBag2);
+      var enc = anUpdate.entry.mediaContent.queryElementAt(e, Components.interfaces.nsIWritablePropertyBag2);
     }
   }*/
 
