@@ -232,12 +232,12 @@ LinkedInImporter.prototype = {
     this.progressCallback = progressCallback;
 
     if (this.tryAccess()) {
-      this.doImport(null);
-      return;
+      if (this.doImport(null))
+        return;
     }
     
     // use our oauth dialog to authenticate and authorize
-    let loginURL = "http://www.linkedin.com/addressBookExport?exportNetwork=Export&outputType=vcard";
+    let loginURL = "http://www.linkedin.com/addressBookExport?outputType=vcard";
     var svc = OAuthConsumer.getProvider(this.name, "", "", "http://www.linkedin.com/addressBookExport?exportNetworkRedirect");
     svc.extensionID = "contacts@labs.mozilla.com";
     svc.tokenRx = /(exportNetworkRedirect=)/gi;
@@ -264,8 +264,12 @@ LinkedInImporter.prototype = {
     this.progressCallback(0.25);
 
     let people = [], cur = {}, fencepost = true;
-    for each (let line in req.responseText.split('\r\n')) {
-      this.progressCallback(0.50);
+    let lines = req.responseText.split('\r\n');
+    let count = 0;
+    for each (let line in lines) {
+      // getting an occasional empty line in the vcards, ignore it
+      if (!line) continue; 
+      this.progressCallback(count++/lines);
       if (this.beginTest(line)) {
         if (fencepost) {
           fencepost = !fencepost;
@@ -283,14 +287,18 @@ LinkedInImporter.prototype = {
           continue;
         }
       }
-      if (!parsed)
-        this._log.debug("Could not parse line: " + line);
+      if (!parsed) {
+        this._log.debug("Could not parse line: [" + line +"]");
+        this.progressCallback(0);
+	return false;
+      }
     }
 
     this._log.info("Adding " + people.length + " LinkedIn contacts to People store");
     People.add(people, this, this.progressCallback);
-    this.progressCallback(0.75);
+    this.progressCallback(1);
     this.completionCallback(null);
+    return true;
   }
 };
 
@@ -311,7 +319,7 @@ function LinkedInOAuthImporter() {
 
 LinkedInOAuthImporter.prototype = {
   __proto__: OAuthBaseImporter.prototype,
-  get name() "linkedin2",
+  get name() "linkedinoauth",
   get displayName() "LinkedIn OAuth Contacts",
   get iconURL() "chrome://people/content/images/linkedin.png",
 
@@ -328,7 +336,7 @@ LinkedInOAuthImporter.prototype = {
     parameters: {}
   },
 
-  handleResponse: function TwitterAddressBookImporter_handleResponse(req) {
+  handleResponse: function LinkedInOAuthImporter_handleResponse(req) {
     this._log.debug("Importing LinkedIn contacts into People store");
 
     if (req.status != 200) {
