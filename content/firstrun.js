@@ -49,7 +49,7 @@ var Prefs = Components.classes["@mozilla.org/preferences-service;1"]
 Prefs = Prefs.getBranch("extensions.mozillalabs.contacts.");
 var Overlay = {
   init: function(){
-    window.removeEventListener("load", Overlay.init, true);
+    window.removeEventListener("load", function(){ Overlay.init(); }, true);
     if (typeof(AddonManager) != 'undefined') {
       var self = this;
       AddonManager.getAddonByID("contacts@labs.mozilla.com", function(addon) {
@@ -63,8 +63,7 @@ var Overlay = {
     //gets the version number.
     this._finalize_init(current);
   },
-  _finalize_init: function(version) {
-    alert(version);
+  _finalize_init: function(current) {
     var ver = -1, firstrun = true;
     try{
       ver = Prefs.getCharPref("version");
@@ -77,7 +76,16 @@ var Overlay = {
         Prefs.setCharPref("version",current);
 	
         window.setTimeout(function(){
-          gBrowser.selectedTab = gBrowser.addTab("http://mozillalabs.com/conceptseries/identity/contacts/");
+	  if (typeof(gBrowser) != 'undefined') {
+            gBrowser.selectedTab = gBrowser.addTab("http://mozillalabs.com/conceptseries/identity/contacts/");
+	  } else {
+	    let tabmail = document.getElementById('tabmail');
+	    if (tabmail) {
+              tabmail.openTab("contentTab",
+                            { contentPage: "http://mozillalabs.com/conceptseries/identity/contacts/",
+                              clickHandler: "specialTabs.aboutClickHandler(event);" });
+	    }
+	  }
         }, 1500); //Firefox 2 fix - or else tab will get closed
 				
       }		
@@ -87,10 +95,19 @@ var Overlay = {
         
         // Insert code if version is different here => upgrade
         window.setTimeout(function(){
-          gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/upgrade.xhtml");          
+	  if (typeof(gBrowser) != 'undefined') {
+            gBrowser.selectedTab = gBrowser.addTab("chrome://people/content/upgrade.xhtml");
+	  } else {
+	    let tabmail = document.getElementById('tabmail');
+	    if (tabmail) {
+              tabmail.openTab("contentTab",
+                            { contentPage: "chrome://people/content/upgrade.xhtml",
+                              clickHandler: "specialTabs.aboutClickHandler(event);" });
+	    }
+	  }
         }, 1500); //Firefox 2 fix - or else tab will get closed
       }
     }
   }
 };
-window.addEventListener("load", Overlay.init, true);
+window.addEventListener("load", function(){ Overlay.init(); }, true);
