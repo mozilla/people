@@ -275,6 +275,8 @@ LinkedInImporter.prototype = {
           fencepost = !fencepost;
           continue;
         } else {
+	  if (!cur.tags) cur.tags = [];
+	  cur.tags.push('LinkedIn');
           people.push(cur);
           cur = {};
           continue;
