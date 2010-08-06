@@ -76,7 +76,7 @@ GmailImporter.prototype = {
     return {
       action: 'http://www.google.com/m8/feeds/contacts/default/full',
       method: "GET",
-      parameters: {'v':'2'}
+      parameters: {'v':'2', 'max-results': 1000 }
     }
   },
   
