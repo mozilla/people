@@ -100,12 +100,19 @@ ThunderbirdAddressBookImporter.prototype = {
         let org = card.getProperty("Company", "");
         let dept = card.getProperty("Department", "");
         let jobTitle = card.getProperty("JobTitle", "");
-				
-				if (!fname && !lname) continue; // skip anonymous cards for now
+				let primaryEmail = card.getProperty("PrimaryEmail", "");
+				let secondEmail = card.getProperty("SecondEmail", "");
+				person.displayName = card.getProperty("DisplayName", "")
+
+				// skip anonymous cards for now
+				if (!person.displayName &&
+						!fname &&
+						!lname &&
+						!primaryEmail && 
+						!secondEmail) continue; 
 				
         this._log.info("Got lname " + lname);
         
-				person.displayName = card.getProperty("DisplayName", "")
 				if (!person.displayName) {
 					if (fname && lname) {
 						person.displayName = fname + " " + lname;
@@ -113,6 +120,10 @@ ThunderbirdAddressBookImporter.prototype = {
 						person.displayName = lname;			
 					} else if (fname) {
 						person.displayName = fname;
+					} else if (primaryEmail) {
+						person.displayName = primaryEmail;
+					} else if (secondEmail) {
+						person.displayName = secondEmail;
 					}
 				}
 				person.name = {}
@@ -129,10 +140,8 @@ ThunderbirdAddressBookImporter.prototype = {
         }
 
 				person.emails = []
-				let primaryEmail = card.getProperty("PrimaryEmail", "");
 				if (primaryEmail)
 					person.emails.push({value:primaryEmail, type:'work', primary:true});
-				let secondEmail = card.getProperty("SecondEmail", "");
 				if (secondEmail)
 					person.emails.push({value:secondEmail, type:'home'});
 
