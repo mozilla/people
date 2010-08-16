@@ -155,6 +155,12 @@ ThunderbirdAddressBookImporter.prototype = {
 				if (!person.tags) person.tags = [];
 				person.tags.push(book.dirName);
 
+				let photoUri = card.getProperty("PhotoURI", "");
+				let photoType = card.getProperty("PhotoType", "");
+				if (photoUri && photoUri.search(/chrome:/) < 0) {
+					person.photos = [{value: photoUri, type: photoType, primary: true}];
+				}
+
 	/*			person.urls = []
 				let urlLabels = card.getPropertyListLabels("urls", []);
 				let urlValues = card.getPropertyListValues("urls", []);
