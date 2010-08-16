@@ -92,7 +92,7 @@ PeopleService.prototype = {
     logfile.QueryInterface(Ci.nsILocalFile);
     logfile.append("people-log.txt");
     if (!logfile.exists())
-      logfile.create(logfile.NORMAL_FILE_TYPE, 600);
+      logfile.create(logfile.NORMAL_FILE_TYPE, 0600);
 
     this._fileApp = new Log4Moz.RotatingFileAppender(logfile, formatter);
     this._fileApp.level = Log4Moz.Level["Debug"];
