@@ -37,12 +37,8 @@
 
 let EXPORTED_SYMBOLS = [];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cm = Components.manager;
-const Cu = Components.utils;
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://people/modules/people.js");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://people/modules/people.js");
 
 // nsIAutoCompleteSearch to put keyword results from the db into autocomplete
 let showKeywords = let (T = {
@@ -95,7 +91,7 @@ let showKeywords = let (T = {
     // nsIAutoCompleteResult object to give the autocomplete controller
     let result = {
       get searchString() searchString,
-      searchResult: Ci.nsIAutoCompleteResult.RESULT_SUCCESS,
+      searchResult: Components.interfaces.nsIAutoCompleteResult.RESULT_SUCCESS,
       get matchCount() peopleResults.length,
       getValueAt: function(i) {
         var emails = peopleResults[i].getProperty("emails");
@@ -112,7 +108,7 @@ let showKeywords = let (T = {
       },
       getStyleAt: function() "people",
       removeValueAt: function() {},
-      QueryInterface: XPCOMUtils.generateQI([Ci.nsIAutoCompleteResult])
+      QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsIAutoCompleteResult])
     };
 
     // Inform the listener of the result
@@ -124,8 +120,8 @@ let showKeywords = let (T = {
     // No matches, so wait a little to prevent other searches from stopping
     else {
       T.stopSearch();
-      result.searchResult = Ci.nsIAutoCompleteResult.RESULT_NOMATCH;
-      T.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+      result.searchResult = Components.interfaces.nsIAutoCompleteResult.RESULT_NOMATCH;
+      T.timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
       T.timer.initWithCallback({ notify: done }, 500, T.timer.TYPE_ONE_SHOT);
     }
   },
@@ -139,11 +135,11 @@ let showKeywords = let (T = {
   },
 
   createInstance: function(outer, iid) showKeywords.QueryInterface(iid),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory, Ci.nsIAutoCompleteSearch])
+  QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsIFactory, Components.interfaces.nsIAutoCompleteSearch])
 }) T;
 
 // Register the keywords autocomplete search engine
-Cm.QueryInterface(Ci.nsIComponentRegistrar).registerFactory(
-  Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).
+Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar).registerFactory(
+  Components.classes["@mozilla.org/uuid-generator;1"].getService(Components.interfaces.nsIUUIDGenerator).
   generateUUID(), "People AutoCompleteSearch",
   "@mozilla.org/autocomplete/search;1?name=people", showKeywords);

@@ -73,8 +73,18 @@ ThunderbirdAddressBookImporter.prototype = {
 
 		try
 		{
+			this.importAB("moz-abmdbdirectory://abook.mab", completionCallback, progressFunction);
+			this.importAB("moz-abmdbdirectory://history.mab", completionCallback, progressFunction);
+			completionCallback(null);
+		} catch (e) {
+			this._log.info("Unable to access Thunderbird address book importer: " + e);
+			completionCallback({error:"Access Error",message:"Unable to access Thunderbird address book importer: " + e});
+		}
+	},
+	
+	importAB: function (bookurl, completionCallback, progressFunction) {
 			let abm = Cc["@mozilla.org/abmanager;1"].getService(Ci.nsIAbManager);
-			let book = abm.getDirectory("moz-abmdbdirectory://history.mab");
+			let book = abm.getDirectory(bookurl);
 	    let cards = book.childCards;
 			let people = [];
 			let allCards = [];
@@ -93,12 +103,19 @@ ThunderbirdAddressBookImporter.prototype = {
         let org = card.getProperty("Company", "");
         let dept = card.getProperty("Department", "");
         let jobTitle = card.getProperty("JobTitle", "");
-				
-				if (!fname && !lname) continue; // skip anonymous cards for now
+				let primaryEmail = card.getProperty("PrimaryEmail", "");
+				let secondEmail = card.getProperty("SecondEmail", "");
+				person.displayName = card.getProperty("DisplayName", "")
+
+				// skip anonymous cards for now
+				if (!person.displayName &&
+						!fname &&
+						!lname &&
+						!primaryEmail && 
+						!secondEmail) continue; 
 				
         this._log.info("Got lname " + lname);
         
-				person.displayName = card.getProperty("DisplayName", "")
 				if (!person.displayName) {
 					if (fname && lname) {
 						person.displayName = fname + " " + lname;
@@ -106,6 +123,10 @@ ThunderbirdAddressBookImporter.prototype = {
 						person.displayName = lname;			
 					} else if (fname) {
 						person.displayName = fname;
+					} else if (primaryEmail) {
+						person.displayName = primaryEmail;
+					} else if (secondEmail) {
+						person.displayName = secondEmail;
 					}
 				}
 				person.name = {}
@@ -122,10 +143,8 @@ ThunderbirdAddressBookImporter.prototype = {
         }
 
 				person.emails = []
-				let primaryEmail = card.getProperty("PrimaryEmail", "");
 				if (primaryEmail)
 					person.emails.push({value:primaryEmail, type:'work', primary:true});
-				let secondEmail = card.getProperty("SecondEmail", "");
 				if (secondEmail)
 					person.emails.push({value:secondEmail, type:'home'});
 
@@ -135,6 +154,14 @@ ThunderbirdAddressBookImporter.prototype = {
 					let type = this.abNumberProperties[property];
 					if (value)
 						person.phoneNumbers.push({value:value, type:type});
+				}
+				if (!person.tags) person.tags = [];
+				person.tags.push(book.dirName);
+
+				let photoUri = card.getProperty("PhotoURI", "");
+				let photoType = card.getProperty("PhotoType", "");
+				if (photoUri && photoUri.search(/chrome:/) < 0) {
+					person.photos = [{value: photoUri, type: photoType, primary: true}];
 				}
 
 	/*			person.urls = []
@@ -148,12 +175,7 @@ ThunderbirdAddressBookImporter.prototype = {
 				people.push(person);
 			}
 			this._log.info("Adding " + people.length + " Thunderbird address book contacts to People store");
-      People.add(people, this, progressFunction);
-			completionCallback(null);
-		} catch (e) {
-			this._log.info("Unable to access Thunderbird address book importer: " + e);
-			completionCallback({error:"Access Error",message:"Unable to access Thunderbird address book importer: " + e});
-		}
+      People.add(people, this, progressFunction);		
 	}
 };
 

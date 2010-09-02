@@ -16,7 +16,7 @@
  * The Initial Developer of the Original Code is Mozilla.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
- *
+ *a
  * Contributor(s):
  *   Michael Hanson <mhanson@mozilla.com>
  *
@@ -33,20 +33,17 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-const Cu = Components.utils;
-const Ci = Components.interfaces;
-const Cc = Components.classes;
 
-Cu.import("resource://people/modules/people.js");
-Cu.import("resource://people/modules/import.js");  
+Components.utils.import("resource://people/modules/people.js");
+Components.utils.import("resource://people/modules/import.js");
 
 try {
 // if the favicon service doesn't exist (e.g. Thunderbird) just ignore it
-var FAVICON_SERVICE = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
+var FAVICON_SERVICE = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
+var HISTORY_SERVICE = Components.classes["@mozilla.org/browser/nav-history-service;1"].getService(Components.interfaces.nsINavHistoryService);
 } catch(e) {}
-var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
-var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+var IO_SERVICE = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+var UNESCAPE_SERVICE = Components.classes["@mozilla.org/feed-unescapehtml;1"].getService(Components.interfaces.nsIScriptableUnescapeHTML);
                                
 var gPerson = null;
 var gContainer;
@@ -59,8 +56,8 @@ var gDisplayMode = CONTACT_CARD;
 
 var gDiscoveryCoordinator = null;
 
-var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
-                   .getService(Ci.nsIWindowMediator);
+var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                   .getService(Components.interfaces.nsIWindowMediator);
 var win = wm.getMostRecentWindow(null);
 window.openURL = win.openURL;
 
@@ -187,7 +184,10 @@ function renderTypeValueList(title, objectType, list, options)
       
       if (!options.useHistoryTitles) {
         let theURI = IO_SERVICE.newURI(item.value, null, null);
-        let title = HISTORY_SERVICE.getPageTitle(theURI);
+	let title = null;
+        try {
+          title = HISTORY_SERVICE.getPageTitle(theURI);
+	} catch(e) {}
         if (title && title.length > 0 && title[0] != '/') {
           link.appendChild(document.createTextNode(title));        
         } else {
@@ -821,7 +821,7 @@ function renderContentLinks(person, personBox)
           
           if (theEntry.entry.enclosures) {
             for (var e = 0; e < theEntry.entry.enclosures.length; ++e) {
-              var enc = theEntry.entry.enclosures.queryElementAt(e, Ci.nsIWritablePropertyBag2);
+              var enc = theEntry.entry.enclosures.queryElementAt(e, Components.interfaces.nsIWritablePropertyBag2);
               if (enc.hasKey("type")) {
                 var enctype = enc.get("type");
                 if (enctype.indexOf("image/") == 0)

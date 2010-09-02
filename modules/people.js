@@ -128,7 +128,11 @@ try {
 }
 
 var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+
+try {
+  var HISTORY_SERVICE = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+} catch (e) {
+}
 
 function PeopleService() {
   this._initLogs();
@@ -158,7 +162,7 @@ PeopleService.prototype = {
     logfile.QueryInterface(Ci.nsILocalFile);
     logfile.append("people-log.txt");
     if (!logfile.exists())
-      logfile.create(logfile.NORMAL_FILE_TYPE, 600);
+      logfile.create(logfile.NORMAL_FILE_TYPE, 0600);
 
     this._fileApp = new Log4Moz.RotatingFileAppender(logfile, formatter);
     this._fileApp.level = Log4Moz.Level["Debug"];
@@ -2156,8 +2160,10 @@ PersonServiceFactoryService.prototype = {
                 let parser = Components.classes["@mozilla.org/feed-processor;1"].createInstance(Components.interfaces.nsIFeedProcessor);
 
                 let theURI = IO_SERVICE.newURI(urlObject.value, null, null);
-                let pageTitle = HISTORY_SERVICE.getPageTitle(theURI);
-                let title;
+		let pageTitle, title;
+		try {
+                  pageTitle = HISTORY_SERVICE.getPageTitle(theURI);
+		} catch(e) {}
                 if (pageTitle && pageTitle.length > 0 && pageTitle[0] != '/') {
                   title = pageTitle;
                 } else {
@@ -2185,7 +2191,7 @@ PersonServiceFactoryService.prototype = {
                           if (theEntry.link) update.link = theEntry.link;
                           updates.push(update);
                         } catch (e) {
-                          dump(e + "\n");
+		          People._log.error(e);
                         }
                       }
                       callback(updates);
@@ -2193,15 +2199,14 @@ PersonServiceFactoryService.prototype = {
                   };
                   parser.parseFromString(xhr.responseText, IO_SERVICE.newURI(urlObject.value, null, null));
                 } catch (e) {
-                  dump("feed import error: " + e + "\n");
+		  People._log.error("feed import error: " + e);
                 }
               }
             }
           };
           xhr.send(null);
         } catch (e) {
-          dump(e + "\n");
-          dump(e.stack + "\n");
+	  People._log.error("feed service error: " + e);
         }
       }
     };
@@ -2261,7 +2266,7 @@ PersonServiceFactory.registerServiceDefaultUI("pictureCollectionsBy", function(p
   container.innerHTML = "";
   if (person.services.pictureCollectionsBy) {
     let collectionArray = [];
-    dump("invoking person.services.pictureCollectionsBy\n");
+    //dump("invoking person.services.pictureCollectionsBy\n");
     
     let thumbnailRetrievalQueue = [];
     person.services.pictureCollectionsBy(function(collections) {
@@ -2323,13 +2328,13 @@ PersonServiceFactory.registerServiceDefaultUI("picturesOf", function(person, con
   container.innerHTML = "";
   if (person.services.picturesOf) {
     let pictureArray = [];
-    dump("invoking person.services.picturesOf\n");
+    //dump("invoking person.services.picturesOf\n");
     person.services.picturesOf(function(pictures) {
       pictureArray = pictureArray.concat(pictures);
       container.innerHTML = "";
       for each (let pic in pictureArray)
       {
-        dump("Got pic: " + JSON.stringify(pic) + "\n");
+        //dump("Got pic: " + JSON.stringify(pic) + "\n");
       
         let d= container.ownerDocument.createElement("div");
 
@@ -2677,7 +2682,7 @@ DiscoveryCoordinator.prototype = {
             }
           );
         } catch (e) {
-          dump(e + "\n");
+	  People._log.error("discovery coordinator error: " + e);
         }
       }
     }

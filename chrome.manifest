@@ -11,3 +11,9 @@ overlay chrome://browser/content/browser.xul           chrome://people/content/b
 overlay chrome://browser/content/pageinfo/pageInfo.xul chrome://people/content/pageInfo.xul
 
 overlay chrome://messenger/content/messenger.xul chrome://people/content/thunderbird.xul
+
+component {b6e1d39c-b39c-4b1f-a088-e2fbb4cff9a6} components/personProtocol.js
+contract @mozilla.org/network/protocol;1?name=person {b6e1d39c-b39c-4b1f-a088-e2fbb4cff9a6}
+
+component {545c79b1-1c45-4f5e-b6bb-98ce9e9fbd12} components/nsFormFillOverride.js
+contract @mozilla.org/satchel/form-autocomplete;1 {545c79b1-1c45-4f5e-b6bb-98ce9e9fbd12}

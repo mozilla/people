@@ -38,11 +38,7 @@
 /* Inject the People content API into window.navigator objects. */
 /* Partly based on code in the Geode extension. */
 
-var Cu = Components.utils;
-var Ci = Components.interfaces;
-var Cc = Components.classes;
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const ALL_GROUP_CONSTANT = "___all___";
 
@@ -55,8 +51,8 @@ let PeopleInjector = {
 
   get _docSvc() {
     delete this._docSvc;
-    return this._docSvc = Cc["@mozilla.org/docloaderservice;1"].
-                          getService(Ci.nsIWebProgress);
+    return this._docSvc = Components.classes["@mozilla.org/docloaderservice;1"].
+                          getService(Components.interfaces.nsIWebProgress);
   },
 
   onLoad: function() {
@@ -68,7 +64,7 @@ let PeopleInjector = {
     // We'll use the doc loader service instead, but that means we need to
     // filter out loads for other windows.
     this._docSvc.addProgressListener(this,
-                                     Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+                                     Components.interfaces.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
   },
 
   onUnload: function() {
@@ -79,8 +75,8 @@ let PeopleInjector = {
   //**************************************************************************//
   // nsISupports
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                         Ci.nsISupportsWeakReference]),
+  QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsIWebProgressListener,
+                                         Components.interfaces.nsISupportsWeakReference]),
 
 
   //**************************************************************************//
@@ -89,18 +85,18 @@ let PeopleInjector = {
   onStateChange: function(aWebProgress, aRequest, aStateFlags,  aStatus) {
     // STATE_START is too early, doc is still the old page.
     // STATE_STOP is inconveniently late (it's onload).
-    if (!(aStateFlags & Ci.nsIWebProgressListener.STATE_TRANSFERRING))
+    if (!(aStateFlags & Components.interfaces.nsIWebProgressListener.STATE_TRANSFERRING))
       return;
 
     var domWindow = aWebProgress.DOMWindow;
     var chromeWin = domWindow
-                        .QueryInterface(Ci.nsIInterfaceRequestor)
-                        .getInterface(Ci.nsIWebNavigation)
-                        .QueryInterface(Ci.nsIDocShellTreeItem)
+                        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                        .getInterface(Components.interfaces.nsIWebNavigation)
+                        .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
                         .rootTreeItem
-                        .QueryInterface(Ci.nsIInterfaceRequestor)
-                        .getInterface(Ci.nsIDOMWindow)
-                        .QueryInterface(Ci.nsIDOMChromeWindow);
+                        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                        .getInterface(Components.interfaces.nsIDOMWindow)
+                        .QueryInterface(Components.interfaces.nsIDOMChromeWindow);
     if (chromeWin != window)
       return;
 
@@ -127,13 +123,13 @@ let PeopleInjector = {
     delete this._scriptToInject;
 
     let uri =
-      new this.URI(this.SCRIPT_TO_INJECT_URI).QueryInterface(Ci.nsIFileURL);
+      new this.URI(this.SCRIPT_TO_INJECT_URI).QueryInterface(Components.interfaces.nsIFileURL);
 
     // Slurp the contents of the file into a string.
-    let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
-                      createInstance(Ci.nsIFileInputStream);
+    let inputStream = Components.classes["@mozilla.org/network/file-input-stream;1"].
+                      createInstance(Components.interfaces.nsIFileInputStream);
     inputStream.init(uri.file, 0x01, -1, null); // RD_ONLY
-    let lineStream = inputStream.QueryInterface(Ci.nsILineInputStream);
+    let lineStream = inputStream.QueryInterface(Components.interfaces.nsILineInputStream);
     let line = { value: "" }, hasMore, scriptToInject = "";
     do {
         hasMore = lineStream.readLine(line);
@@ -150,10 +146,10 @@ let PeopleInjector = {
    * Injects the content API into the specified DOM window.
    */
   _inject: function(win) {
-    let sandbox = new Cu.Sandbox(win);
+    let sandbox = new Components.utils.Sandbox(win);
     sandbox.importFunction(this._getFindFunction(), "find");
     sandbox.window = win.wrappedJSObject;
-    Cu.evalInSandbox(this._scriptToInject, sandbox, "1.8",
+    Components.utils.evalInSandbox(this._scriptToInject, sandbox, "1.8",
                      this.SCRIPT_TO_INJECT_URI, 1);
   },
 
@@ -168,8 +164,8 @@ let PeopleInjector = {
       successCallback = XPCSafeJSObjectWrapper(successCallback);
       failureCallback = XPCSafeJSObjectWrapper(failureCallback);
 
-      let permissionManager = Cc["@mozilla.org/permissionmanager;1"].
-                              getService(Ci.nsIPermissionManager);
+      let permissionManager = Components.classes["@mozilla.org/permissionmanager;1"].
+                              getService(Components.interfaces.nsIPermissionManager);
       let uri = new URI(win.location);
 
       function onAllow() {
@@ -239,7 +235,7 @@ let PeopleInjector = {
 									People.storeSitePermissions(uri.spec, allowedFields, groupList);
 									// This blows up if uri doesn't have a host
 									permissionManager.add(uri, "people-find",
-																				Ci.nsIPermissionManager.ALLOW_ACTION);
+																				Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
 								}
 	
 	              // TODO: Checkbox to allow "just once"
@@ -295,7 +291,7 @@ let PeopleInjector = {
 				// FIXME: We have no way to persist a deny right now, since we moved the checkbox into the disclosure dialog.
 /*        if (checkbox && checkbox.checked) {
           permissionManager.add(uri, "people-find",
-                                Ci.nsIPermissionManager.DENY_ACTION);
+                                Components.interfaces.nsIPermissionManager.DENY_ACTION);
         }*/
       }
 
@@ -321,13 +317,13 @@ let PeopleInjector = {
       else
       {
         switch(permissionManager.testPermission(uri, "people-find")) {
-          case Ci.nsIPermissionManager.ALLOW_ACTION:
+          case Components.interfaces.nsIPermissionManager.ALLOW_ACTION:
             onAllow();
             return;
-          case Ci.nsIPermissionManager.DENY_ACTION:
+          case Components.interfaces.nsIPermissionManager.DENY_ACTION:
             onDeny();
             return;
-          case Ci.nsIPermissionManager.UNKNOWN_ACTION:
+          case Components.interfaces.nsIPermissionManager.UNKNOWN_ACTION:
           default:
             // fall through to the rest of the function.
         }
@@ -341,8 +337,8 @@ let PeopleInjector = {
 
         // Find the <browser> that contains the document by looking through
         // all the open windows and their <tabbrowser>s.
-        let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-                 getService(Ci.nsIWindowMediator);
+        let wm = Components.classes["@mozilla.org/appshell/window-mediator;1"].
+                 getService(Components.interfaces.nsIWindowMediator);
         let enumerator = wm.getEnumerator("navigator:browser");
         let tabBrowser = null;
         let foundBrowser = null;
@@ -393,8 +389,8 @@ let PeopleInjector = {
   }
 };
 
-Cu.import("resource://people/modules/ext/URI.js", PeopleInjector);
-Cu.import("resource://people/modules/people.js", PeopleInjector);
+Components.utils.import("resource://people/modules/ext/URI.js", PeopleInjector);
+Components.utils.import("resource://people/modules/people.js", PeopleInjector);
 
 window.addEventListener("load",   function() PeopleInjector.onLoad(),   false);
 window.addEventListener("unload", function() PeopleInjector.onUnload(), false);

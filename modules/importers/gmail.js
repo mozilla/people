@@ -99,7 +99,7 @@ GmailImporter.prototype = {
       return;
     }
 
-    dump(req.responseText + "\n");
+    //dump(req.responseText + "\n");
 
     let xmlDoc = req.responseXML;
     let root = xmlDoc.ownerDocument == null ?
@@ -170,7 +170,7 @@ GmailImporter.prototype = {
           href = group.getAttribute("href");
           if (!groupHrefMap[href]) groupHrefMap[href] = [];
           groupHrefMap[href].push(person);
-          dump(person.displayName + " is in group " + href + "\n");
+          //dump(person.displayName + " is in group " + href + "\n");
         }
         
         people.push(person);
@@ -199,7 +199,7 @@ GmailImporter.prototype = {
 
           OAuthConsumer.call(svc, msg, function GmailGroupImportCallHandler(req) {
             if (req.status != 200) {
-              dump("Error " + req.status + " while fetching GMail groups: " + req.responseText + "\n");
+	      People._log.error("Error " + req.status + " while fetching GMail groups: " + req.responseText + "\n");
             } else {
               let xmlDoc = req.responseXML;
               let root = xmlDoc.ownerDocument == null ?
@@ -214,26 +214,26 @@ GmailImporter.prototype = {
                 let idIter = evaluate(elem, "*[local-name()='id']");
                 let id = idIter.iterateNext();
                 if (id) id = id.textContent;
-                dump("Handling gmail contact group " + id + "\n");
+                //dump("Handling gmail contact group " + id + "\n");
               
                 if (id) {
                   if (groupHrefMap[id]) { 
                     let titleIter = evaluate(elem, "*[local-name()='title']");
                     let title = titleIter.iterateNext();
                     if (title) title = title.textContent;
-                    dump(" Got title " + title + "\n");
+                    //dump(" Got title " + title + "\n");
                     if (title) {
                       if (title.indexOf("System Group: ") == 0) {
                         title = title.substring(14); // strip off System Group
                       }
                       for each (let p in groupHrefMap[id]) {
-                        dump("Pushing group " + title + " on person " + p.displayName + "\n");
+                        //dump("Pushing group " + title + " on person " + p.displayName + "\n");
                         if (!p.tags) p.tags = [];
                         p.tags.push(title);
                       }
                     }
                   } else {
-                    dump(" unused\n");
+                    //dump(" unused\n");
                   }
                 }
               }
