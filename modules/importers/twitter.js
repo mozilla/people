@@ -81,7 +81,12 @@ TwitterAddressBookImporter.prototype = {
 			parameters: {'cursor': this.cursor}
 		}
   },
-
+  getPrimaryKey: function (person){
+		return person.accounts[0].username;
+	},
+  getLinkFromKey: function (key){
+    return "http://twitter.com/" + key;
+  },
   handleResponse: function TwitterAddressBookImporter_handleResponse(req, svc) {
 		if (req.status == 401) {
 			this._log.error("Twitter login failed.");
@@ -103,7 +108,7 @@ TwitterAddressBookImporter.prototype = {
 				{
 					this._log.info(" Constructing person for " + p.screen_name + "; display " + p.name);
 					try {
-						person = {}
+						let person = {}
             person.tags = ["Twitter"];
 						person.accounts = [{type:"twitter", username:p.screen_name, domain:"twitter.com"}]
 
@@ -219,7 +224,6 @@ TwitterOAuthLoader.prototype =
       this.oauthHandler.reauthorize();
     } else if (req.status == 200) {
       People._log.debug("Twitter got response " + req.responseText + "\n");
-
       callback(req.responseText);
     }
   }
@@ -320,8 +324,6 @@ TwitterAccountDiscoverer.prototype = {
   }
 };
 
-
-
 function constructTwitterPrivateMessageToService(account) {
   return {
     identifier: "twitter:sendPrivateMessageTo:" + account.username,
@@ -341,10 +343,33 @@ function constructTwitterPrivateMessageToService(account) {
   };
 }
 
-
+function constructTwitterPublicMessageToService(account) {
+  return {
+    identifier: "twitter:sendPublicMessageTo:" + account.username,
+    methodName: "sendPublicMessageTo",
+    method: function(text, callback) {
+    
+      People._log.debug("Invoking twitter sendPublicMessageTo");
+      let twitOauth = new TwitterOAuthLoader();
+      let uri = "http://api.twitter.com/1/statuses/update.json";
+      let posttext = "@" + account.username + " " + text;
+      dump("length" + posttext.length + "\n");
+      if(posttext.length > 140) {
+      	callback({status:"error", reason:"Message too long."});
+      } else { 
+	      People._log.debug("Starting Twitter OAuth for sendPublicMessage");
+	      twitOauth.startTwitterLoad(uri, "POST", {status:posttext/*escape(text)*/}, function(result) {
+	        dump("Got sendPublicMessage callback\n");
+	        callback({status:"ok"});
+	      });
+      }
+    }
+  };
+}
 
 PeopleImporter.registerBackend(TwitterAddressBookImporter);
 PeopleImporter.registerDiscoverer(TwitterAccountDiscoverer);
 PersonServiceFactory.registerAccountService("twitter.com", constructTwitterUpdatesService);
 PersonServiceFactory.registerAccountService("twitter.com", constructTwitterPrivateMessageToService);
+PersonServiceFactory.registerAccountService("twitter.com", constructTwitterPublicMessageToService);
 

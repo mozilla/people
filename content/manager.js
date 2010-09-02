@@ -34,11 +34,30 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-
+Components.utils.import("resource://people/modules/ext/Observers.js");
 var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                    .getService(Components.interfaces.nsIWindowMediator);
 var win = wm.getMostRecentWindow(null);
 window.openURL = win.openURL;
+
+//Observers.add("people-update", setRefresh, this);
+Observers.add("people-add", setRefresh, this);
+Observers.add("people-remove", setRefresh, this);
+Observers.add("people-disconnectService", setRefresh, this);
+Observers.add("people-connectService", setRefresh, this);
+
+var repaint;
+
+function setRefresh(data){
+  if(repaint) window.clearTimeout(repaint);
+  repaint = window.setTimeout(refreshPeople, 50);
+}
+
+function refreshPeople(data){
+  dump("Refreshing Detail Pane\n");
+  PeopleManager.setChanged();
+  if (document.getElementById("contactpane").style.display == "block") PeopleManager.reRender()
+}
 
 function createDiv(clazz)
 {
@@ -179,8 +198,21 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
 
 
 let PeopleManager = {
+  changed: false,
+  setChanged: function() {
+    this.changed = true;
+  },
+  reRender: function() {
+    if(this.changed){
+      this.changed = false;
+      People.findCallback( {}, function(peopleStore){
+        PeopleManager.resultSet = peopleStore;
+        PeopleManager.processData();
+        PeopleManager.render();}, null);
+    } 
+  },
   onLoad: function() {
-    navigator.people.find( {}, null, PeopleManager.loadComplete);
+    People.findCallback( {}, PeopleManager.loadComplete, null);
   },
 
 	loadComplete: function(peopleStore) {
@@ -196,46 +228,46 @@ let PeopleManager = {
       document.getElementById('contactCount').innerHTML = "You have no contacts loaded.  Activate a Contact Service to make them available to Firefox.";
       selectPane("service");
     }
-    else
-    {
-      for each (p in peopleStore) {
-        p.givenName = p.getProperty("name/givenName");
-        p.familyName = p.getProperty("name/familyName");
-      }
-      document.getElementById('contactCount').innerHTML = "There are " + peopleStore.length + " people in your contacts.  Click 'Contacts', at the top left, to see them.";
-      peopleStore.sort(function(a,b) {
-       try {
-         if (a.familyName && b.familyName) {
-           var ret= a.familyName.localeCompare(b.familyName);
-           if (ret == 0) {
-             return a.givenName.localeCompare(b.givenName);
-           } else {
-             return ret;
-           }
-         } else if (a.familyName) {
-           return -1;
-         } else if (b.familyName) {
-           return 1;
-         } else if (a.displayName && b.displayName) {
-           return a.displayName.localeCompare(b.displayName);
-         } else if (a.displayName) {
-          return -1;
-         } else if (b.displayName) {
-          return 1;
-         } else {
-          return a.guid.localeCompare(b.guid);
-         }
-        } catch (e) {
-          People._log.warn("Sort error: " + e + "; a.familyName is " + a.familyName + ", b.familyName is " + b.familyName);
-          return -1;
-        }
-      });
-      
-      PeopleManager.render();
-    }
+    else PeopleManager.processData();
+    PeopleManager.render();
 	},
-  
-  render: function render()
+	
+	processData: function(){
+	  for each (p in PeopleManager.resultSet) {
+      p.givenName = p.getProperty("name/givenName");
+      p.familyName = p.getProperty("name/familyName");
+    }
+    document.getElementById('contactCount').innerHTML = "There are " + PeopleManager.resultSet.length + " people in your contacts.  Click 'Contacts', at the top left, to see them.";
+    PeopleManager.resultSet.sort(function(a,b) {
+     try {
+       if (a.familyName && b.familyName) {
+         var ret= a.familyName.localeCompare(b.familyName);
+         if (ret == 0) {
+           return a.givenName.localeCompare(b.givenName);
+         } else {
+           return ret;
+         }
+       } else if (a.familyName) {
+         return -1;
+       } else if (b.familyName) {
+         return 1;
+       } else if (a.displayName && b.displayName) {
+         return a.displayName.localeCompare(b.displayName);
+       } else if (a.displayName) {
+        return -1;
+       } else if (b.displayName) {
+        return 1;
+       } else {
+        return a.guid.localeCompare(b.guid);
+       }
+      } catch (e) {
+        People._log.warn("Sort error: " + e + "; a.familyName is " + a.familyName + ", b.familyName is " + b.familyName);
+        return -1;
+      }
+    });
+	},
+	
+	render: function render()
   {
 		if (document.getElementById("contactpane").style.display == "none")
 			return;
@@ -243,7 +275,8 @@ let PeopleManager = {
     document.getElementById("contactdetail").innerHTML = "";
 
     if (contactDisplayMode == 'table') {
-			document.getElementById("contactdetail").style.display = "block";
+      //if (!document.getElementById("contactpane").style.display == "none")
+			  document.getElementById("contactdetail").style.display = "block";
       PeopleManager.renderTable(PeopleManager.resultSet);        
       if (PeopleManager.selectedPersonGUID) selectPerson(PeopleManager.selectedPersonGUID);
     } else if (contactDisplayMode == 'cards') {
@@ -365,6 +398,7 @@ let PeopleManager = {
         
         // let id = person.documents.default;
         let contact =  createDiv("contact");
+        //contact.setAttribute("draggable", "true");
 
         let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
         img.setAttribute("width", "16");
@@ -373,7 +407,7 @@ let PeopleManager = {
         contact.appendChild(img);
 
 
-        var dN = person.getProperty("displayName");
+        let dN = person.getProperty("displayName");
         if (dN == null || dN.length ==0) {
           let emails = person.getProperty("emails");
           if (emails && emails.length > 0) {
@@ -401,7 +435,48 @@ let PeopleManager = {
         let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
         a.setAttribute("class", "clink");
         a.setAttribute("onclick", "selectPerson('" + person.guid + "')");
+        a.setAttribute("title", dN);
         a.appendChild(document.createTextNode(dN));
+        
+        a.setAttribute("draggable", "true");
+        
+        $(a).tipsy({trigger:'manual', gravity:'w', fade:true});
+        let guid = person.guid;
+      
+        //set ondrag methods for merging
+        contact.ondragstart = function(event){
+          event.dataTransfer.setData('guid', guid);
+          event.dataTransfer.setData('DN', dN);
+        };
+        
+        contact.ondragenter = function(event) { 
+          if(event.dataTransfer.getData('guid') != guid){
+            a.title = "Merge contacts \"" + event.dataTransfer.getData('DN') +  "\" and \"" + dN + "\"";
+            $(a).tipsy('show');
+            contact.className = "contact highlighted";
+          }
+        };
+        contact.ondragleave = function() {
+          $(a).tipsy('hide');
+          contact.className = "contact";
+        };
+        
+        contact.ondragover = function(event){
+          event.preventDefault();
+        };
+        
+        //merge on drop
+        contact.ondrop = function(event){
+          let oldguid = event.dataTransfer.getData('guid');
+          let newguid = guid;
+          if(oldguid == newguid) return;
+          let olddN = event.dataTransfer.getData('DN');
+          var answer = confirm ('Combine contacts "' + olddN + '" and "' + dN + '"?');
+          if(!answer) return;
+          event.preventDefault();
+          mergePeople(oldguid, newguid);
+        };
+        
         contact.appendChild(a);
 
         // hidden div for name
@@ -496,6 +571,19 @@ function bytesFromString(str) {
  return data + converter.Finish();
 }
 
+function mergePeople(guid1, guid2){
+  dump("Merging: " + guid1 + "," + guid2 + "\n");
+  let iframe = document.getElementById('detailpaneframe');
+  //send messages to stop discovery if person is selected
+  if(iframe){
+    iframe.contentWindow.postMessage(JSON.stringify({message:"stopDiscovery", guid:guid1}), "*");
+    iframe.contentWindow.postMessage(JSON.stringify({message:"stopDiscovery", guid:guid2}), "*");
+  }
+	
+  People.mergePeople(guid1, guid2);
+  // reselect one of the people if the are the selected person
+  if(PeopleManager.selectedPersonGUID == guid1 || PeopleManager.selectedPersonGUID == guid2) selectPerson(guid1);
+}
 
 function selectPerson(guid)
 {
@@ -538,6 +626,7 @@ function renderDetailPane()
   container.innerHTML = "";
 
   let iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+  iframe.setAttribute("id", "detailpaneframe");
   iframe.setAttribute("style", "border:0px");
   iframe.setAttribute("src", "person:guid:" + person.guid);
   iframe.setAttribute("border", "0");
@@ -650,7 +739,7 @@ function renderDetailPane()
   }
 }
 
-function selectTopLevelUrls(urls)
+  function selectTopLevelUrls(urls)
 {
   var ret = [];
   for each (var u in urls) {
@@ -840,7 +929,7 @@ function doDiscovery()
   } else {
     gDiscoveryMessage = "Search results:<br/>" + gDiscoveryMessage;
   }
-  navigator.people.find( {}, null, PeopleManager.loadComplete);
+  People.findCallback( {}, PeopleManager.loadComplete, null);
 }
 
 function updateDiscoveryProgress(msg)

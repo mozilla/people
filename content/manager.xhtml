@@ -15,10 +15,13 @@
       src="chrome://people/content/search.js"></script>
   <script type="text/javascript;version=1.8"
       src="chrome://people/content/manager.js"></script>
+  <script type='text/javascript'
+      src='chrome://people/content/jquery.tipsy.js'></script>
+	<link rel="stylesheet" href="chrome://people/content/tipsy.css" type="text/css" />
 </head>
 
-
 <script type="text/javascript;version=1.8">
+
 function doServiceConnect(service)
 {
   try {
@@ -40,7 +43,7 @@ function doServiceDisconnect(service)
 {
   try {
     People.disconnectService(service);
-    navigator.people.find( {}, null, PeopleManager.loadComplete);    
+    People.findCallback( {}, PeopleManager.loadComplete, null);   
   } catch (e) {
     updateImportProgress(service, e.message);
   }
@@ -78,7 +81,7 @@ function importerComplete(error, service)
     }
   } else {
     updateImportProgress(service, null);
-    navigator.people.find( {}, null, PeopleManager.loadComplete);
+    People.findCallback( {}, PeopleManager.loadComplete, null);
   }
   displayServices();  
 }
@@ -92,14 +95,14 @@ function resetSavedPerms()
 function deleteAll()
 {
   People.deleteAll();
-  navigator.people.find( {}, null, PeopleManager.loadComplete);
+  People.findCallback( {}, PeopleManager.loadComplete, null);
   displayServices();  
 }
 
 function deleteDiscovered()
 {
   People.removeDiscoveryData();
-  navigator.people.find( {}, null, PeopleManager.loadComplete);
+  People.findCallback( {}, PeopleManager.loadComplete, null);
 }
 
 function exportVCard()
@@ -286,7 +289,7 @@ var PANES = ["contact", "service", "discoverers", "permission"];
 function selectPane(pane) {
   document.getElementById("contacts").style.display= (pane == "contact"?"block":"none");
   document.getElementById("contactdetail").style.display=(pane == "contact"  &amp;&amp; contactDisplayMode == "table"?"block":"none");
-
+  
   for each (var p in PANES) {
     if (p == pane) {
       document.getElementById(p + "pane").style.display="block";
@@ -296,7 +299,9 @@ function selectPane(pane) {
       document.getElementById(p + "paneswitch").setAttribute("class", "controlbutton");
     }
   }
+  if(pane == "contact") PeopleManager.reRender();
 }
+
 </script>
 
 <body id="body">

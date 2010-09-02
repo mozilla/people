@@ -238,8 +238,18 @@ function toggleGroup(tagID)
     selectedGroups[grpTag] = true;
     grp.setAttribute("class", "groupSelected");  
   }
+  checkEnableAccept();
 }
 
+function checkEnableAccept(){
+  for each (let value in selectedGroups){
+    if(value){
+      window.parent.document.getElementById('disclosurePageLoader').getButton("accept").disabled = false;
+      return
+    }
+  }
+  window.parent.document.getElementById('disclosurePageLoader').getButton("accept").disabled = true;
+}
 
 
 function htmlescape(html) {
@@ -254,6 +264,7 @@ function htmlescape(html) {
 
 $(document).ready(function() {
 	Components.utils.import("resource://people/modules/people.js");
+	window.parent.document.getElementById('disclosurePageLoader').getButton("accept").disabled = true;
 
 	var targetURL  = window.top.arguments ? window.top.arguments[0].site : "This page";
 	var targetFields  = window.top.arguments ? window.top.arguments[0].fields : undefined;

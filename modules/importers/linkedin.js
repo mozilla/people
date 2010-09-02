@@ -56,6 +56,9 @@ LinkedInImporter.prototype = {
   get name() "linkedin",
   get displayName() "LinkedIn Contacts",
   get iconURL() "chrome://people/content/images/linkedin.png",
+  getPrimaryKey: function (person){
+		return person.emails[0].value;
+	},
 
   beginTest: function t0(l) { return /^begin:vcard$/i.test(l); },
   tests: [
@@ -215,7 +218,7 @@ LinkedInImporter.prototype = {
       return false;
     }
     
-    if (req.responseText.indexOf("Sign In to LinkedIn") >= 0) {
+    if (req.responseText.indexOf("Sign in to LinkedIn") >= 0) {
       this._log.debug("LinkedIn: need session");
       return false;
     }
@@ -224,6 +227,7 @@ LinkedInImporter.prototype = {
       this._log.debug("LinkedIn: need CAPTCHA.");
       return false;
     }
+    dump("All the way here\n");
     return true;
   },
 
@@ -266,11 +270,14 @@ LinkedInImporter.prototype = {
     let people = [], cur = {}, fencepost = true;
     for each (let line in req.responseText.split('\r\n')) {
       this.progressCallback(0.50);
+      //dump("LINE IS:\n");
+      //dump(line);
       if (this.beginTest(line)) {
         if (fencepost) {
           fencepost = !fencepost;
           continue;
         } else {
+          cur.tags = ["LinkedIn"];
           people.push(cur);
           cur = {};
           continue;

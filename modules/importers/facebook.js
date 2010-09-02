@@ -62,7 +62,7 @@ var MozillaLabsContactsApplicationID = "110879292285085";
 var gLogger = Log4Moz.repository.getLogger("People.FacebookImporter");
 
 var gAuthParams = {
-	'scope': 'friends_birthday,friends_online_presence,friends_photos,friends_photo_video_tags,friends_website',
+	'scope': 'friends_birthday,friends_online_presence,friends_photos,friends_photo_video_tags,user_photos,user_photo_video_tags,friends_website,publish_stream,email',
 	'type': "user_agent",
 	'display': "popup"
 	};
@@ -76,7 +76,6 @@ FacebookImporter.prototype = {
   get name() "facebook",
   get displayName() "Facebook",
   get iconURL() "chrome://people/content/images/facebook.png",
-
   completionCallback: null,
   progressCallback: null,
   oauthHandler: null,
@@ -91,7 +90,12 @@ FacebookImporter.prototype = {
       parameters: {}
     }
   },
-
+  getPrimaryKey: function (person){
+		return person.accounts[0].userid;
+	},
+  getLinkFromKey: function (key){
+    return "http://www.facebook.com/profile.php?id=" + key;
+  },
   handleResponse: function FacebookImporter_handleResponse(req, svc) {
     if (req.readyState == 4) {
       if (req.status == 200) {
@@ -123,7 +127,7 @@ FacebookImporter.prototype = {
         }
         People.add(people, this, this.progressCallback);
         this.completionCallback(null);
-      } else if (req.status == 401) {
+      } else if (req.status == 401 || req.status == 400) {
         // expired, go refresh it
         this.oauthHandler.reauthorize();
       } else {
@@ -166,7 +170,7 @@ FacebookDiscoverer.prototype = {
     method: "GET",
     parameters: {}
   },
-
+  
   discover: function FacebookDiscoverer_discover(forPerson, completionCallback, progressCallback) {
     // Look for urls and accounts that reference a Facebook ID
     for each (let link in forPerson.getProperty("urls")) {
@@ -247,8 +251,8 @@ FacebookDiscoverer.prototype = {
         this._log.debug("Request response not handled, state "+req.readyState);
         return;
     }
-    if (req.status == 401) {
-      this._log.info("Received 401 error while accessing Facebook; renewing access token");
+    if (req.status == 401 || req.status == 400) {
+      this._log.info("Received 401 or 400 error while accessing Facebook; renewing access token");
       this.oauthHandler.reauthorize();
     } else if (req.status == 200) {
       let response = JSON.parse(req.responseText);
@@ -330,11 +334,11 @@ function FacebookGraphLoader() {
 
 FacebookGraphLoader.prototype = 
 {
-  startFacebookGraphLoad : function startFacebookGraphLoad(objectID, connectionLabel, callback) {
+  startFacebookGraphLoad : function startFacebookGraphLoad(objectID, connectionLabel, method, params, callback) {
     try {
       let self = this;
       function facebookGraphLoad(svc) {
-        self.createFacebookGraphHandler(svc, objectID, connectionLabel, callback);
+        self.createFacebookGraphHandler(svc, objectID, connectionLabel, method, params, callback);
       }
       this.oauthHandler = OAuthConsumer.authorize('facebook',
         MozillaLabsContactsApplicationID,
@@ -344,14 +348,51 @@ FacebookGraphLoader.prototype =
         gAuthParams,
         "contacts@labs.mozilla.com");
     } catch (e) {
+      dump(e);
     }
   },
+  
+  // to deal with pagination
+  getAllFacebookGraphLoad : function getAllFacebookGraphLoad(objectID, connectionLabel, method, params, callback, pageSize, dataProcess){
+    let offset = 0;
+    let perTime = (pageSize == undefined || pageSize == null) ? 1000 : pageSize;
+    let responseData = [];
+    if(params == null) {
+      params = {limit:perTime, offset:offset};
+    } else {
+      params.limit = perTime;
+      params.offset = offset;
+    }
+    let self = this;
+    
+    let handleResults = function(result){
+      result.map( function(value) {
+        if(dataProcess != undefined && dataProcess != null){
+          let processed = dataProcess(value);
+          if (processed != null) responseData.push(processed);
+        } else 
+          responseData.push(value);
+      });
+      dump("Got " + result.length + " results at offset: " + params.offset + "\n");
+      if(result.length >= params.limit){
+        params.offset+=result.length;
+        dump("More pages new offset:" + params.offset + "\n");
+        self.startFacebookGraphLoad(objectID, connectionLabel, method, params, handleResults);
+      } else {
+        dump("Done with pages, calling callback.\n");
+        callback(responseData);
+      }
+    }
+    this.startFacebookGraphLoad(objectID, connectionLabel, method, params, handleResults);
+  
+  },
 
-  createFacebookGraphHandler: function(svc, objectID, connectionLabel, callback) {
+  createFacebookGraphHandler: function(svc, objectID, connectionLabel, method, params, callback) {
+  	let parameters = ((params == null) ? {} : params);
     let call = {
       action: "https://graph.facebook.com/" + objectID + "/" + connectionLabel,
-      method: "GET",
-      parameters: {}
+      method: method,
+      parameters:  parameters
     }
     let self = this;
     OAuthConsumer.call(svc, call, function FacebookDiscovererCallHandler(req) {
@@ -365,13 +406,15 @@ FacebookGraphLoader.prototype =
         return;
     }
     dump("Got Facebook response - " + req.responseText.length + " bytes\n");
-    if (req.status == 401) {
-      this._log.info("Received 401 error while accessing Facebook; renewing access token");
+    dump(req.status + "\n");
+    if (req.status == 401 || req.status == 400) {
+      dump("Received 401 error while accessing Facebook; renewing access token");
       this.oauthHandler.reauthorize();
     } else if (req.status == 200) {
+    	//dump(req.responseText + "\n");
       let response = JSON.parse(req.responseText);
       callback(response.data);
-    }
+    } 
   }
 };
 
@@ -399,7 +442,7 @@ function constructFacebookPicturesOfService(account) {
     method: function(callback) {
       let fb = new FacebookGraphLoader();
       let id = (account.username ? account.username : account.userid);
-      fb.startFacebookGraphLoad(id, "photos", getPhotoNormalizeCallback(callback));
+      fb.startFacebookGraphLoad(id, "photos", "GET", null, getPhotoNormalizeCallback(callback));
     }
   };
 }
@@ -416,7 +459,7 @@ function constructFacebookPicturesByService(account) {
         for each (let coll in result) {
           let theID = coll.id;
           coll.getPhotos = function(getPhotoCallback) {
-            new FacebookGraphLoader().startFacebookGraphLoad(theID, "photos", getPhotoNormalizeCallback(getPhotoCallback));
+            new FacebookGraphLoader().startFacebookGraphLoad(theID, "photos", "GET", null, getPhotoNormalizeCallback(getPhotoCallback));
           };
           coll.primaryPhotoURL = coll.link;
 
@@ -438,7 +481,7 @@ function constructFacebookUpdatesService(account) {
     method: function(callback) {
       let fb = new FacebookGraphLoader();
       let id = (account.username ? account.username : account.userid);
-      fb.startFacebookGraphLoad(id, "feed", function(result) {
+      fb.startFacebookGraphLoad(id, "feed", "GET", null, function(result) {
         // normalize to standard updates API
         let output = [];
         for each (let update in result) {
@@ -462,9 +505,23 @@ function constructFacebookUpdatesService(account) {
   };
 }
 
+function constructFacebookPublicMessageToService(account) {
+  return {
+    identifier: "facebook:sendPublicMessageTo:" + (account.username ? account.username : account.userid),
+    methodName: "sendPublicMessageTo",
+    method: function(text, callback) {
+      let fb = new FacebookGraphLoader();
+      let id = (account.username ? account.username : account.userid);
+      fb.startFacebookGraphLoad(id, "feed", "POST", {message:text}, function(result) {
+        callback(result);
+      });
+    }
+  };
+}
 
 PeopleImporter.registerDiscoverer(FacebookDiscoverer);
 PeopleImporter.registerBackend(FacebookImporter);
 PersonServiceFactory.registerAccountService("facebook.com", constructFacebookPicturesOfService);
 PersonServiceFactory.registerAccountService("facebook.com", constructFacebookPicturesByService);
 PersonServiceFactory.registerAccountService("facebook.com", constructFacebookUpdatesService);
+PersonServiceFactory.registerAccountService("facebook.com", constructFacebookPublicMessageToService);

@@ -61,6 +61,9 @@ YahooContactsImporter.prototype = {
   get name() "yahoo",
   get displayName() "Yahoo! Addresses",
   get iconURL() "chrome://people/content/images/yahoo.png",
+	getPrimaryKey: function (person){
+		return person.accounts[0].username;
+	},
 
   completionCallback: null,
   progressCallback: null,

@@ -104,6 +104,10 @@ let PeopleInjector = {
     if (chromeWin != window)
       return;
 
+    // We want to make it reset permissions on refresh
+    let URI = this.URI;
+    let uri = new URI(domWindow.location);
+    People.removeSessionSitePermissions(uri.spec);
     this._inject(domWindow);
   },
 
@@ -158,9 +162,9 @@ let PeopleInjector = {
     let People = this.People;
     let URI = this.URI;
 
-    return function(win, attrs, fields, successCallback, failureCallback) {
+    return function(win, fields, successCallback, failureCallback, options) {
       win = XPCSafeJSObjectWrapper(win);
-      attrs = XPCSafeJSObjectWrapper(attrs);
+      options = XPCSafeJSObjectWrapper(options);
       successCallback = XPCSafeJSObjectWrapper(successCallback);
       failureCallback = XPCSafeJSObjectWrapper(failureCallback);
 
@@ -175,212 +179,97 @@ let PeopleInjector = {
 			
         try {
         
-				let people = null;
-
-				if (win.location != "chrome://people/content/manager.xhtml" && 
-					  win.location != "chrome://people/content/disclosure.xhtml")
-				{
-					// Check for saved site permissions; if none are found, present the disclosure box
-					people = People.find(attrs);
-					let groupList = null;
-					let permissions = People.getSitePermissions(uri.spec);
-
-          // TODO: If the site has asked for a new field permission,
-          // ask the user again (but this could get annoying, hm)
-          if (permissions) {
-            var extendedPermissions = false;
-            for each (f in fields) {
-              if (permissions.fields.indexOf(f) < 0) {
-                extendedPermissions = true;
-              }
-            }
-            if (extendedPermissions) permissions = null;
-          }
-          
-					if (permissions == null)
+					let people = null;
+	
+					if (win.location != "chrome://people/content/manager.xhtml" && 
+						  win.location != "chrome://people/content/disclosure.xhtml")
 					{
-						groupMap = {};
-						let fieldsActive = {};
-						let remember = {value:false};
-						let loc;
-						try {
-							loc = win.location.host;
-						} catch (e) {
-							loc = win.location;
-						}
-						
-						var params = {
-							site: loc,
-							fields: fields, 
-							fieldsActive: fieldsActive, // on exit, a map of fields to booleans
-							peopleList: people,
-							selectedGroups: groupMap, // on exit, a map of tags to booleans
-							remember: remember,
-							cancelled: false
-						};
-						var disclosureDialog = openDialog("chrome://people/content/disclosure.xul", "Access to Contacts", "modal", params);
- 						if (!params.cancelled)
+						// Check for saved site permissions; if none are found, present the disclosure box
+						people = People.find({});
+						let groupList = null;
+						let permissions = People.getSitePermissions(uri.spec);
+	
+	          // TODO: If the site has asked for a new field permission,
+	          // ask the user again (but this could get annoying, hm)
+	          if (permissions) {
+	            var extendedPermissions = false;
+	            for each (f in fields) {
+	              if (permissions.fields.indexOf(f) < 0) {
+	                extendedPermissions = true;
+	              }
+	            }
+	            if (extendedPermissions) permissions = null;
+	          }
+	          
+						if (permissions == null)
 						{
-							// Construct allowed field list...
-							var allowedFields = [];
-							for each (f in fields) {
-								if (fieldsActive[f]) allowedFields.push(f);
+							groupMap = {};
+							let fieldsActive = {};
+							let remember = {value:false};
+							let loc;
+							try {
+								loc = win.location.host;
+							} catch (e) {
+								loc = win.location;
 							}
-              groupList = [];
-							for (g in groupMap) {
-								if (groupMap[g]) groupList.push(g);
+							
+							var params = {
+								site: loc,
+								fields: fields, 
+								fieldsActive: fieldsActive, // on exit, a map of fields to booleans
+								peopleList: people,
+								selectedGroups: groupMap, // on exit, a map of tags to booleans
+								remember: remember,
+								cancelled: false
+							};
+							var disclosureDialog = openDialog("chrome://people/content/disclosure.xul", "Access to Contacts", "modal", params);
+	 						if (!params.cancelled)
+							{
+								// Construct allowed field list...
+								var allowedFields = [];
+								for each (f in fields) {
+									if (fieldsActive[f]) allowedFields.push(f);
+								}
+	              groupList = [];
+								for (g in groupMap) {
+									if (groupMap[g]) groupList.push(g);
+								}
+	              
+								if (remember.value) {
+									People.storeSitePermissions(uri.spec, allowedFields, groupList);
+									// This blows up if uri doesn't have a host
+									permissionManager.add(uri, "people-find",
+																				Ci.nsIPermissionManager.ALLOW_ACTION);
+								}
+	
+	              // TODO: Checkbox to allow "just once"
+	              People.setSessionSitePermissions(uri.spec, allowedFields, groupList);
+	
+							} else {
+								// user cancelled
+								return onDeny();
 							}
-              
-							if (remember.value) {
-								People.storeSitePermissions(uri.spec, allowedFields, groupList);
-								// This blows up if uri doesn't have a host
-								permissionManager.add(uri, "people-find",
-																			Ci.nsIPermissionManager.ALLOW_ACTION);
-							}
-
-              // TODO: Checkbox to allow "just once"
-              People.setSessionSitePermissions(uri.spec, allowedFields, groupList);
-
 						} else {
-							// user cancelled
-							return onDeny();
-						}
+	            // saved permissions exist:
+	            // set fields to the minimum overlapping set of saved permissions and what the site wanted.
+	            var allowedFields = [];
+	            for each (f in fields) {
+	              if (permissions.fields.indexOf(f) >= 0) {
+	                allowedFields.push(f);
+	              }
+	            }
+	            
+	            // and set groups to what the user saved
+	            groupList = permissions.groups;
+	          }
+						
+						// Limit the result data...
+						fields = allowedFields;
+						People.findExternal(fields, successfulCallback, failureCallback, options, groupList);
+						
 					} else {
-            // saved permissions exist:
-            // set fields to the minimum overlapping set of saved permissions and what the site wanted.
-            var allowedFields = [];
-            for each (f in fields) {
-              if (permissions.fields.indexOf(f) >= 0) {
-                allowedFields.push(f);
-              }
-            }
-            
-            // and set groups to what the user saved
-            groupList = permissions.groups;
-          }
-					
-					// Limit the result data...
-					fields = allowedFields;
-					let outputSet = [];
-          let groupsIncludeAll = groupList.indexOf(ALL_GROUP_CONSTANT) >= 0;
-
-					for each (p in people) {
-            var personTags = p.getProperty("tags");
-            
-            if (groupsIncludeAll || 
-               (personTags && groupList.some(function(e,i,a) {return personTags.indexOf(e) >= 0})))
-            {
-							// Convert from the multi-service internal representation
-							// to a simple, flat, single-schema representation:
-              
-              // Note that we need to reconstruct subobjects as we go.
-              
-							let newPerson = {}
-							for each (f in fields) {
-
-                if (f == "idHash")
-                {
-                
-                  try {
-                    var ch = Components.classes["@mozilla.org/security/hash;1"].
-                      createInstance(Components.interfaces.nsICryptoHash);                
-                    var converter = Components.classes["@mozilla.org/intl/scriptableunicodeconverter"].
-                      createInstance(Components.interfaces.nsIScriptableUnicodeConverter);
-                    var emails = p.getProperty("emails");
-                    var hashList = [];
-                    function toHexString(charCode)
-                    {
-                      return ("0" + charCode.toString(16)).slice(-2);
-                    }
-
-                    if (emails) {
-                      for each (var e in emails) {
-                        converter.charset = "UTF-8";
-                        var result = {};
-                        var data = converter.convertToByteArray(e.value, result);
-                        ch.init(ch.MD5);
-                        ch.update(data, data.length);
-                        var hash = ch.finish(false);
-                        var s = [toHexString(hash.charCodeAt(i)) for (i in hash)].join("");                      
-                        hashList.push(s)
-                      }
-                    }
-                    newPerson["idHash"] = hashList;
-                  } catch (e) {
-                    dump("HASH error: " + e + "\n");
-                    dump(e.stack + "\n");
-                  }
-                }
-                else
-                {
-                  var value = p.getProperty(f);
-                  if (f.indexOf("/") > 0) {
-                    var terms = f.split("/");
-                    var obj = newPerson;
-                    for (var i=0;i<terms.length-1;i++) {
-                      if (!(terms[i] in obj)) {
-                        obj[terms[i]] = {};
-                      }
-                      obj = obj[terms[i]];
-                    }
-                    obj[terms[i]] = value;
-                  } else {
-                    newPerson[f] = value;
-                  }
-                }
-              }
-              
-              // And if we need to attach services do that now
-              newPerson.services = p.constructServices();
-              
-							outputSet.push(newPerson);
-						}
+						People.findExternal(fields, successfulCallback, failureCallback, options);
 					}
-					people = outputSet;
-          
-          // and sort them to spare pages the hassle
-          people.sort(function(a,b) {
-           try {
-             if (a.name && b.name && a.name.familyName && b.name.familyName) {
-               var ret= a.name.familyName.localeCompare(b.name.familyName);
-               if (ret == 0) {
-                 return a.name.givenName.localeCompare(b.name.givenName);
-               } else {
-                 return ret;
-               }
-             } else if (a.name && a.name.familyName) {
-               return -1;
-             } else if (b.name && b.name.familyName) {
-               return 1;
-             } else if (a.displayName && b.displayName) {
-               return a.displayName.localeCompare(b.displayName);
-             } else if (a.displayName) {
-              return -1;
-             } else if (b.displayName) {
-              return 1;
-             } else {
-              return a.guid.localeCompare(b.guid);
-             }
-            } catch (e) {
-              People._log.warn("Sort error: " + e);
-              dump(e.stack + "\n");
-              return -1;
-            }
-          });
-				}
-				else
-				{
-					people = People.find(attrs);
-					// FIXME: detect errors finding people and call the failure callback.
-				}
-
-        try {
-          successCallback(people);
-        }
-        catch(ex) {
-          Components.utils.reportError(ex);
-        }
-
 
         } catch (e) {
           dump(e + "\n");

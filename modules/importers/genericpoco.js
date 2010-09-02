@@ -59,6 +59,9 @@ GenericPoCoImporter.prototype = {
   get name() "GenericPoCo",
   get displayName() "Generic Portable Contacts Provider",
   get iconURL() "chrome://people/content/images/poco.png",
+	getPrimaryKey: function (person){
+		return person.emails[0].value;
+	},
 
   discoverPocoEndpoint: function discoverPocoEndpoint() 
   {

@@ -61,6 +61,27 @@ let Utils = {
     return rows;
   },
 
+	deepCopy: function Weave_deepCopy(thing, noSort) {
+    if (typeof(thing) != "object" || thing == null)
+      return thing;
+    let ret;
+
+    if (Utils.isArray(thing)) {
+      ret = [];
+      for (let i = 0; i < thing.length; i++)
+        ret.push(Utils.deepCopy(thing[i], noSort));
+
+    } else {
+      ret = {};
+      let props = [p for (p in thing)];
+      if (!noSort)
+        props = props.sort();
+      props.forEach(function(k) ret[k] = Utils.deepCopy(thing[k], noSort));
+    }
+
+    return ret;
+  },
+
   isArray: function isArray(obj) {
     return obj != null && obj.constructor.toString() == Array;
   },

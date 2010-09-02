@@ -38,7 +38,7 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 
 Cu.import("resource://people/modules/people.js");
-Cu.import("resource://people/modules/import.js");    
+Cu.import("resource://people/modules/import.js");  
 
 try {
 // if the favicon service doesn't exist (e.g. Thunderbird) just ignore it
@@ -63,6 +63,24 @@ var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
                    .getService(Ci.nsIWindowMediator);
 var win = wm.getMostRecentWindow(null);
 window.openURL = win.openURL;
+
+
+//event to stop discovery if guid is matching
+function receiveMessage(event)
+{
+  if(event.origin != "chrome://people")
+    return;
+    
+  let message = JSON.parse(event.data);
+  
+  if(message.message != "stopDiscovery")
+    return;
+
+  if(gPerson.guid == message.guid) 
+    stopDiscovery();
+    
+}
+window.addEventListener("message", receiveMessage, false);
 
 function createDiv(clazz)
 {
@@ -213,7 +231,34 @@ function renderTypeValueList(title, objectType, list, options)
       }
       link.appendChild(document.createTextNode(value));
       itemValueDiv.appendChild(link);    
-    } else {
+    } else if (options && options.splitifyMult){
+      //split link if multiple people
+      let node = document.createTextNode(item.value);
+      if(item.link != ""){
+        let urlink = createElem("a");
+        urlink.setAttribute("href", item.link);
+        urlink.appendChild(node);
+        node = urlink;
+      }
+			let link = createElem("a");
+			link.setAttribute("onclick", "splitPerson('" + options.splitifyMult.obj.guid + "', '" +item.type + "', '" + item.value + "')");
+			link.setAttribute("href", "javascript:void(null)");
+			link.appendChild(document.createTextNode("Split"));
+      itemValueDiv.appendChild(node);
+      itemValueDiv.appendChild(document.createTextNode(" ("));
+      itemValueDiv.appendChild(link); 
+			itemValueDiv.appendChild(document.createTextNode(")"));
+    } else if (options && options.splitifySing){
+      // no split link if singular person
+      let node = document.createTextNode(item.value);
+      if(item.link != ""){
+        let urlink = createElem("a");
+        urlink.setAttribute("href", item.link);
+        urlink.appendChild(node);
+        node = urlink;
+      }
+      itemValueDiv.appendChild(node);
+		} else {
       itemValueDiv.appendChild(document.createTextNode(item.value));
     }
     itemDiv.appendChild(itemTypeDiv);
@@ -229,6 +274,23 @@ function renderTypeValueList(title, objectType, list, options)
     itemsDiv.appendChild(link);
   }
   return itemsDiv;
+}
+
+//stop discovery coordinator by telling it
+function stopDiscovery(){
+  dump("Stopping discovery...\n");
+  if(gDiscoveryCoordinator){
+    dump("Setting discovery to stop...\n");
+    gDiscoveryCoordinator.setShouldUpdate(false);
+  }
+}
+
+//Split two people...
+function splitPerson(guid, service, id){
+	dump("Calling split onperson: " + guid + ", " + service + ", " + id + "\n");
+  stopDiscovery();
+	People.split(guid, service, id);
+	initPerson(gContainer, "guid:" + guid);
 }
 
 function renderPhotoList(title, objectType, list, options)
@@ -310,14 +372,21 @@ function initPerson(container, identifier)
   }
   if (gPerson.guid) gPersistDiscovery = true;
   gPerson.services = gPerson.constructServices();
+  gPerson.servicesByProvider = gPerson.constructServicesByProvider();
   renderPerson();
+ 
+  createDiscovery();
   
   window.setTimeout('startDiscovery()', 3000);
 }
 
-function startDiscovery() 
+function createDiscovery()
 {
   gDiscoveryCoordinator = new DiscoveryCoordinator(gPerson, gPersistDiscovery, renderPerson, renderProgressIndicator, renderPerson);
+}
+
+function startDiscovery() 
+{
   gDiscoveryCoordinator.start();
 }
 
@@ -402,13 +471,24 @@ function renderProgressIndicator()
   }
 }
 
+//merge these two people together.. refresh container after done
+function mergePeople(guid1, guid2){
+  dump("Merging: " + guid1 + "," + guid2 + "\n");
+  stopDiscovery();
+	People.mergePeople(guid1, guid2);
+  
+  initPerson(gContainer, "guid:" + guid1);
+}
+
 function renderPerson()
 {  
   try {
     gPerson.services = gPerson.constructServices();
+    gPerson.servicesByProvider = gPerson.constructServicesByProvider();
   
     var personBox = createDiv("person vcard contact");
     personBox.setAttribute("id", "person");
+    
     renderProgressIndicator();
     
     let controls = createDiv("displaymode");
@@ -477,13 +557,96 @@ function renderContactCard(personBox)
     }
   }
   
+	renderSourceItems(gPerson, personBox);
   renderContactMethods(gPerson, personBox);
   renderContentLinks(gPerson, personBox);
   renderServiceLinks(gPerson, personBox);
 }
 
-function renderContactMethods(person, personBox)
-{
+function renderSourceItems(person, personBox){
+	var contentBox = createDiv("sources");
+	
+	let dN = gPerson.getProperty("displayName");
+    if (dN == null || dN.length ==0) {
+      let emails = gPerson.getProperty("emails");
+      if (emails && emails.length > 0) {
+        dN = emails[0].value;
+      } else {
+        let accounts = gPerson.getProperty("accounts");
+        if (accounts && accounts.length > 0) {
+          dN = accounts[0].username;
+        } else {
+          let orgs = gPerson.getProperty("organizations");
+          if (orgs && orgs.length > 0) {
+            dN = orgs[0].name;
+          } else {
+            let urls = gPerson.getProperty("urls");
+            if (urls && urls.length > 0) {
+              dN = urls[0].value;
+            } else {
+              dN = "Unnamed Contact";
+            }
+          }
+        }
+      }
+    }
+
+  var heading = createDiv("subsecHead");
+  heading.appendChild(document.createTextNode("Sources: "));
+  let link = createElem("a");
+	link.setAttribute("href", "#");
+	link.setAttribute("onclick", "return false;")
+	link.setAttribute("style", "color:black;");
+	link.appendChild(document.createTextNode("(Drag contact here to merge.)"));
+	
+	$(link).tipsy({trigger:"manual", fade:true});
+	contentBox.ondragenter = function(event) {
+	  if(event.dataTransfer.getData('guid') != gPerson.guid){
+      link.title = "Merge contacts \"" + event.dataTransfer.getData('DN') +  "\" and \"" + dN + "\"";
+	    $(link).tipsy('show');
+    }
+  };
+  contentBox.ondragleave = function(event) {
+    $(link).tipsy('hide');
+  };
+  contentBox.ondragover = function(event){
+    event.preventDefault();
+  };
+  
+  contentBox.ondrop = function(event){
+    let oldguid = event.dataTransfer.getData('guid');
+    let newguid = gPerson.guid;
+    if(oldguid == newguid) return;
+    let olddN = event.dataTransfer.getData('DN');
+    var answer = confirm ('Combine contacts "' + olddN + '" and "' + dN + '"?');
+    if(!answer) return;
+    event.preventDefault();
+    mergePeople(oldguid, newguid);
+  };
+	
+	heading.appendChild(link);
+  contentBox.appendChild(heading);
+	
+	let list = [];
+	for each(let i in Iterator(person.obj.merge)) {
+	let type = i[0];
+		for each(let j in Iterator(i[1])){
+			if(j[1] == true) {
+        let svc = PeopleImporter.getBackend(type);
+        let url = svc.getLinkFromKey(j[0]);
+        list.push({value:j[0], type:type, link:url});
+      }
+		}
+	}
+	if(list.length > 1)
+		contentBox.appendChild(renderTypeValueList("Sources", "source", list, {splitifyMult:person}));
+	else 
+		contentBox.appendChild(renderTypeValueList("Sources", "source", list, {splitifySing:person}));
+		
+	personBox.appendChild(contentBox);
+}
+
+function renderContactMethods(person, personBox){
   var photos = gPerson.getProperty("photos");
   var contactBox = createDiv("contactMethods");
   var any = false;
@@ -775,7 +938,6 @@ function formatDate(dateStr)
   }
   return str;
 }
-
 
 function renderDataSources(personBox)
 {

@@ -1,4 +1,4 @@
-	/* ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -21,6 +21,7 @@
  *  Dan Mills <thunder@mozilla.com>
  *  Justin Dolske <dolske@mozilla.com>
  *  Michael Hanson <mhanson@mozilla.com>
+ *  Ruven Chu <rchu@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -43,6 +44,75 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 const DB_VERSION = 3; // The database schema version
+const SORT_WEIGHTS = {
+  displayName:1,
+  "name.formatted":2,
+  nickname:3,
+  "tags.value":4,
+  "phoneNumbers.value":5,
+  "addresses.formatted":6,
+  "organizations.name":7,
+  "emails.value":8,
+  "ims.value":9,
+  preferredUsername:10,
+  "name.familyName":11,
+  "name.givenName":12,
+  "name.middleName":13,
+  "addresses.country":14,
+  "addresses.region":15,
+  "addresses.streetAddress":16,
+  "addresses.locality":17,
+  "addresses.postalCode":18,
+  "organizations.department":19,
+  "organizations.title":20,
+  "organizations.startDate":21,
+  "organizations.endDate":22,
+  "organizations.location":23,
+  "organizations.description":24,
+  "accounts.domain":25,
+  "accounts.userid":26,
+  "accounts.username":27,
+  "photos.value":28,
+  "relationships.value":29,
+  "urls.value":30,
+  gender:31,
+  birthday:32,
+  anniversary:33,
+  published:34,
+  updated:35,
+  utcOffset:36,
+  notes:37,
+  "name.honorificPrefix":38,
+  "name.honorificSuffix":39,
+  "phoneNumbers.type":40,
+  "addresses.type":41,
+  "emails.type":42,
+  "ims.type":43,
+  "tags.type":44,
+  "photos.type":45,
+  "relationships.type":46,
+  "urls.type":47,
+  connected:48,
+  id:49,
+  "phoneNumbers.primary":50,
+  "addresses.primary":50,
+  "emails.primary":50,
+  "ims.primary":50,
+  "tags.primary":50,
+  "photos.primary":50,
+  "relationships.primary":50,
+  "urls.primary":50,
+  phoneNumbers:50,
+  addresses:50,
+  emails:50,
+  ims:50,
+  photos:50,
+  tags: 50,
+  relationships:50,
+  urls:50
+};
+
+const ALL_GROUP_CONSTANT = "___all___";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -104,7 +174,8 @@ PeopleService.prototype = {
     tables: {
       people: "id   INTEGER PRIMARY KEY, "  +
               "guid TEXT UNIQUE NOT NULL, " +
-              "json TEXT NOT NULL"
+              "json TEXT NOT NULL, " +
+              "modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     },
     index_tables: ["displayName", "givenName", "familyName", "emails", "tags"],
     index_fields: ["displayName", "name/givenName", "name/familyName", "emails", "tags"]
@@ -159,6 +230,8 @@ PeopleService.prototype = {
     this._log.debug("Creating Tables");
     for (let name in this._dbSchema.tables)
       this._db.createTable(name, this._dbSchema.tables[name]);
+    
+    this._db.executeSimpleSQL("CREATE TRIGGER people_modified AFTER UPDATE  ON people BEGIN UPDATE people SET modified = CURRENT_TIMESTAMP WHERE id = new.id; END;")
 
     this._log.debug("Creating Index Tables");
     for each (let index in this._dbSchema.index_tables) {
@@ -175,6 +248,13 @@ PeopleService.prototype = {
 
 		this._db.createTable("service_metadata", "id INTEGER PRIMARY KEY, " +
 			"servicename TEXT UNIQUE NOT NULL, refresh INTEGER NOT NULL");
+		
+		this._db.createTable("mergeHints", "id INTEGER PRIMARY KEY, " +
+													"person_id INTEGER NOT NULL, service TEXT NOT NULL COLLATE NOCASE, " +
+													"user TEXT NOT NULL COLLATE NOCASE, positive BOOLEAN NOT NULL," +
+													"UNIQUE(service, user, person_id) ON CONFLICT REPLACE");
+		this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS mergeHints_val ON mergeHints (service, user)");
+		this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS mergeHints_person_id ON mergeHints (person_id)");
 
     this._db.schemaVersion = DB_VERSION;
   },
@@ -232,14 +312,25 @@ PeopleService.prototype = {
     this._db.createStatement("DROP TABLE people").execute();
     this._db.createStatement("DROP INDEX site_permissions_url").execute();
     this._db.createStatement("DROP TABLE site_permissions").execute();
+    
     this._dbCreate();
   },
 
   _dbMigrateToVersion3 : function _dbMigrateToVersion3() {
-    this._db.createTable("tags", "id INTEGER PRIMARY KEY, " +
-      "person_id INTEGER NOT NULL, val TEXT NOT NULL COLLATE NOCASE");
-    this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS tags_person_id ON tags(person_id)");
-    this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS tags_val ON tags(val)");
+    for each (var key in ["displayName", "emails", "familyName", "givenName"]) {
+      for each (var idx in ["person_id", "val"]) {
+        this._db.createStatement("DROP INDEX " + key + "_" + idx).execute();
+      }
+      this._db.createStatement("DROP TABLE " + key).execute();
+    }
+    this._db.createStatement("DROP TABLE people").execute();
+    this._db.createStatement("DROP INDEX site_permissions_url").execute();
+    this._db.createStatement("DROP TABLE site_permissions").execute();
+    this._db.createStatement("DROP TABLE mergeHints").execute();
+    this._db.createStatement("DROP INDEX mergeHints_val").execute();
+    this._db.createStatement("DROP INDEX mergeHints_person_id").execute();
+    
+    this._dbCreate();
   },
 
 
@@ -430,6 +521,45 @@ PeopleService.prototype = {
         stmt.reset();
     }
   },
+  
+  /*
+   * _updateMergeHintsIndexed
+   *
+   * This removes all mergehints that are indexed, and then readds them based on the contents
+   * of the merge folder.
+   */
+  _updateMergeHintsIndexed: function _updateMergeHintsIndexed(person_id, person){
+  	this._clearIndexed(person_id, "mergeHints");
+		for each (let mergeHint in Iterator(person.obj.merge)){
+			let pair = Iterator(mergeHint[1]).next();
+			this._addMergeHintsIndexed(person_id, mergeHint[0], pair[0], pair[1]);
+		}	
+  },
+  _addMergeHintsIndexed: function _addMergeHintsIndexed(person_id, svcName, user, value){
+
+    let stmt;
+    try {
+      let query = "INSERT INTO mergeHints (person_id, service, user, positive) VALUES (:person_id, :service, :user, :positive)";
+      let params = {
+        person_id: person_id,
+        service: svcName,
+        user: user,	
+        positive: value
+      };
+			
+      stmt = this._dbCreateStatement(query, params);
+      stmt.execute();
+    } catch (e) {
+      this._log.warn("add mergetHints indexed field failed (for " + svcName + user + ": " + Utils.exceptionStr(e));
+      throw "add mergeHints indexed field failed: " + Utils.exceptionStr(e);
+
+    } finally {
+      if (stmt)
+        stmt.reset();
+    }
+
+    return null;
+  },
 
   /** Note that person_id is the database person_id, not a GUID.
    * personObj must be a Person, not a raw document. */
@@ -461,6 +591,10 @@ PeopleService.prototype = {
 			query = "DELETE FROM service_metadata";
 			stmt = this._dbCreateStatement(query);
 			stmt.execute();
+			
+			query = "DELETE FROM mergeHints";
+			stmt = this._dbCreateStatement(query);
+			stmt.execute();
 
       this._db.commitTransaction();
 
@@ -472,7 +606,34 @@ PeopleService.prototype = {
       if (stmt)
         stmt.reset();
     }
+    Observers.notify("people-remove", {info:"all"});
     this._dbVacuum();
+	},
+  
+  /* Returns a map from service, primary key, and value to a list of records */
+	getMergeHintLookups: function getMergeHintLookups(){
+		let mergeHintLookup = {};
+		let guidMergeHintLookup = {};
+		var stmt = this._dbCreateStatement("SELECT guid, service, user, positive FROM people p JOIN mergeHints t0 ON t0.person_id = p.id");
+    try{
+      stmt.reset();
+      while (stmt.step()) {  
+        let guid = stmt.row.guid;  
+        let service = stmt.row.service;
+        let user = stmt.row.user;
+        let positive = stmt.row.positive;
+        let lookupKey = service.toLowerCase() + user.toLowerCase() + positive;
+				if(!mergeHintLookup[lookupKey]) mergeHintLookup[lookupKey] = [];
+        mergeHintLookup[lookupKey].push(guid);
+				if(!guidMergeHintLookup[guid])guidMergeHintLookup[guid] = [];
+				guidMergeHintLookup[guid].push({service:service, user:user, positive:positive});
+      }
+      return [mergeHintLookup, guidMergeHintLookup];
+    } catch (e) {
+      this._log.warn("Unable to perform mergeHints to GUID lookup: " + e);
+    } finally {
+      stmt.reset();
+    }
 	},
 
   /* Returns a map from lowercased email addresses to GUIDs for all records */
@@ -513,9 +674,13 @@ PeopleService.prototype = {
     }
   },
   
-	_searchForMergeTarget: function _searchForMergeTarget(personDoc) {
+	_searchForMergeTarget: function _searchForMergeTarget(personDoc, service) {
     // TODO: This is much slower than I would like.  Are the indices working properly?
-    
+  	
+  	let match = this._findMergeHints(personDoc, service);
+  	if(match && match.length > 0 && match[0].positive == 1) return match[0].guid.toLowerCase();
+  	else if(match && match.length > 0 && match[0].positive == 0) return null;
+  	
 		// Try all emails:
 		if (personDoc.emails && personDoc.emails.length > 0) {
       for each (let anEmail in personDoc.emails) {
@@ -538,6 +703,33 @@ PeopleService.prototype = {
     
 		return null;
 	},
+	
+	_findMergeHints: function _findMergeHints(personDoc, service){
+    
+    let params = {};
+		let query = "SELECT guid, positive, service, user FROM people p JOIN mergeHints m0 ON m0.person_id = p.id WHERE user = :user AND service = :service";
+    params["service"] = service.name;
+    params["user"] = service.getPrimaryKey(personDoc);
+		let matches = [];
+		let stmt = this._dbCreateStatement(query, params);
+    try{
+      while (stmt.step()) {  
+        let ans = {};
+        ans.guid = stmt.row.guid;
+        ans.positive = stmt.row.positive;
+        ans.user = stmt.row.user;
+        ans.service = stmt.row.service;
+        matches.push(ans);
+      }
+      return matches;
+    } catch (e) {
+      this._log.warn("Unable to search for mergeHints: " + e);
+    } finally {
+      stmt.reset();
+    }
+    result = matches;
+		return result;
+	},
 
 
   /** TODO: Need a way to specify a GUID on new person doc add *****/
@@ -545,9 +737,34 @@ PeopleService.prototype = {
   _createMergeFinder: function _createMergeFinder(sizeHint) {
     var finder = {
       people: this,
+			
+			findNegativeMerges: function findNegativeMerges(aPersonDoc, service) {
+				if(this.mergeHintLookup){
+				  let lookupKey = service.name.toLowerCase() + service.getPrimaryKey(aPersonDoc).toLowerCase() + 0;
+					if(this.mergeHintLookup[lookupKey])
+					  return(this.mergeHintLookup[lookupKey]);
+          return [];
+        }
+				return null;
+			},
+			mergeHintsFromGUID: function mergeHintsFromGUID(guid){
+				if(this.guidMergeHintLookup)
+					return(this.guidMergeHintLookup[guid]);
+				return null;
+			},
       
-      findMergeTarget: function findMergeTarget(aPersonDoc) {
+      findMergeTarget: function findMergeTarget(aPersonDoc, service) {
 
+		  	if (this.mergeHintLookup) {
+		  	  let lookupPrefix = service.name.toLowerCase() + service.getPrimaryKey(aPersonDoc).toLowerCase();
+		    	if (this.mergeHintLookup[lookupPrefix + 1]) {
+		        return this.mergeHintLookup[lookupPrefix + 1][0];
+		      } else if(this.mergeHintLookup[lookupPrefix + 0]){
+		      	//if we want to block merges, we return null
+		      	return null;
+		      }
+		    }
+    	
         if (this.emailLookup) {
           for each (anEmail in aPersonDoc.emails) {
             if (this.emailLookup[anEmail.value.toLowerCase()]) {
@@ -564,10 +781,11 @@ PeopleService.prototype = {
           // through to the database search; just return.
           return null;
         }
-        return this.people._searchForMergeTarget(aPersonDoc);
+        
+        return this.people._searchForMergeTarget(aPersonDoc, service);
       },
       
-      addPerson: function addPerson(aPersonDoc, guid) {
+      addPerson: function addPerson(aPersonDoc, service, guid) {
         if (this.displayNameLookup && aPersonDoc.displayName) 
           this.displayNameLookup[aPersonDoc.displayName.toLowerCase()] = guid;
 
@@ -577,15 +795,52 @@ PeopleService.prototype = {
               this.emailLookup[anEmail.value.toLowerCase()] = guid;
             }
           }
-        }      
+        } 
+        if(this.mergeHintLookup){
+          let lookupKey = service.name.toLowerCase() + service.getPrimaryKey(aPersonDoc).toLowerCase() + 1;
+        	if(!this.mergeHintLookup[lookupKey])
+						this.mergeHintLookup[lookupKey] = [];
+					this.mergeHintLookup[lookupKey].push(guid);
+        }
       }
     }
     if (sizeHint > 50) { // it's worth it to build a lookup table...
       finder.emailLookup = this.getEmailToGUIDLookup();
       finder.displayNameLookup = this.getDisplayNameToGUIDLookup();
+      let mergeHintLookups = this.getMergeHintLookups();
+  		finder.mergeHintLookup = mergeHintLookups[0];
+  		finder.guidMergeHintLookup = mergeHintLookups[1];
     }
-    return finder;
+		return finder;
   },
+  
+  /* Merge two people based on GUIDs */
+	mergePeople: function mergePeople(GUID1, GUID2){
+	  try {
+		  let target = (this._find("json", {guid:GUID1}).map(function(json) JSON.parse(json)))[0];
+  		let source = (this._find("json", {guid:GUID2}).map(function(json) JSON.parse(json)))[0];
+  		for each (let [provider, ids] in Iterator(source.documents)){
+        if(!target.documents[provider]) target.documents[provider] = {};
+        for each(let [id, document] in Iterator(ids)){
+          if(target.documents[provider][id]) this.mergeDocuments(target.documents[provider][id], source.documents[provider][id]);
+          else target.documents[provider][id] = document;
+        }
+  		}
+  		for each (let [provider, id] in Iterator(source.merge)){
+  			for each(let [user, value] in Iterator(id)){
+  				if(!target.merge[provider]) target.merge[provider] = {};
+  				if(!target.merge[provider][user] || target.merge[provider][user] != true) target.merge[provider][user] = value;
+  			}
+  		}
+	
+  		this._update(target);
+  		this.removeGUIDs([source.guid]);
+  		Observers.notify("people-update", {guid:target.guid}); // wonder if this should be add. probably not.
+      Observers.notify("people-remove", {guid:source.guid});
+    } catch (e) {
+      this._log.warn("merge failed: " + Utils.exceptionStr(e));
+    } 
+	},
   
   add: function add(document, service, progressFunction) {
     let docArray;
@@ -598,7 +853,7 @@ PeopleService.prototype = {
     try {
       this._db.beginTransaction();
 
-      merges = []
+      let merges = [];
       this._log.debug("Beginning People.add");
       let mergeFinder = this._createMergeFinder(docArray.length);
       
@@ -611,7 +866,7 @@ PeopleService.prototype = {
         this._log.debug("Adding person " + i + ": " + personDoc.displayName);
         
         // Check for merge:
-        let mergeTargetGUID = mergeFinder.findMergeTarget(personDoc);
+        let mergeTargetGUID = mergeFinder.findMergeTarget(personDoc, service);
         if (mergeTargetGUID) {
           merges.push([personDoc, mergeTargetGUID]);
           continue;
@@ -622,15 +877,24 @@ PeopleService.prototype = {
 
         let stmt;
         try {
-          let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
 
           // Object as defined by https://wiki.mozilla.org/Labs/Weave/Contacts/SchemaV2
+          let serviceDocuments = {};
+          serviceDocuments[service.getPrimaryKey(personDoc)] = personDoc;
           let documents = {};
-          documents[service.name] = personDoc;
+          documents[service.name] = serviceDocuments;
+          let accounts = {};
+          accounts[service.getPrimaryKey(personDoc)] = true;
+          let mergehints = {};
+          mergehints[service.name] = accounts;
+        
+					let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
+				
           let obj = {
             guid: guid,
             documents: documents,
-            schema: "http://labs.mozilla.com/schemas/people/2"
+            schema: "http://labs.mozilla.com/schemas/people/2",
+            merge: mergehints
           };
           let params = {
             guid: guid,
@@ -638,8 +902,10 @@ PeopleService.prototype = {
           };
           stmt = this._dbCreateStatement(query, params);
           stmt.execute();
-          this._updateIndexed(this._db.lastInsertRowID, new Person(obj));
-          mergeFinder.addPerson(personDoc, guid);
+					let person_id = this._db.lastInsertRowID;
+          this._updateIndexed(person_id, new Person(obj));
+          this._updateMergeHintsIndexed(person_id, new Person(obj));
+          mergeFinder.addPerson(personDoc, service, guid);
           
         } catch (e) {
           this._log.warn("add failed: " + Utils.exceptionStr(e));
@@ -647,7 +913,7 @@ PeopleService.prototype = {
           if (stmt)
             stmt.reset();
         }
-        Observers.notify("people-add", guid);
+        Observers.notify("people-add", {guid:guid});
       }
       this._db.commitTransaction();
 
@@ -655,24 +921,30 @@ PeopleService.prototype = {
       this._log.debug("Resolving merges");
 
       for each (aMerge in merges) {
-        personDoc = aMerge[0];
-        mergeTargetGUID = aMerge[1];
+        let personDoc = aMerge[0];
+        let mergeTargetGUID = aMerge[1];
         
-        let dupMatchTargetList = this._find("json", {guid:mergeTargetGUID}).map(function(json) JSON.parse(json));
-        let dupMatchTarget = dupMatchTargetList[0];
+				let dupMatchTargetList = this._find("json", {guid:mergeTargetGUID}).map(function(json) JSON.parse(json));
+    		let dupMatchTarget = dupMatchTargetList[0];
 
-        this._log.info("Resolving merge " + mergeTargetGUID + " (" + personDoc.displayName + ")");
+    		this._log.info("Resolving merge " + mergeTargetGUID + " (" + personDoc.displayName + ")");
 
-        // Blow away the existing service record?  Merging could be nice...
-        if (dupMatchTarget.documents[service.name]) {
-          this.mergeDocuments(dupMatchTarget.documents[service.name], personDoc);
-        } else {
-          dupMatchTarget.documents[service.name] = personDoc;
-        }
+    		// Blow away the existing service record?  Merging could be nice...
 
-        // this.mergeIntoRecord(dupMatchTarget, personDoc, service);
-        this._update(dupMatchTarget);
-        Observers.notify("people-update", dupMatchTarget.guid); // wonder if this should be add. probably not.
+        // If we have information from existing service
+    		if (dupMatchTarget.documents[service.name] && dupMatchTarget.documents[service.name][service.getPrimaryKey(personDoc)]) {
+    			this.mergeDocuments(dupMatchTarget.documents[service.name][service.getPrimaryKey(personDoc)], personDoc);
+    			dupMatchTarget.merge[service.name][service.getPrimaryKey(personDoc)] = true;
+    		} else {
+          if(!dupMatchTarget.documents[service.name]) dupMatchTarget.documents[service.name] = {};
+    			dupMatchTarget.documents[service.name][service.getPrimaryKey(personDoc)] = personDoc;
+    			if(!dupMatchTarget.merge[service.name]) dupMatchTarget.merge[service.name] = {};
+    			dupMatchTarget.merge[service.name][service.getPrimaryKey(personDoc)] = true
+    		}
+
+    		// this.mergeIntoRecord(dupMatchTarget, personDoc, service);
+    		this._update(dupMatchTarget);
+    		Observers.notify("people-update", {guid:dupMatchTarget.guid});
       }
     } catch (e) {
       this._log.warn("add failed: " + Utils.exceptionStr(e));
@@ -706,7 +978,8 @@ PeopleService.prototype = {
       stmt.reset();
 
       let person = JSON.parse(oldJson);
-      person.documents[service.name] = document;
+      if(!person.documents[service.name]) person.documents[service.name] = {};
+      person.documents[service.name][service.getPrimaryKey(document)] = document;
 
       query = "UPDATE people SET json = :json WHERE id = :id";
       params = {
@@ -716,6 +989,7 @@ PeopleService.prototype = {
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
 
+      this._updateMergeHintsIndexed(id, new Person(person));
       this._updateIndexed(id, new Person(person));
       this._db.commitTransaction();
 
@@ -729,8 +1003,107 @@ PeopleService.prototype = {
         stmt.reset();
     }
 
-    Observers.notify("people-update", guid);
+    Observers.notify("people-update", {guid:guid});
     return null;
+  },
+  
+  /* Splits a document/person away from another */
+	split: function split(oldGUID, serviceName, primaryKey){
+	
+		this._log.debug("Beginning People.split");
+		let peopleList = this._find("json", {guid:oldGUID}).map(function(json) JSON.parse(json));
+		let person = peopleList[0];
+    
+		let service = PeopleImporter.getBackend(serviceName);
+	
+		let guid = Utils.makeGUID();
+		
+		let stmt;
+		
+		try {
+			this._db.beginTransaction();
+
+			let setMergeHints = function (mergeHints, setting){
+				for each (let hints in mergeHints){
+					for (let hint in hints)
+						hints[hint] = setting;
+				}
+			}
+			
+			let mergeMergeHints = function (dest, source){
+				for each (let [service, hints] in Iterator(source)){
+          if(!dest[service]) dest[service] = {};
+          for each (let [hint, value] in Iterator(hints)){
+            dest[service][hint] = value;
+          }
+        }
+			}
+					
+      this._removeDiscoveryDataFromDocuments(person.documents);   
+       
+			//split the documents
+			let documents = {};
+			documents[serviceName] = {};
+      documents[serviceName][primaryKey] = person.documents[serviceName][primaryKey];
+			delete person.documents[serviceName][primaryKey];
+      if([i for (i in person.documents[serviceName])].length == 0)
+        delete person.documents[serviceName];
+			
+			//split the mergehints
+			let mergehints = {};
+      mergehints[serviceName] = {};
+			mergehints[serviceName][primaryKey] = person.merge[serviceName][primaryKey];
+			delete person.merge[serviceName][primaryKey];
+      if([i for (i in person.merge[serviceName])].length == 0)
+        delete person.merge[serviceName];
+
+			//copy each other's mergehints
+			let copyold = Utils.deepCopy(person.merge);
+			let copynew = Utils.deepCopy(mergehints);
+			//set them to false
+			setMergeHints(copyold, false);
+			setMergeHints(copynew, false);
+			//put them in
+			mergeMergeHints(mergehints, copyold);
+			mergeMergeHints(person.merge, copynew);
+			
+			let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
+			
+			let obj = {
+				guid: guid,
+				documents: documents,
+				schema: "http://labs.mozilla.com/schemas/people/2",
+				merge: mergehints
+			};
+			let params = {
+				guid: guid,
+				json: JSON.stringify(obj)
+			};
+			stmt = this._dbCreateStatement(query, params);
+			stmt.execute();
+			let person_id = this._db.lastInsertRowID;
+			this._log.debug("Updating indexes for new person: " + person_id + "\n");
+			this._updateIndexed(person_id, new Person(obj));
+			this._updateMergeHintsIndexed(person_id, new Person(obj));
+			
+			this._db.commitTransaction();
+			
+			//update old person
+			this._log.debug("Updating indexes for old person:\n");
+			this._update(person, service.name);
+			Observers.notify("people-add", {guid:guid});
+      Observers.notify("people-update", {guid:oldGUID});
+			
+		} catch (e) {
+			this._log.warn("split failed: " + Utils.exceptionStr(e));
+		} finally {
+			if (stmt)
+			stmt.reset();
+		}
+		this._log.debug("Finished People.split");
+		
+		return null;
+		
   },
 
   /** Given a raw person (object with documents slot), or array of same
@@ -766,6 +1139,7 @@ PeopleService.prototype = {
       stmt = this._dbCreateStatement(query, params);
       stmt.execute();
 
+      this._updateMergeHintsIndexed(id, new Person(person));
       this._updateIndexed(id, new Person(person));
       this._db.commitTransaction();
 
@@ -779,8 +1153,281 @@ PeopleService.prototype = {
         stmt.reset();
     }
 
-    Observers.notify("people-update", person.guid);
+    Observers.notify("people-update", {guid:person.guid});
     return null;
+  },
+
+  mergeDocuments: function merge(destDocument, sourceDocument) {
+		function objectEquals(obj1, obj2) {
+				for (var i in obj1) {
+						if (obj1.hasOwnProperty(i)) {
+								if (!obj2.hasOwnProperty(i)) return false;
+								if (obj1[i] != obj2[i]) return false;
+						}
+				}
+				for (var i in obj2) {
+						if (obj2.hasOwnProperty(i)) {
+								if (!obj1.hasOwnProperty(i)) return false;
+								if (obj1[i] != obj2[i]) return false;
+						}
+				}
+				return true;
+		}
+
+
+    // TODO: Need to get more sensible approach to cardinality.
+    // e.g. What if we get two displayNames?
+    
+		for (let attr in sourceDocument) {
+			if (sourceDocument.hasOwnProperty(attr)) {
+				var val = sourceDocument[attr];
+        
+				if (!destDocument.hasOwnProperty(attr)) {
+          // TODO right now, first one wins.  Need a more sensible approach.
+					destDocument[attr] = val;
+				} 
+				else
+				{
+					if (Utils.isArray(val))
+					{
+						if (Utils.isArray(destDocument[attr]))
+						{
+							// two arrays, and we need to check for object equality...
+							for (index in val) {
+								var newObj = val[index];
+
+                // Are any of these objects equal?
+                var equalObjs = destDocument[attr].filter(function(item, idx, array) {
+                  if (item.hasOwnProperty("type") && item.hasOwnProperty("value") &&
+                      newObj.hasOwnProperty("type") && newObj.hasOwnProperty("value"))
+                  {
+                    // special-case for type-value pairs.  If the value is identical,
+                    // we may want to discard one of the types -- unless they have
+                    // different rels.
+                    if (newObj.value == item.value) {
+                      if (newObj.type == item.type) {
+                        if ((newObj.rel == undefined && item.rel == undefined) || (newObj.rel && newObj.rel == item.rel)) {
+                          return true;
+                        }
+                      } else if (newObj.type == "internet" || newObj.type == "unlabeled") {// gross hack for Google, Yahoo, etc.
+                        newObj.type = item.type;
+                        return true;
+                      } else if (item.type == "internet" || item.type == "unlabeled") {
+                        item.type = newObj.type;
+                        return true;
+                      } else {
+                        // Could, potentially, combine the types?
+                        return false;
+                      }
+                    }
+                  }
+                  else
+                  {
+                    return objectEquals(item, newObj)}
+                  }
+                );
+								if (equalObjs.length == 0) { // no match, go ahead...
+									destDocument[attr].push(val[index]);
+								}
+							}
+						}
+						else
+						{
+							// log oddity: one was list, one not
+						}
+					}
+				}
+			}
+		}
+	},
+
+  remove: function remove(attrs) {
+    if (Utils.isArray(arguments[0]))
+      return Utils.mapCall(this, arguments);
+
+    let guids = this._find("guid", attrs);
+    this.removeGUIDs(guids);
+    return guids.length;
+  },
+  
+  removeGUIDs: function removeGUIDs(guids) {
+    guids.forEach(function(guid) {
+      let param = { guid: guid };
+      Observers.notify("people-before-remove", {guid:guid});
+
+      // Remove each indexed field
+      for each (let index in this._dbSchema.index_tables)
+        this._dbCreateStatement("DELETE FROM " + index + " WHERE person_id = " +
+          "(SELECT id FROM people WHERE guid = :guid)", param).execute();
+					
+			this._dbCreateStatement("DELETE FROM mergeHints WHERE person_id = " +
+          "(SELECT id FROM people WHERE guid = :guid)", param).execute();
+
+      // Remove the people entry
+      this._dbCreateStatement("DELETE FROM people WHERE guid = :guid", param).
+        execute();
+
+      Observers.notify("people-remove", {guid:guid});
+    }, this);
+    return guids.length;
+  },  
+  
+  
+  findExternal: function findExternal(fields, successCallback, failureCallback, options, groupList){
+    
+    let query = "SELECT json FROM people";
+
+    if(options.updatedSince){
+      let date = Math.round((Date.parse(options.updatedSince))/1000);
+      if(date) query += " WHERE modified > datetime(" + date + ", 'unixepoch')";
+    }
+
+		// Look up the results, filtering on indexed terms
+		let result;
+    try {
+      result = Utils.getRows(this._dbCreateStatement(query).statement);
+    }
+    catch(ex) {
+      this._log.error("find failed during query: " + Utils.exceptionStr(ex));
+      return [];
+    }
+    
+    let limit = -1;
+    if(options.multiple != undefined && options.multiple == false) limit = 1;
+    else if(options.limit) limit = options.limit;
+    
+    let groupsIncludeAll = (groupList) ? groupList.indexOf(ALL_GROUP_CONSTANT) >= 0 : true;
+    
+    let outputSet = [];
+    let hasPartialMatch;
+    let regstring = (options.filter) ? options.filter : "";
+    let re = new RegExp(".*" + regstring + ".*", "i");
+      
+    // test if it matches the filter
+    let testMatch = function(thing, prefix) {
+      if (typeof(thing) == 'string'){
+        if(!options.filter || re.test(thing)) return [thing, prefix];
+        return null;
+      } else if (typeof(thing) != "object" || thing == null)
+        return null;
+      
+      if(Utils.isArray(thing)) thing = thing[0];
+      
+      for each (let [key, value] in Iterator(thing)) {
+        let tmp = testMatch(value, prefix + "." + key);
+        if(tmp) return tmp;
+      }
+      return null;
+    }
+    
+    for each (let obj in result) {
+      let p = new Person(JSON.parse(obj));
+      
+      //filter out people with no documents
+      if([i for (i in p.obj.documents)].length == 0) continue;
+      
+      let personTags = p.getProperty("tags");
+      if (groupsIncludeAll || 
+         (personTags && groupList.some(function(e,i,a) { return personTags.indexOf(e) >= 0;}))){
+        let newPerson = {"__sortArr__":[]};
+  			hasPartialMatch = false;
+      
+        for each (f in fields) {
+      
+          let value = p.getProperty(f, ".");
+      
+          if (f.indexOf(".") > 0) {
+            let terms = f.split(".");
+            let obj = newPerson;
+            for (var i=0;i<terms.length-1;i++) {
+              if (!(terms[i] in obj)) {
+                obj[terms[i]] = {};
+              }
+              obj = obj[terms[i]];
+            }
+            obj[terms[i]] = value;
+          } else {
+            newPerson[f] = value;
+          }
+        
+          let check = testMatch(value, f)
+          let matched = (check != null);
+          hasPartialMatch = matched || hasPartialMatch;
+        
+          if(matched) 
+            newPerson["__sortArr__"].push([SORT_WEIGHTS[check[1]], check[0]]);
+        }
+      
+        if(hasPartialMatch){
+          newPerson["__sortArr__"].sort(function(a,b){
+            let weight_a = a[0];
+            let weight_b = b[0];
+            return weight_a > weight_b;
+          });
+          newPerson.services = p.constructServices();
+          newPerson.servicesByProvider = p.constructServicesByProvider();
+    		  outputSet.push(newPerson);
+    	  } 
+
+    	  if(limit > 0 && outputSet.length >= limit) break;
+	    }
+		}
+		
+	  let people = outputSet;
+    people.sort(function(a,b) {
+      try {
+        let aindex = 0;
+        let bindex = 0;
+        let aarr = a["__sortArr__"];
+        let barr = b["__sortArr__"];
+       
+        //advances one by one through the sort arrays, until one runs out, one is bigger than the other
+        //by the sort algorithm
+        while(true){
+          if(aindex >= aarr.length && bindex >= barr.length) break;
+          else if(bindex >= barr.length) return -1;
+          else if(aindex >= aarr.length) return 1;
+          if(aarr[aindex][0] != barr[bindex][0]) return (aarr[aindex][0] > barr[bindex][0]) ? 1 : -1;
+          let comp = aarr[aindex][1].localeCompare(barr[bindex][1]);
+          if(comp != 0) return comp;
+          aindex++;
+          bindex++;
+       }
+       return 0;
+       
+      } catch (e) {
+        People._log.warn("Sort error: " + e);
+        dump(e.stack + "\n");
+        return -1;
+      }
+    });
+    
+    people.map(function(p) { delete p["__sortArr__"]; });
+    
+    try {
+      if(successCallback) successCallback(people);
+    } catch(ex) {
+      Components.utils.reportError(ex);
+    }
+    
+    return people;
+  },
+
+  find: function find(attrs) {
+    let results = this._find("json", attrs).map(function(json) {let p = JSON.parse(json); return new Person(p);});
+    let matches = [];
+    results.map(function(result){if([i for (i in result.obj.documents)].length > 0) matches.push(result)});
+    return matches;
+  },
+  
+  findCallback: function findCallback(attrs, successCallback, errorCallback) {
+    let people = this.find(attrs);
+    try {
+      if(successCallback) successCallback(people);
+    } catch(ex) {
+      if(errorCallback) errorCallback("Error occured during find.");
+      Components.utils.reportError(ex);
+    }
   },
 
   _find: function _find(col, attrs) {
@@ -848,10 +1495,12 @@ PeopleService.prototype = {
 			for each (let obj in result) {
         try {
           let parsed = JSON.parse(obj);
-          for each (let d in parsed.documents) {
-            if (d && d[attr] && d[attr] == val) {
-              matchSet.push(obj);
-              break;
+          for each (let svcs in parsed.documents) {
+            for each(let d in svcs){
+              if (d && d[attr] && d[attr] == val) {
+                matchSet.push(obj);
+                break;
+              }
             }
           }
         } catch (e) {
@@ -863,131 +1512,13 @@ PeopleService.prototype = {
 		return result;
   },
 
-	mergeDocuments: function merge(destDocument, sourceDocument) {
-		function objectEquals(obj1, obj2) {
-				for (var i in obj1) {
-						if (obj1.hasOwnProperty(i)) {
-								if (!obj2.hasOwnProperty(i)) return false;
-								if (obj1[i] != obj2[i]) return false;
-						}
-				}
-				for (var i in obj2) {
-						if (obj2.hasOwnProperty(i)) {
-								if (!obj1.hasOwnProperty(i)) return false;
-								if (obj1[i] != obj2[i]) return false;
-						}
-				}
-				return true;
-		}
-
-
-    // TODO: Need to get more sensible approach to cardinality.
-    // e.g. What if we get two displayNames?
-    
-		for (let attr in sourceDocument) {
-			if (sourceDocument.hasOwnProperty(attr)) {
-				var val = sourceDocument[attr];
-        
-				if (!destDocument.hasOwnProperty(attr)) {
-          // TODO right now, first one wins.  Need a more sensible approach.
-					destDocument[attr] = val;
-				} 
-				else
-				{
-					if (Utils.isArray(val))
-					{
-						if (Utils.isArray(destDocument[attr]))
-						{
-							// two arrays, and we need to check for object equality...
-							for (index in val) {
-								var newObj = val[index];
-
-                // Are any of these objects equal?
-                var equalObjs = destDocument[attr].filter(function(item, idx, array) {
-                  if (item.hasOwnProperty("type") && item.hasOwnProperty("value") &&
-                      newObj.hasOwnProperty("type") && newObj.hasOwnProperty("value"))
-                  {
-                    // special-case for type-value pairs.  If the value is identical,
-                    // we may want to discard one of the types -- unless they have
-                    // different rels.
-                    if (newObj.value == item.value) {
-                      if (newObj.type == item.type) {
-                        if (newObj['rel'] == item.rel) {
-                          return true;
-                        }
-                      } else if (newObj.type == "internet" || newObj.type == "unlabeled") {// gross hack for Google, Yahoo, etc.
-                        newObj.type = item.type;
-                        return true;
-                      } else if (item.type == "internet" || item.type == "unlabeled") {
-                        item.type = newObj.type;
-                        return true;
-                      } else {
-                        // Could, potentially, combine the types?
-                        return false;
-                      }
-                    }
-                  }
-                  else
-                  {
-                    return objectEquals(item, newObj)}
-                  }
-                );
-								if (equalObjs.length == 0) { // no match, go ahead...
-									destDocument[attr].push(val[index]);
-								}
-							}
-						}
-						else
-						{
-							// log oddity: one was list, one not
-						}
-					}
-				}
-			}
-		}
-	},
-
-
-  remove: function remove(attrs) {
-    if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments);
-
-    let guids = this._find("guid", attrs);
-    this.removeGUIDs(guids);
-    return guids.length;
-  },
-  
-  removeGUIDs: function remove(guids) {
-    guids.forEach(function(guid) {
-      let param = { guid: guid };
-      Observers.notify("people-before-remove", guid);
-
-      // Remove each indexed field
-      for each (let index in this._dbSchema.index_tables)
-        this._dbCreateStatement("DELETE FROM " + index + " WHERE person_id = " +
-          "(SELECT id FROM people WHERE guid = :guid)", param).execute();
-
-      // Remove the people entry
-      this._dbCreateStatement("DELETE FROM people WHERE guid = :guid", param).
-        execute();
-
-      Observers.notify("people-remove", guid);
-    }, this);
-    return guids.length;
-  },  
-
-  find: function find(attrs) {
-    return this._find("json", attrs).map(function(json) {let p = JSON.parse(json); return new Person(p);});
-  },
-	
-
   connectedServices : function connectedServices() {
     var svcs = {};
     var stmt = this._dbCreateStatement("SELECT * FROM service_metadata");
     try{
       stmt.reset();
       while (stmt.step()) {  
-        let svcname = stmt.row.servicename;;  
+        let svcname = stmt.row.servicename;
         let refresh = stmt.row.refresh;  
         svcs[svcname] = { refresh: new Date(refresh) }
       }
@@ -1012,6 +1543,7 @@ PeopleService.prototype = {
           completionCallback(error);
         }, progressFunction, window);
     }
+    Observers.notify("people-connectService", {name:svcName});
 	},
   
   disconnectService: function disconnectService(svcName) {
@@ -1025,6 +1557,7 @@ PeopleService.prototype = {
       this._log.debug("Error while disconnecting from " + svcName + ": " + e);    
     }
     this.removeServiceData(svcName);
+    Observers.notify("people-disconnectService", {name:svcName});
   },
   
 	removeServiceData: function (svcName) {
@@ -1032,47 +1565,38 @@ PeopleService.prototype = {
     for each (let p in allPeople) {
       if (p.obj.documents[svcName]) {
         delete p.obj.documents[svcName];
-        
-        var count=0;
-        for (var i in p.obj.documents) count++;
-        if (count > 0) {
-          this._log.debug("Removing " + svcName + " data from " + p.guid + "; updating");
-          this._update(p.obj);
-          this._updateIndexed(p.guid, p);
-        } else {
-          this._log.debug("Removing " + svcName + " data from " + p.guid + "; deleting");
-          this.removeGUIDs([p.guid]);
-        }
+        this._log.debug("Removing " + svcName + " data from " + p.guid + "; updating");
+        this._update(p.obj, svcName);
       }
     }
+    
     this.deleteServiceMetadata(svcName);
 	},
+  _removeDiscoveryDataFromDocuments: function(documents){
+    let any = false;
+    for (let key in documents) {
+      if (!PeopleImporter.isBackend(key))
+      {
+        this._log.debug("Removing " + key + " data");
+        delete documents[key];
+        any = true;
+      }
+    }
+    return any;
+  },
+  _removeUserDiscoveryData: function(p){
+    let any = this._removeDiscoveryDataFromDocuments(p.obj.documents);
+    if (any)
+    {
+      this._log.debug("Removing found data from " + p.guid + "; updating");
+       this._update(p.obj);
+    }
+  },
 
   removeDiscoveryData: function () {
     let allPeople = this.find();
     for each (let p in allPeople) {
-      let any = false;
-      for (let key in p.obj.documents) {
-        if (!PeopleImporter.isBackend(key))
-        {
-          this._log.debug("Removing " + key + " data from " + p.guid);
-          delete p.obj.documents[key];
-          any = true;
-        }
-      }
-      if (any)
-      {
-        var count=0;
-        for (var i in p.obj.documents) count++;
-        if (count > 0) {
-          this._log.debug("Removing found data from " + p.guid + "; updating");
-          this._update(p.obj);
-          this._updateIndexed(p.guid, p);
-        } else {
-          this._log.debug("Removed all data from " + p.guid + "; deleting object");
-          this.removeGUIDs([p.guid]);
-        }
-      }
+      this._removeUserDiscoveryData(p);
     }
 	},
 
@@ -1116,6 +1640,7 @@ PeopleService.prototype = {
   },
   
   doDiscovery: function doDiscovery(svcName, personGUID, completionCallback, progressFunction) {
+    this._log.info("Running discovery.");
 		Cu.import("resource://people/modules/import.js");    
     var personResultSet = this._find("json", {guid:personGUID}).map(function(json) {return new Person(JSON.parse(json));});
     
@@ -1194,6 +1719,10 @@ PeopleService.prototype = {
     this._sessionPermissions[site] = {
       fields:fields, groups:groups
     };
+  },
+  
+  removeSessionSitePermissions: function(site){
+    delete this._sessionPermissions[site];
   },
   
   /** Given a URL, return an object with 'fields' and 'groups'
@@ -1283,23 +1812,71 @@ Person.prototype = {
   // * slashes, to indicate subproperties, e.g. "name/givenName"
   // * NOT IMPLEMENTED: [<test>], to indicate subfield selection, e.g. "accounts[domain='twitter.com']"  
 
-  getProperty: function getProperty(aProperty) {
-    let terms = aProperty.split('/');
-    if (terms.length == 1) { // easy case
-      return this._searchCollection(aProperty, this.obj.documents, "");
-    }
+  getProperty: function getProperty(aProperty, delimeter) {
+    if(delimeter == undefined) delimeter = '/';
+    let terms = aProperty.split(delimeter);
     
     let currentSet = [];
-    for each (let d in this.obj.documents) currentSet.push(d);
+    for each (let ids in this.obj.documents) {
+      for each (let d in ids) currentSet.push(d);
+    }
+    
+    if (terms.length == 1) { // easy cases
+      return this._searchCollection(aProperty, currentSet, "");
+    }
+    
     let currentPrefix = "";
     for each (let term in terms)
     {
       if (!Utils.isArray(currentSet)) currentSet = [currentSet];
       currentSet = this._searchCollection(term, currentSet, currentPrefix);
       if (currentSet == null) break;
-      currentPrefix = currentPrefix + "/" + term;
+      currentPrefix = currentPrefix + delimeter + term;
     }
     return currentSet;
+  },
+  constructServicesByProvider: function constructServicesByProvider(){
+  	let urls = this.getProperty("urls");
+    
+    // We'll first construct arrays of all the services,
+    // and then, if there's more than one, create multiplexing
+    // wrapper methods for them.
+    let serviceIdentifiersMap = {};
+
+    function addServiceToMap(s) {
+      if (!serviceIdentifiersMap[s.methodName]) serviceIdentifiersMap[s.methodName] = {};
+      if (!serviceIdentifiersMap[s.methodName][s.domain]) serviceIdentifiersMap[s.methodName][s.domain] = s.method;
+    }
+
+    for each (let url in urls)
+    {
+      if (url.rel)
+      {
+        let svc = PersonServiceFactory.constructLinkServices(url);
+        if (svc) {
+          for each (let s in svc) {
+            addServiceToMap(s);
+          }
+        }
+      }
+      else if (url.feed)
+      {
+        addServiceToMap(PersonServiceFactory.constructFeedService(url));
+      }
+    }
+
+    let accounts = this.getProperty("accounts");
+    for each (let account in accounts)
+    {
+      let svc = PersonServiceFactory.constructAccountServices(account);
+      if (svc) {
+        for each (let s in svc) {
+          addServiceToMap(s);
+        }
+      }
+    }
+
+    return serviceIdentifiersMap;
   },
 
   constructServices: function constructServices()
@@ -1336,7 +1913,7 @@ Person.prototype = {
     let accounts = this.getProperty("accounts");
     for each (let account in accounts)
     {
-      let svc = PersonServiceFactory.constructAccountServices(account);
+    	let svc = PersonServiceFactory.constructAccountServices(account);
       if (svc) {
         for each (let s in svc) {
           addServiceToMap(s);
@@ -1537,7 +2114,9 @@ PersonServiceFactoryService.prototype = {
     if (constructors) {
       let ret = []
       for each (let c in constructors) {
-        ret.push(c(urlObject))
+      	let object = c(acctObject);
+      	if(!object.domain) object.domain = acctObject.domain;
+        ret.push(object);
       }
       return ret;
     } else {
@@ -1551,7 +2130,9 @@ PersonServiceFactoryService.prototype = {
     if (constructors) {
       let ret = []
       for each (let c in constructors) {
-        ret.push(c(acctObject))
+      	let object = c(acctObject);
+      	if(!object.domain) object.domain = acctObject.domain;
+        ret.push(object);
       }
       return ret
     } else {
@@ -1790,85 +2371,114 @@ PersonServiceFactory.registerServiceDefaultUI("picturesOf", function(person, con
 
 
 PersonServiceFactory.registerServiceDefaultUI("updates", function(person, container) {
-  container.innerHTML = "";
-  if (person.services.updates) {
-    let updateArray = [];
-    dump("invoking person.services.updates\n");
-    person.services.updates(function(updates) {
-      updateArray = updateArray.concat(updates);
-      container.innerHTML = "";
-      
-      updateArray.sort(function timeCompare(a,b) {
-        if (a.time && b.time) {
-          return b.time - a.time;
-        } else if (a.time) {
-          return -1;
-        } else if (b.time) {
-          return 1;
-        } else {
-          return a.text.localeCompare(b.text);
-        }
-      });
-      for each (let upd in updateArray)
-      {
-      
-        dump("" + JSON.stringify(upd) + "\n");
-      
-        let d= container.ownerDocument.createElement("div");
-        d.setAttribute("class", "update");
-        d.setAttribute("style", "font:caption;padding-top:4px;padding-bottom:4px;border:1px dotted #E0E0E0;width:90%;");
+	  container.innerHTML = "";
+	  if (person.services.updates) {
+	    let updateArray = [];
+	    dump("invoking person.services.updates\n");
+	    person.services.updates(function(updates) {
+	      for each (let update in updates){
+	    	  update.source = [update.source];
+	    	  if(update.sourceLink) update.sourceLink = [update.sourceLink];
+	    	  else update.sourceLink = [""];
+	      }
+	      updateArray = updateArray.concat(updates);
+	      container.innerHTML = "";
+	      
+	      updateArray.sort(function timeCompare(a,b) {
+	        if (a.time && b.time) {
+	          return b.time - a.time;
+	        } else if (a.time) {
+	          return -1;
+	        } else if (b.time) {
+	          return 1;
+	        } else {
+	          return a.text.localeCompare(b.text);
+	        }
+	      });
+	      for(let i = 0; i < updateArray.length;i++){
+	    	  if(i + 1 < updateArray.length &&updateArray[i].text.substring(0,97) == updateArray[i + 1].text.substring(0,97)){
+				  dump("merging entry " + i + "\n");
+				  updateArray[i].source.push(updateArray[i+1].source[0]);
+				  updateArray[i].sourceLink.push(updateArray[i+1].sourceLink[0]);
+				  if(updateArray[i].text.length < updateArray[i+1].text.length)
+					  updateArray[i].text = updateArray[i+1].text;
+				  updateArray.splice(i + 1, 1);
+				  i--;
+	    	  }
+	      }
+	      for each (let upd in updateArray)
+	      {
+	      
+	        dump("" + JSON.stringify(upd) + "\n");
+	      
+	        let d= container.ownerDocument.createElement("div");
+	        d.setAttribute("class", "update");
+	        d.setAttribute("style", "font:caption;padding-top:4px;padding-bottom:4px;border:1px dotted #E0E0E0;width:90%;");
 
-        if (upd.type == "photo") {
-          let photo = container.ownerDocument.createElement("div");
-          photo.setAttribute("style", "display:inline-block;padding-right:8px");
-          let img = container.ownerDocument.createElement("img");
-          img.setAttribute("src", upd.picture)
-          photo.appendChild(img);
-          d.appendChild(photo);
-        }
+	        if ((upd.type == "photo" || upd.type == "music") && upd.picture) {
+	          let photo = container.ownerDocument.createElement("div");
+	          photo.setAttribute("style", "display:inline-block;padding-right:8px");
+	          let img = container.ownerDocument.createElement("img");
+	          img.setAttribute("src", upd.picture)
+	          if(upd.type == "music") img.setAttribute("style", "width:64px;");
+	          photo.appendChild(img);
+	          d.appendChild(photo);
+	        }
 
-        let textDiv = container.ownerDocument.createElement("div");
-        textDiv.setAttribute("style", "display:inline-block; vertical-align:top");
-        if (upd.link) {
-          let titleLink = container.ownerDocument.createElement("a");
-          if (upd.link.spec) {
-            titleLink.setAttribute("href", upd.link.spec);
-          } else {
-            titleLink.setAttribute("href", upd.link);
-          }
-          titleLink.setAttribute("target", "_blank");
-          titleLink.setAttribute("style", "color:black;text-decoration:none");
-          titleLink.appendChild(container.ownerDocument.createTextNode(upd.text));
-          textDiv.appendChild(titleLink);
-        } else {  
-          textDiv.appendChild(container.ownerDocument.createTextNode(upd.text));
-        }
-
-        let timestamp = container.ownerDocument.createElement("span");
-        timestamp.setAttribute("style", "padding-left:8px;font:caption;font-size:90%;color:#909090");
-        timestamp.appendChild(container.ownerDocument.createTextNode(formatDate(upd.time)));
-        textDiv.appendChild(timestamp);
-        
-        let src = container.ownerDocument.createElement("span");
-        src.setAttribute("style", "font:caption;font-size:90%;color:#909090");
-        let srcLink = container.ownerDocument.createElement("a");
-        srcLink.setAttribute("href", upd.sourceLink);
-        srcLink.setAttribute("target", "_blank");
-        srcLink.setAttribute("style", "color:#909090");
-        src.appendChild(container.ownerDocument.createTextNode(" from "));
-        srcLink.appendChild(container.ownerDocument.createTextNode(upd.source));
-        src.appendChild(srcLink);
-        
-
-        textDiv.appendChild(src);
-        
-        
-        d.appendChild(textDiv);
-        container.appendChild(d);
-      }
-    });
-  }
-});
+	        let textDiv = container.ownerDocument.createElement("div");
+	        textDiv.setAttribute("style", "display:inline-block; vertical-align:top");
+	        if (upd.link) {
+	          let titleLink = container.ownerDocument.createElement("a");
+	          if (upd.link.spec) {
+	            titleLink.setAttribute("href", upd.link.spec);
+	          } else {
+	            titleLink.setAttribute("href", upd.link);
+	          }
+	          titleLink.setAttribute("target", "_blank");
+	          titleLink.setAttribute("style", "color:black;text-decoration:none");
+	          titleLink.appendChild(container.ownerDocument.createTextNode(upd.text));
+	          textDiv.appendChild(titleLink);
+	        } else {  
+	          textDiv.appendChild(container.ownerDocument.createTextNode(upd.text));
+	        }
+	        
+	        let timestamp = container.ownerDocument.createElement("span");
+	        timestamp.setAttribute("style", "padding-left:8px;font:caption;font-size:90%;color:#909090");
+	        timestamp.appendChild(container.ownerDocument.createTextNode(formatDate(upd.time)));
+	        textDiv.appendChild(timestamp);
+	        
+	        let src = container.ownerDocument.createElement("span");
+	        src.setAttribute("style", "font:caption;font-size:90%;color:#909090");
+	        src.appendChild(container.ownerDocument.createTextNode(" from "));
+	        
+	        for(let i = 0; i < upd.source.length;i++){
+	        	
+	        	if(i>0) src.appendChild(container.ownerDocument.createTextNode(", "));
+	        	
+	        	if(upd.sourceLink[i] != ""){
+	        	
+			        let srcLink = container.ownerDocument.createElement("a");
+			        srcLink.setAttribute("href", upd.sourceLink[i]);
+			        srcLink.setAttribute("target", "_blank");
+			        srcLink.setAttribute("style", "color:#909090");
+			
+			        srcLink.appendChild(container.ownerDocument.createTextNode(upd.source[i]));
+			        
+			        src.appendChild(srcLink);
+		        
+	        	} else {
+	        		src.appendChild(container.ownerDocument.createTextNode(upd.source[i]));
+	        	}
+	        }
+	        
+	        textDiv.appendChild(src);
+	        
+	        d.appendChild(textDiv);
+	        container.appendChild(d);
+	      }
+	    });
+	  }
+	});
 
 PersonServiceFactory.registerServiceDefaultUI("sendPrivateMessageTo", function(person, container) {
   container.innerHTML = "";
@@ -1895,9 +2505,44 @@ PersonServiceFactory.registerServiceDefaultUI("sendPrivateMessageTo", function(p
     }
   }
 });
-  
-        
+PersonServiceFactory.registerServiceDefaultUI("sendPublicMessageTo", function(person, container) {
+  container.innerHTML = "";
+  if(person.servicesByProvider.sendPublicMessageTo){
+    let form = container.ownerDocument.createElement("form");
+    let input = container.ownerDocument.createElement("input");
+    input.setAttribute("id", "sendPublicMessageTo_default_input_text");
+    input.setAttribute("type", "text");
+    let select = container.ownerDocument.createElement("select");
+    select.setAttribute("id", "sendPublicMessageTo_domain_select");
+    let count = 0;
+    for each (let domain in Iterator(person.servicesByProvider.sendPublicMessageTo)){
+    	let option = container.ownerDocument.createElement("option");
+    	option.innerHTML = domain[0];
+    	option.setAttribute("value", domain[0]);
+    	select.appendChild(option);
+    	count++;
+    }
+    if(count == 1) select.setAttribute("disabled", "disabled");
+    let button = container.ownerDocument.createElement("input");
+    button.setAttribute("type", "button");
+    button.setAttribute("value", "Send Message");
+    let br = container.ownerDocument.createElement("br");
+    let resultArea = container.ownerDocument.createElement("div");
+    form.appendChild(input);
+    form.appendChild(select);
+    form.appendChild(button);
+    form.appendChild(br);
+    form.appendChild(resultArea);
+    container.appendChild(form);
 
+    button.onclick = function() {
+      person.servicesByProvider.sendPublicMessageTo[select.value](input.value, function(status) {
+        if(status.status == "ok") resultArea.innerHTML = "Message sent.";
+        else resultArea.innerHTML = status.reason;
+      });
+    }
+  }
+});
 
 
 function formatDate(dateStr)
@@ -1939,6 +2584,7 @@ function DiscoveryCoordinator(person, persist, personUpdatedFn, progressFn, comp
   this._personUpdatedFn = personUpdatedFn;
   this._progressFn = progressFn;
   this._completedFn = completedFn;
+  this._personShouldUpdate = true;
 }
 
 /** DiscoveryCoordinator is responsible for invoking discovery
@@ -1972,9 +2618,14 @@ DiscoveryCoordinator.prototype = {
     return this._pendingDiscoveryCount > 0;
   },
   
+  setShouldUpdate: function setShouldUpdate(setting) {
+    this._personShouldUpdate = setting;
+  },
+  
   start: function() {
     var discoverers = PeopleImporter.getDiscoverers();
     var that = this;
+    if(!this._personShouldUpdate) return;
     for (var d in discoverers) {
       let discoverer = PeopleImporter.getDiscoverer(d);
       if (discoverer) {
@@ -1982,14 +2633,16 @@ DiscoveryCoordinator.prototype = {
         try {
           discoverer.discover(this._person, 
             function completion(newDoc, discoveryToken) {
-
+              if(!that._personShouldUpdate) return;
+              
               that._pendingDiscoveryCount -= 1;
               if (!discoveryToken) discoveryToken = engine;
               that._completedDiscoveryMap[discoveryToken] = 1;
               
               delete that._pendingDiscoveryMap[discoveryToken];
               if (newDoc) {
-                that._person.obj.documents[discoveryToken] = newDoc;
+                if(!that._person.obj.documents[discoveryToken]) that._person.obj.documents[discoveryToken] = {};
+                that._person.obj.documents[discoveryToken][discoverer.getPrimaryKey(newDoc)] = newDoc;
                 if (that._persist) {
                   People._update(that._person.obj);
                 }
@@ -2007,6 +2660,7 @@ DiscoveryCoordinator.prototype = {
               }
             },
             function progress(msg) {
+              if(!that._personShouldUpdate) return;
               if (msg.initiate) {
                 if (that._completedDiscoveryMap[msg.initiate] ||
                     that._pendingDiscoveryMap[msg.initiate]) throw "DuplicatedDiscovery";

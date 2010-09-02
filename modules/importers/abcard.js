@@ -56,6 +56,9 @@ ThunderbirdAddressBookImporter.prototype = {
   get name() "Thunderbird",
   get displayName() "Thunderbird Address Book (on your computer)",
 	get iconURL() "chrome://people/content/images/macaddrbook.png",
+	getPrimaryKey: function (person){
+		return person.emails[0].value;
+	},
 
 	abNumberProperties: {
 	  "HomePhone": "home",

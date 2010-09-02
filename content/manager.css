@@ -202,6 +202,7 @@ scrollbar:hover {-moz-opacity: 1.0 !important;}
 
 .contacttable > .contactlist > .contact {font:small-caption; padding-left:6px; height: 18px; position: relative; padding-top: 3px; padding-bottom:3px; border-bottom: 2px solid #fff; -moz-border-bottom-colors:rgba(200,200,200,0.5) rgba(255,255,255,0.5); background-color: transparent;}
 .contacttable > .contactlist > .contact:hover {background-color: #ffffff;}
+.contacttable > .contactlist > .highlighted{background-color: #ffffff;}
 
 .contacttable > .contactlist > .group {font:small-caption; padding-left:6px; height: 18px; position: relative; padding-top: 3px; padding-bottom:3px; border-bottom: 2px solid #fff; -moz-border-bottom-colors:rgba(200,200,200,0.5) rgba(255,255,255,0.5); background-color: transparent;}
 .contacttable > .contactlist > .group:hover {background-color: #ffffff;}

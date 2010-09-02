@@ -151,7 +151,16 @@ function ImporterBackend() {
 ImporterBackend.prototype = {
   get name() "example",
   get displayName() "Example Contacts",
-  
+  getPrimaryKey: function (person){
+		if(person.accounts && person.accounts.length > 0 && person.accounts[0].userid) return person.accounts[0].userid;
+    if(person.accounts && person.accounts.length > 0 && person.accounts[0].username) return person.accounts[0].username;
+    if(person.emails && person.emails.length > 0 && person.emails[0].value) return person.emails[0].value;
+    if(person.displayName) return person.displayName;
+    return "NotUnique";
+	},
+  getLinkFromKey: function (key){
+    return "";
+  },
   explainString : function explainString() {
     return "From importing your \"" + this.name + "\" contacts:";
   },
@@ -170,6 +179,18 @@ function DiscovererBackend() {
 DiscovererBackend.prototype = {
   get name() "example",
   get displayName() "Example Discoverer",
+  // Necessary for mergehints
+  getPrimaryKey: function (person){
+		if(person.accounts && person.accounts.length > 0 && person.accounts[0].userid) return person.accounts[0].userid;
+    if(person.accounts && person.accounts.length > 0 && person.accounts[0].username) return person.accounts[0].username;
+    if(person.emails && person.emails.length > 0 && person.emails[0].value) return person.emails[0].value;
+    if(person.displayName) return person.displayName;
+    return "NotUnique";
+	},
+  // See if we can get a link to a person based on their primary key
+  getLinkFromKey: function (key){
+    return "";
+  },
 
  explainString : function explainString() {
     return "From searching for this contact with " + this.name;
@@ -257,6 +278,7 @@ Cu.import("resource://people/modules/importers/linkedin.js");
 Cu.import("resource://people/modules/importers/plaxo.js");
 Cu.import("resource://people/modules/importers/twitter.js");
 Cu.import("resource://people/modules/importers/yahoo.js");
+Cu.import("resource://people/modules/importers/lastfm.js");
 
 Cu.import("resource://people/modules/importers/webfinger.js");
 //Cu.import("resource://people/modules/importers/googleSocialGraph.js");

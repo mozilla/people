@@ -56,6 +56,9 @@ NativeAddressBookImporter.prototype = {
   get name() "native",
   get displayName() "Native Address Book (on your computer)",
 	get iconURL() "chrome://people/content/images/macaddrbook.png",
+	getPrimaryKey: function (person){
+		return person.emails[0].value + person.displayName;
+	},
 
 
   import: function NativeAddressBookImporter_import(completionCallback, progressFunction) {

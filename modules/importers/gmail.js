@@ -61,6 +61,9 @@ GmailImporter.prototype = {
   get name() "google",
   get displayName() "Gmail Contacts",
   get iconURL() "chrome://people/content/images/gmail.png",
+	getPrimaryKey: function (person){
+		return person.emails[0].value;
+	},
 
   completionCallback: null,
   progressCallback: null,
@@ -76,7 +79,7 @@ GmailImporter.prototype = {
     return {
       action: 'http://www.google.com/m8/feeds/contacts/default/full',
       method: "GET",
-      parameters: {'v':'2'}
+      parameters: {'v':'2', "max-results":"2000"}
     }
   },
   
@@ -112,6 +115,7 @@ GmailImporter.prototype = {
     let groupHrefMap = {}; // map from group hrefs to arrays of person records
     
     while ((elem = iter.iterateNext())) {
+      //dump("Checking person:\n");
       try
       {
         let person = {};
@@ -174,6 +178,8 @@ GmailImporter.prototype = {
         this._log.info("Error importing GMail contact: " + e.stack);
       }
     }
+    
+    //dump("People lenght: " + people.length + "\n");
 
     // At this point we have all the people, and the groupMap contains
     // all of the groupMembershipInfo hrefs that we encountered.  We now
@@ -181,7 +187,7 @@ GmailImporter.prototype = {
     let msg = {
       action: 'http://www.google.com/m8/feeds/groups/default/full',
       method:"GET",
-      parameters:{'v':'2'}
+      parameters:{'v':'2', "max-results":"2000"}
     };
     let self = this;
     this.oauthHandler = OAuthConsumer.authorize(
