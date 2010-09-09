@@ -2539,25 +2539,38 @@ PersonServiceFactory.registerServiceDefaultUI("updates", function(person, contai
 
 PersonServiceFactory.registerServiceDefaultUI("sendPrivateMessageTo", function(person, container) {
   container.innerHTML = "";
-  if (person.services.sendPrivateMessageTo) {
+  if(person.servicesByProvider.sendPrivateMessageTo){
     let form = container.ownerDocument.createElement("form");
     let input = container.ownerDocument.createElement("input");
     input.setAttribute("id", "sendPrivateMessageTo_default_input_text");
     input.setAttribute("type", "text");
+    let select = container.ownerDocument.createElement("select");
+    select.setAttribute("id", "sendPrivateMessageTo_domain_select");
+    let count = 0;
+    for each (let domain in Iterator(person.servicesByProvider.sendPrivateMessageTo)){
+    	let option = container.ownerDocument.createElement("option");
+    	option.innerHTML = domain[0];
+    	option.setAttribute("value", domain[0]);
+    	select.appendChild(option);
+    	count++;
+    }
+    if(count == 1) select.setAttribute("disabled", "disabled");
     let button = container.ownerDocument.createElement("input");
     button.setAttribute("type", "button");
     button.setAttribute("value", "Send Message");
     let br = container.ownerDocument.createElement("br");
     let resultArea = container.ownerDocument.createElement("div");
     form.appendChild(input);
+    form.appendChild(select);
     form.appendChild(button);
     form.appendChild(br);
     form.appendChild(resultArea);
     container.appendChild(form);
 
     button.onclick = function() {
-      person.services.sendPrivateMessageTo(input.value, function() {
-        resultArea.innerHTML = "Message sent.";
+      person.servicesByProvider.sendPrivateMessageTo[select.value](input.value, function(status) {
+        if(status.status == "ok") resultArea.innerHTML = "Message sent.";
+        else resultArea.innerHTML = status.reason;
       });
     }
   }
