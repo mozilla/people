@@ -59,6 +59,22 @@ need to re-connect your browser to your services once to set it up.
 </p>
 
 <p>
+<b>Support for merge and split operations</b>
+</p>
+<p>
+The Contact manager now allows you to merge records from different services that represent the same person,
+or to split records that were automatically merged.
+</p>
+
+<p>
+<b>Last.fm integration</b>
+</p>
+
+<p>
+Contacts can import friend lists from Last.fm.
+</p>
+
+<p>
 <b>"Export" command</b>
 </p>
 
@@ -71,8 +87,17 @@ Contacts can export the unified list of contacts as a VCard file for use in othe
 </p>
 
 <p>
-Documentation for the Contacts API is now <a href="xxx">posted on our site</a>.  Web developers are encouraged to
+Documentation for the Contacts API is now <a href="https://wiki.mozilla.org/Labs/Contacts/ContentAPI">posted on our site</a>.  Web developers are encouraged to
 experiment with it and provide feedback.
+</p>
+
+<p>
+<b>Experimental "services" API</b>
+</p>
+
+<p>
+An opt-in service integration API is included as an experiment.  Developers can read about it and how to enable it
+for experimental hacking <a href="https://wiki.mozilla.org/Labs/Contacts/ContentAPI#Experimental_.22Services.22_API">here</a>.
 </p>
 
 
@@ -98,8 +123,11 @@ GMail importer from VCard to the Google Contacts API.</li>
 <li>Reworked web content permission dialog.  The user is prompted to select groups of contacts to make available
 to web content.</li>
 
-<li>When permission is granted to a website, the permission is saved for the entire session.  If the "Remember" checkbox
+<li>When permission is granted to a website, the permission is saved until Firefox leaves that page.  If the "Remember" checkbox
 is checked, it is saved across multiple runs of Firefox.</li>
+
+<li>Reworked internal database format to support merge and split operations.  Merge and split should correctly
+persist across refreshes of a service.</li>
 
 <li>Improved performance of contact discovery services.</li>
 
@@ -109,7 +137,10 @@ is checked, it is saved across multiple runs of Firefox.</li>
 
 <li>Added "export" function to manager UI</li>
 
-TODO: HCard support in person page
+<li>Added HCard markup to person detail pages</li>
+
+<li>Changed Javascript API to match current W3C Contacts draft.</li>
+
 </ul>
 </p>
 

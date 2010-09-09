@@ -42,13 +42,16 @@ ifeq ($(TOPSRCDIR),)
   export TOPSRCDIR = $(shell pwd)
 endif
 
+# Build into "dist", construct staging in "stage", package into "xpi"
 objdir=$(TOPSRCDIR)/dist
 stage_dir=$(objdir)/stage
 xpi_dir=$(objdir)/xpi
 error=exit 1
 
+# Must match install.rdf
 contacts_version := 0.4
 
+# We serve the update from mhanson's personal directory right now.
 ifeq ($(release_build),)
   xpi_type := dev
   update_url := https://people.mozilla.com/~mhanson/contacts/update.rdf
@@ -56,6 +59,13 @@ else
   xpi_type := rel
   update_url :=
 endif
+
+# Contacts 0.4 and later depends on oauthorizer.  The oauth_bundle target
+# creates a xpi that contains both Contacts and OAuthorizer; the 
+# "oauth_xpi_path" variable must be defined and passed in for this target.
+xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
+xpi_files := chrome.manifest components content install.rdf locale modules platform
+oauth_bundle_xpi_name:= contacts-$(contacts_version)-relbundle-$(xpi_type).xpi
 
 ifeq ($(update_url),)
   update_url_tag :=
@@ -133,18 +143,19 @@ build: native
 	test -d $(stage_dir)/content || $(SLINK) $(TOPSRCDIR)/content $(stage_dir)/content
 	test -d $(stage_dir)/locale || $(SLINK) $(TOPSRCDIR)/locale $(stage_dir)/locale
 	test -d $(stage_dir)/modules || $(SLINK) $(TOPSRCDIR)/modules $(stage_dir)/modules
-	
-
-xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
-xpi_files := chrome.manifest components content install.rdf locale modules platform
-oauth_bundle_xpi_name:= contacts-$(contacts_version)-relbundle-$(xpi_type).xpi
 
 xpi: build
 	rm -f $(xpi_dir)/$(xpi_name)
 	cd $(stage_dir);zip -9r $(xpi_name) $(xpi_files)
 	mv $(stage_dir)/$(xpi_name) $(xpi_dir)/$(xpi_name)
 
-oauth_bundle: 
+
+ifeq ($(oauth_xpi_path),)
+  OAUTH_DEFINED=@echo "      *** Error: Define 'oauth_xpi_path'";exit 1
+endif
+
+oauth_bundle: xpi
+	$(OAUTH_DEFINED)
 	rm -f $(xpi_dir)/$(oauth_bundle_xpi_name)
 	cp bundle_install.rdf $(xpi_dir)/install.rdf
 	cp $(oauth_xpi_path) $(xpi_dir)
@@ -163,6 +174,7 @@ help:
 	@echo "chrome (only updates the source directory)"
 	@echo "test (runs tests, runs a build first)"
 	@echo "xpi (sets manifest to use jars, make build to undo)"
+	@echo "oauth_bundle (builds xpi with oauthorizer.xpi and contacts.xpi)
 	@echo clean
 	@echo
 	@echo Variables:
