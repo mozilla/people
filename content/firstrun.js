@@ -77,12 +77,12 @@ var Overlay = {
 	
         window.setTimeout(function(){
 	  if (typeof(gBrowser) != 'undefined') {
-            gBrowser.selectedTab = gBrowser.addTab("http://mozillalabs.com/conceptseries/identity/contacts/");
+            gBrowser.selectedTab = gBrowser.addTab("http://mozillalabs.com/contacts/");
 	  } else {
 	    let tabmail = document.getElementById('tabmail');
 	    if (tabmail) {
               tabmail.openTab("contentTab",
-                            { contentPage: "http://mozillalabs.com/conceptseries/identity/contacts/",
+                            { contentPage: "http://mozillalabs.com/contacts/",
                               clickHandler: "specialTabs.aboutClickHandler(event);" });
 	    }
 	  }

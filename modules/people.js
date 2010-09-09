@@ -887,58 +887,64 @@ PeopleService.prototype = {
           progressFunction("Adding; " + Math.floor(i * 100 / docArray.length) + "%");
         }
 
-        var personDoc = docArray[i];
-        this._log.debug("Adding person " + i + ": " + personDoc.displayName);
-        
-        // Check for merge:
-        let mergeTargetGUID = mergeFinder.findMergeTarget(personDoc, service);
-        if (mergeTargetGUID) {
-          merges.push([personDoc, mergeTargetGUID]);
-          continue;
-        }
-
-        // No, perform insert:
-        let guid = Utils.makeGUID();
-
-        let stmt;
-        try {
-
-          // Object as defined by https://wiki.mozilla.org/Labs/Weave/Contacts/SchemaV2
-          let serviceDocuments = {};
-          serviceDocuments[service.getPrimaryKey(personDoc)] = personDoc;
-          let documents = {};
-          documents[service.name] = serviceDocuments;
-          let accounts = {};
-          accounts[service.getPrimaryKey(personDoc)] = true;
-          let mergehints = {};
-          mergehints[service.name] = accounts;
-        
-					let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
-				
-          let obj = {
-            guid: guid,
-            documents: documents,
-            schema: "http://labs.mozilla.com/schemas/people/2",
-            merge: mergehints
-          };
-          let params = {
-            guid: guid,
-            json: JSON.stringify(obj)
-          };
-          stmt = this._dbCreateStatement(query, params);
-          stmt.execute();
-					let person_id = this._db.lastInsertRowID;
-          this._updateIndexed(person_id, new Person(obj));
-          this._updateMergeHintsIndexed(person_id, new Person(obj));
-          mergeFinder.addPerson(personDoc, service, guid);
+        try
+        {
+          var personDoc = docArray[i];
+          this._log.debug("Adding person " + i + ": " + personDoc.displayName);
           
-        } catch (e) {
+          // Check for merge:
+          let mergeTargetGUID = mergeFinder.findMergeTarget(personDoc, service);
+          if (mergeTargetGUID) {
+            merges.push([personDoc, mergeTargetGUID]);
+            continue;
+          }
+
+          // No, perform insert:
+          let guid = Utils.makeGUID();
+
+          let stmt;
+          try {
+
+            // Object as defined by https://wiki.mozilla.org/Labs/Weave/Contacts/SchemaV2
+            let serviceDocuments = {};
+            serviceDocuments[service.getPrimaryKey(personDoc)] = personDoc;
+            let documents = {};
+            documents[service.name] = serviceDocuments;
+            let accounts = {};
+            accounts[service.getPrimaryKey(personDoc)] = true;
+            let mergehints = {};
+            mergehints[service.name] = accounts;
+          
+            let query = "INSERT INTO people (guid, json) VALUES (:guid, :json)";
+          
+            let obj = {
+              guid: guid,
+              documents: documents,
+              schema: "http://labs.mozilla.com/schemas/people/2",
+              merge: mergehints
+            };
+            let params = {
+              guid: guid,
+              json: JSON.stringify(obj)
+            };
+            stmt = this._dbCreateStatement(query, params);
+            stmt.execute();
+            let person_id = this._db.lastInsertRowID;
+            this._updateIndexed(person_id, new Person(obj));
+            this._updateMergeHintsIndexed(person_id, new Person(obj));
+            mergeFinder.addPerson(personDoc, service, guid);
+            
+          } catch (e) {
+            this._log.warn("add failed: " + Utils.exceptionStr(e));
+          } finally {
+            if (stmt)
+              stmt.reset();
+          }
+          Observers.notify("people-add", {guid:guid});
+        } catch (e)
+        {
           this._log.warn("add failed: " + Utils.exceptionStr(e));
-        } finally {
-          if (stmt)
-            stmt.reset();
         }
-        Observers.notify("people-add", {guid:guid});
       }   
 
       progressFunction("Resolving merges");
