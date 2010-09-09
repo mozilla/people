@@ -252,18 +252,22 @@ function renderServices()
   for (let d in discoverers) {
     try {
       let discoverer = PeopleImporter.getDiscoverer(d);
-      let enabled = (enabledDiscoverers[d] == true);
+      // let enabled = (enabledDiscoverers[d] == true);
       
       let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
       svcDiv.setAttribute("class", "discovererbadge");
+
+      /*
       let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
       svcImg.setAttribute("src", discoverer.iconURL);
       svcImg.setAttribute("id", d+"-badge");
       svcDiv.appendChild(svcImg);
+      */
+      
       let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
       svcLabel.setAttribute("class", "discovererlabel");
       svcLabel.appendChild(document.createTextNode(discoverer.displayName));
-      svcLabel.appendChild(document.createTextNode(enabled ? " Enabled": " Disabled"));
+      // svcLabel.appendChild(document.createTextNode(enabled ? " Enabled": " Disabled"));
       svcDiv.appendChild(svcLabel);
 
       let desc = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
@@ -402,18 +406,7 @@ Delete saved data that was found about contacts using the Finders.
 
 <div class="controlsubhead">Contact Finder Services</div>
 <p>
-<div style="float:right">
-  <input type="submit" 
-    onclick="javascript:window.open('directory.xhtml', '_blank')" value="Find More Finders"/></div>
 These are services that Firefox uses to learn more about people you know.
-</p>
-
-
-<p>
-Run Contact Finder Services:<br/>
-<input type="radio" name="finderwhen" value="auto"/> Automatically when contacts are first added<br/>
-<input type="radio" name="finderwhen" value="onview"/> When a contact is viewed<br/>
-<input type="radio" name="finderwhen" value="onview"/> When requested from the contact detail view<br/>
 </p>
 
 <div id="discoverybadges">

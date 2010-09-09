@@ -106,6 +106,7 @@ PeopleAutoComplete.prototype = {
           dupCheck[suggestion.value] = 1;
 
           data = person.displayName + " <" + suggestion.value + ">";
+          _("appending match for " + person.displayName);
           result.appendMatch(suggestion.value, data, thumb, "people");
         }
       }
@@ -115,6 +116,7 @@ PeopleAutoComplete.prototype = {
     });
 
     let resultCode = result.matchCount ? "RESULT_SUCCESS" : "RESULT_NOMATCH";
+    _("returning autocomplete result with " + result.length + " items");
     result.setSearchResult(Ci.nsIAutoCompleteResult[resultCode]);
     return result;
   },

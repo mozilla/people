@@ -57,7 +57,11 @@ NativeAddressBookImporter.prototype = {
   get displayName() "Native Address Book (on your computer)",
 	get iconURL() "chrome://people/content/images/macaddrbook.png",
 	getPrimaryKey: function (person){
-		return person.emails[0].value + person.displayName;
+    if (person.emails && person.emails[0] && person.emails.value) {
+      return person.emails[0].value + person.displayName;
+    } else if (person.displayName) {
+      return person.displayName;
+    }
 	},
 
 
