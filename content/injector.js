@@ -41,6 +41,7 @@
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const ALL_GROUP_CONSTANT = "___all___";
+let refreshed;
 
 let PeopleInjector = {
   // URI module
@@ -99,11 +100,10 @@ let PeopleInjector = {
                         .QueryInterface(Components.interfaces.nsIDOMChromeWindow);
     if (chromeWin != window)
       return;
+      // We want to make it reset permissions on refresh
+    
+    refreshed = true;
 
-    // We want to make it reset permissions on refresh
-    let URI = this.URI;
-    let uri = new URI(domWindow.location);
-    People.removeSessionSitePermissions(uri.spec);
     this._inject(domWindow);
   },
 
@@ -180,6 +180,33 @@ let PeopleInjector = {
 					if (win.location != "chrome://people/content/manager.xhtml" && 
 						  win.location != "chrome://people/content/disclosure.xhtml")
 					{
+						// Special field for services
+  					let Prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                               .getService(Components.interfaces.nsIPrefService);
+            Prefs = Prefs.getBranch("extensions.mozillalabs.contacts.");
+            let allow = false;
+            try{
+              allow = Prefs.getBoolPref("allowServices");
+            } catch (e){
+              //nothing
+            }
+            if(allow){
+              fields.push("Services");
+            } else {
+              for (let f in fields){
+                if(fields[f] == "Services"){
+                  fields.splice(f,1);
+                  break;
+                }
+              }
+            }
+						
+						// if the page was refreshed
+						if(refreshed) {
+              People.removeSessionSitePermissions(uri.spec);
+              refreshed = false;
+            }
+						
 						// Check for saved site permissions; if none are found, present the disclosure box
 						people = People.find({});
 						let groupList = null;
@@ -261,10 +288,11 @@ let PeopleInjector = {
 						
 						// Limit the result data...
 						fields = allowedFields;
-						People.findExternal(fields, successfulCallback, failureCallback, options, groupList);
+						People.findExternal(fields, successCallback, failureCallback, options, groupList);
 						
 					} else {
-						People.findExternal(fields, successfulCallback, failureCallback, options);
+					  fields.push("Services");
+						People.findExternal(fields, successCallback, failureCallback, options);
 					}
 
         } catch (e) {

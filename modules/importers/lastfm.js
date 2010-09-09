@@ -393,6 +393,8 @@ LastfmAccountBackend.prototype = {
       if(user.image.(@size == "large").toString() != "") 
         person.photos.push({type:"large", value:user.image.(@size == "large").toString()});
       
+      if(person.photos.length == 0) delete person.photos;
+      
       person.urls = [{value:user.url.toString(), type:"other"}];
       people.push(person);
       

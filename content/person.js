@@ -631,7 +631,7 @@ function renderSourceItems(person, personBox){
 	for each(let i in Iterator(person.obj.merge)) {
 	let type = i[0];
 		for each(let j in Iterator(i[1])){
-			if(j[1] == true) {
+			if(j[1] == true && person.obj.documents[type] && person.obj.documents[type][j[0]]) {
         let svc = PeopleImporter.getBackend(type);
         let url = svc.getLinkFromKey(j[0]);
         list.push({value:j[0], type:type, link:url});

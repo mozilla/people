@@ -883,7 +883,7 @@ exports.testExternalSort = function(test){
   p.People.split(resultObj.guid, testSvc.name, testSvc.getPrimaryKey(testPerson));
   
   results = null;
-  results = p.People.findExternal([ "gender", "emails", "displayName"], function(people){results = people;}, null, {filter:"joe" });
+  p.People.findExternal([ "gender", "emails", "displayName"], function(people){results = people;}, null, {filter:"joe" });
   test.assertEqual(results.length, 2);
   test.assertEqual(results[0].emails[0].value, "joe@test.com");
   test.assertEqual(results[1].emails[0].value, "schmoe@test.com");
@@ -899,7 +899,7 @@ exports.testExternalSort = function(test){
   p.People.split(resultObj.guid, testSvc.name, testSvc.getPrimaryKey(testPerson2));
   
   results = null;
-  results = p.People.findExternal([ "gender", "emails", "displayName"], function(people){results = people;}, null, {filter:"joe" });
+  p.People.findExternal([ "gender", "emails", "displayName"], function(people){results = people;}, null, {filter:"joe" });
   test.assertEqual(results.length, 2);
   test.assertEqual(results[0].emails[0].value, "joe@test.com");
   test.assertEqual(results[1].emails[0].value, "schmoe@test.com");
@@ -924,5 +924,52 @@ exports.testFindMergeHints = function(test){
    
   let guids = p.People._find("guid", {});
   test.assertEqual(guids.length, 1);
+  
+}
+
+exports.testChangeGUID = function(test){
+  p.People.deleteAll();
+  resetObservers();
+  
+  // Add another person that overlaps 
+  let testPerson = {"displayName":"Schmoe User", "gender":"male", "name":{"givenName":"User"}, "emails":[{"type":"work", "value":"joeschmoe@test.com"}], "accounts":[{"domain":"foo.com","userid":"noob"}],
+    "addresses":[{"streetAddress":"5678 State St"}]};
+  p.People.add(testPerson, testSvc, function() { });
+   
+  let guids = p.People._find("guid", {});
+  test.assertEqual(guids.length, 1);
+  
+  let guid = guids[0];
+  
+  p.People.changeGUID(guid, "HELLOTHERESON");
+  guids = p.People._find("guid", {});
+  test.assertEqual(guids.length, 1);
+  test.assertEqual(guids[0], "HELLOTHERESON"); 
+}
+
+exports.testLookups = function(test){
+  p.People.deleteAll();
+  resetObservers();
+  
+  // Add another person that overlaps 
+  let testPerson = {"displayName":"Schmoe User", "gender":"male", "name":{"givenName":"User"}, "emails":[{"type":"work", "value":"joeschmoe@test.com"}], "accounts":[{"domain":"foo.com","userid":"noob"}],
+    "addresses":[{"streetAddress":"5678 State St"}]};
+  p.People.add(testPerson, testSvc, function() { });
+  
+  let finder = p.People._createMergeFinder(51);
+  
+  let mergeHintLookup = finder.mergeHintLookup;
+  let guidMergeHintLookup = finder.guidMergeHintLookup;
+  
+  let guids = p.People._find("guid", {});
+  test.assertEqual(guids.length, 1);
+  
+  let guid = guids[0];
+  let info = guidMergeHintLookup[guid];
+  test.assert(info != null);
+  test.assertEqual(jstr(info),'[{"service":"test","user":"noob","positive":1}]');
+  info = mergeHintLookup["testnoob1"];
+  test.assert(info != null);
+  test.assertEqual(info[0], guid);
   
 }

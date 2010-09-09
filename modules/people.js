@@ -323,16 +323,16 @@ PeopleService.prototype = {
   _dbMigrateToVersion3 : function _dbMigrateToVersion3() {
     for each (var key in ["displayName", "emails", "familyName", "givenName"]) {
       for each (var idx in ["person_id", "val"]) {
-        this._db.createStatement("DROP INDEX " + key + "_" + idx).execute();
+        this._db.createStatement("DROP INDEX IF EXISTS" + key + "_" + idx).execute();
       }
-      this._db.createStatement("DROP TABLE " + key).execute();
+      this._db.createStatement("DROP TABLE IF EXISTS" + key).execute();
     }
-    this._db.createStatement("DROP TABLE people").execute();
-    this._db.createStatement("DROP INDEX site_permissions_url").execute();
-    this._db.createStatement("DROP TABLE site_permissions").execute();
-    this._db.createStatement("DROP TABLE mergeHints").execute();
-    this._db.createStatement("DROP INDEX mergeHints_val").execute();
-    this._db.createStatement("DROP INDEX mergeHints_person_id").execute();
+    this._db.createStatement("DROP TABLE IF EXISTS people").execute();
+    this._db.createStatement("DROP INDEX IF EXISTS site_permissions_url").execute();
+    this._db.createStatement("DROP TABLE IF EXISTS site_permissions").execute();
+    this._db.createStatement("DROP TABLE IF EXISTS mergeHints").execute();
+    this._db.createStatement("DROP INDEX IF EXISTS mergeHints_val").execute();
+    this._db.createStatement("DROP INDEX IF EXISTS mergeHints_person_id").execute();
     
     this._dbCreate();
   },
@@ -845,6 +845,27 @@ PeopleService.prototype = {
       this._log.warn("merge failed: " + Utils.exceptionStr(e));
     } 
 	},
+	_getDocumentsFromGUIDs: function _getDocumentsFromGUIDs(guids){
+	  let quoted = guids.map(function(guid){return "'" + guid + "'"});
+	  let query = "SELECT json, guid FROM people p WHERE guid IN (" + quoted.join(",") + ")";
+
+    let matches = {};
+		let stmt = this._dbCreateStatement(query);
+    try{
+      while (stmt.step()) {  
+        let ans = {};
+        matches[stmt.row.guid] = JSON.parse(stmt.row.json);
+      }
+      return matches;
+    } catch (e) {
+      this._log.warn("Unable to search for mergeHints: " + e);
+      return [];
+    } finally {
+      stmt.reset();
+    }
+    result = matches;
+	  return result;
+	},
   
   add: function add(document, service, progressFunction) {
     let docArray;
@@ -918,18 +939,21 @@ PeopleService.prototype = {
             stmt.reset();
         }
         Observers.notify("people-add", {guid:guid});
-      }
-      this._db.commitTransaction();
+      }   
 
       progressFunction("Resolving merges");
       this._log.debug("Resolving merges");
 
+      let mergeDocs = {};
+      
+      let mergeGuids = merges.map(function(i) {return i[1];});
+      let mergeDocuments = this._getDocumentsFromGUIDs(mergeGuids);
+
       for each (aMerge in merges) {
         let personDoc = aMerge[0];
         let mergeTargetGUID = aMerge[1];
-        
-				let dupMatchTargetList = this._find("json", {guid:mergeTargetGUID}).map(function(json) JSON.parse(json));
-    		let dupMatchTarget = dupMatchTargetList[0];
+    
+    		let dupMatchTarget = mergeDocuments[mergeTargetGUID];
 
     		this._log.info("Resolving merge " + mergeTargetGUID + " (" + personDoc.displayName + ")");
 
@@ -943,13 +967,16 @@ PeopleService.prototype = {
           if(!dupMatchTarget.documents[service.name]) dupMatchTarget.documents[service.name] = {};
     			dupMatchTarget.documents[service.name][service.getPrimaryKey(personDoc)] = personDoc;
     			if(!dupMatchTarget.merge[service.name]) dupMatchTarget.merge[service.name] = {};
-    			dupMatchTarget.merge[service.name][service.getPrimaryKey(personDoc)] = true
+    			dupMatchTarget.merge[service.name][service.getPrimaryKey(personDoc)] = true;
     		}
 
     		// this.mergeIntoRecord(dupMatchTarget, personDoc, service);
-    		this._update(dupMatchTarget);
+    		this._update(dupMatchTarget, false);
     		Observers.notify("people-update", {guid:dupMatchTarget.guid});
       }
+      
+      this._db.commitTransaction();
+      
     } catch (e) {
       this._log.warn("add failed: " + Utils.exceptionStr(e));
       this._db.rollbackTransaction();
@@ -1090,11 +1117,10 @@ PeopleService.prototype = {
 			this._updateIndexed(person_id, new Person(obj));
 			this._updateMergeHintsIndexed(person_id, new Person(obj));
 			
-			this._db.commitTransaction();
-			
 			//update old person
 			this._log.debug("Updating indexes for old person:\n");
-			this._update(person, service.name);
+			this._update(person, false);
+			this._db.commitTransaction();
 			Observers.notify("people-add", {guid:guid});
       Observers.notify("people-update", {guid:oldGUID});
 			
@@ -1114,16 +1140,18 @@ PeopleService.prototype = {
    *objects, update the database so that all the entries in the DB whose
    * GUIDs match those of the given Person records have the
    * same JSON value. */
-  _update: function _update(person) {
+  _update: function _update(person, newTransaction) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments).filter(function(i) i != null);
+      
+    if(newTransaction == undefined) newTransaction = true;
 
     let stmt;
     try {
       if (!person.guid)
         throw "person object must contain a guid";
 
-      this._db.beginTransaction();
+      if(newTransaction) this._db.beginTransaction();
 
       // Find the row ID for this person by searching on GUID
       let query = "SELECT * FROM people WHERE guid = :guid";
@@ -1145,11 +1173,11 @@ PeopleService.prototype = {
 
       this._updateMergeHintsIndexed(id, new Person(person));
       this._updateIndexed(id, new Person(person));
-      this._db.commitTransaction();
+      if(newTransaction) this._db.commitTransaction();
 
     } catch (e) {
       this._log.warn("_update failure: " + Utils.exceptionStr(e));
-      this._db.rollbackTransaction();
+      if(newTransaction) this._db.rollbackTransaction();
       return {error: e.message, person: person};
 
     } finally {
@@ -1161,6 +1189,7 @@ PeopleService.prototype = {
     return null;
   },
 
+  // Merges two different documents
   mergeDocuments: function merge(destDocument, sourceDocument) {
 		function objectEquals(obj1, obj2) {
 				for (var i in obj1) {
@@ -1245,6 +1274,7 @@ PeopleService.prototype = {
 		}
 	},
 
+  // removes GUIDs with these attributes
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
       return Utils.mapCall(this, arguments);
@@ -1276,7 +1306,7 @@ PeopleService.prototype = {
     return guids.length;
   },  
   
-  
+  // Find used for external query -> navigator.service.contacts.find
   findExternal: function findExternal(fields, successCallback, failureCallback, options, groupList){
     
     let query = "SELECT json FROM people";
@@ -1330,6 +1360,7 @@ PeopleService.prototype = {
       //filter out people with no documents
       if([i for (i in p.obj.documents)].length == 0) continue;
       
+      let allowServices = false;
       let personTags = p.getProperty("tags");
       if (groupsIncludeAll || 
          (personTags && groupList.some(function(e,i,a) { return personTags.indexOf(e) >= 0;}))){
@@ -1337,6 +1368,10 @@ PeopleService.prototype = {
   			hasPartialMatch = false;
       
         for each (f in fields) {
+          if(f == "Services") {
+            allowServices = true;
+            continue;
+          }
       
           let value = p.getProperty(f, ".");
       
@@ -1368,8 +1403,10 @@ PeopleService.prototype = {
             let weight_b = b[0];
             return weight_a > weight_b;
           });
-          newPerson.services = p.constructServices();
-          newPerson.servicesByProvider = p.constructServicesByProvider();
+          if(allowServices){
+            newPerson.services = p.constructServices();
+            newPerson.servicesByProvider = p.constructServicesByProvider();
+          }
     		  outputSet.push(newPerson);
     	  } 
 
@@ -1413,8 +1450,6 @@ PeopleService.prototype = {
     } catch(ex) {
       Components.utils.reportError(ex);
     }
-    
-    return people;
   },
 
   find: function find(attrs) {
@@ -1424,6 +1459,7 @@ PeopleService.prototype = {
     return matches;
   },
   
+  // Wrapper ofr find with a callback for internal functions
   findCallback: function findCallback(attrs, successCallback, errorCallback) {
     let people = this.find(attrs);
     try {
@@ -1434,6 +1470,7 @@ PeopleService.prototype = {
     }
   },
 
+  // Internal find using attributes
   _find: function _find(col, attrs) {
     attrs = attrs || {};
 
@@ -1534,6 +1571,7 @@ PeopleService.prototype = {
     }
   },
 
+  // Connect a service
 	connectService: function importFromService(svcName, completionCallback, progressFunction, window) {
 
 		// note that this could cause an asynchronous call
@@ -1550,6 +1588,7 @@ PeopleService.prototype = {
     Observers.notify("people-connectService", {name:svcName});
 	},
   
+  // Disconnect a service
   disconnectService: function disconnectService(svcName) {
 		Cu.import("resource://people/modules/import.js");    
     this._log.debug("Disconnecting " + svcName);
@@ -1564,18 +1603,22 @@ PeopleService.prototype = {
     Observers.notify("people-disconnectService", {name:svcName});
   },
   
-	removeServiceData: function (svcName) {
+	removeServiceData: function removeServiceData(svcName) {
     let allPeople = this.find();
+    this._db.beginTransaction();
     for each (let p in allPeople) {
       if (p.obj.documents[svcName]) {
         delete p.obj.documents[svcName];
+        this._removeDiscoveryDataFromDocuments(p.obj.documents);
         this._log.debug("Removing " + svcName + " data from " + p.guid + "; updating");
-        this._update(p.obj, svcName);
+        this._update(p.obj, false);
       }
     }
-    
+    this._db.commitTransaction();
     this.deleteServiceMetadata(svcName);
 	},
+	
+	// Internal Helper Method
   _removeDiscoveryDataFromDocuments: function(documents){
     let any = false;
     for (let key in documents) {
@@ -1588,6 +1631,8 @@ PeopleService.prototype = {
     }
     return any;
   },
+  
+  // Removes all discovery data fromm a person
   _removeUserDiscoveryData: function(p){
     let any = this._removeDiscoveryDataFromDocuments(p.obj.documents);
     if (any)
@@ -1597,6 +1642,7 @@ PeopleService.prototype = {
     }
   },
 
+  // Remove all discovery data from everyone
   removeDiscoveryData: function () {
     let allPeople = this.find();
     for each (let p in allPeople) {
