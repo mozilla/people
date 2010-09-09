@@ -254,6 +254,7 @@ function renderTypeValueList(title, objectType, list, options)
       if(item.link != ""){
         let urlink = createElem("a");
         urlink.setAttribute("href", item.link);
+        urlink.setAttribute("target", "_blank");
         urlink.appendChild(node);
         node = urlink;
       }
@@ -560,7 +561,17 @@ function renderContactCard(personBox)
 	renderSourceItems(gPerson, personBox);
   renderContactMethods(gPerson, personBox);
   renderContentLinks(gPerson, personBox);
-  renderServiceLinks(gPerson, personBox);
+  
+  let Prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                     .getService(Components.interfaces.nsIPrefService);
+  Prefs = Prefs.getBranch("extensions.mozillalabs.contacts.");
+  let allow = false;
+  try{
+    allow = Prefs.getBoolPref("allowServices");
+  } catch (e){
+    //nothing
+  }
+  if(allow) renderServiceLinks(gPerson, personBox);
 }
 
 function renderSourceItems(person, personBox){
