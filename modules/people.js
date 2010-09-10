@@ -323,9 +323,9 @@ PeopleService.prototype = {
   _dbMigrateToVersion3 : function _dbMigrateToVersion3() {
     for each (var key in ["displayName", "emails", "familyName", "givenName"]) {
       for each (var idx in ["person_id", "val"]) {
-        this._db.createStatement("DROP INDEX IF EXISTS" + key + "_" + idx).execute();
+        this._db.createStatement("DROP INDEX IF EXISTS " + key + "_" + idx).execute();
       }
-      this._db.createStatement("DROP TABLE IF EXISTS" + key).execute();
+      this._db.createStatement("DROP TABLE IF EXISTS " + key).execute();
     }
     this._db.createStatement("DROP TABLE IF EXISTS people").execute();
     this._db.createStatement("DROP INDEX IF EXISTS site_permissions_url").execute();
