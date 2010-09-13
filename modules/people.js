@@ -1316,6 +1316,8 @@ PeopleService.prototype = {
   findExternal: function findExternal(fields, successCallback, failureCallback, options, groupList){
     
     let query = "SELECT json FROM people";
+    
+    if(!options) options = {};
 
     if(options.updatedSince){
       let date = Math.round((Date.parse(options.updatedSince))/1000);
