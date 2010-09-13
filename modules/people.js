@@ -478,7 +478,7 @@ PeopleService.prototype = {
 
   _addIndexed: function _addIndexed(thing, prop, person_id) {
     if (Utils.isArray(thing))
-      return Utils.mapCall(this, arguments);
+      return Utils.mapCall(this, arguments, _addIndexed);
 
     let value = thing;
     if (typeof(thing) == "object")
@@ -1148,7 +1148,7 @@ PeopleService.prototype = {
    * same JSON value. */
   _update: function _update(person, newTransaction) {
     if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments).filter(function(i) i != null);
+      return Utils.mapCall(this, arguments, _update).filter(function(i) i != null);
       
     if(newTransaction == undefined) newTransaction = true;
 
@@ -1283,7 +1283,7 @@ PeopleService.prototype = {
   // removes GUIDs with these attributes
   remove: function remove(attrs) {
     if (Utils.isArray(arguments[0]))
-      return Utils.mapCall(this, arguments);
+      return Utils.mapCall(this, arguments, remove);
 
     let guids = this._find("guid", attrs);
     this.removeGUIDs(guids);
@@ -1496,7 +1496,7 @@ PeopleService.prototype = {
     // Build query parts for joined indexed terms
     let addTerm = function addTerm(val, table) {
       if (Utils.isArray(arguments[0]))
-        return Utils.mapCall(this, arguments);
+        return Utils.mapCall(this, arguments, addTerm);
 
       let alias = "t" + terms;
       joins.push("JOIN " + table + " " + alias + " ON " + alias +

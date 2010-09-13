@@ -625,6 +625,7 @@ function renderSourceItems(person, personBox){
   };
   
   contentBox.ondrop = function(event){
+    $(link).tipsy('hide');
     let oldguid = event.dataTransfer.getData('guid');
     let newguid = gPerson.guid;
     if(oldguid == newguid) return;

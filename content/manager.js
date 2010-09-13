@@ -467,6 +467,8 @@ let PeopleManager = {
         
         //merge on drop
         contact.ondrop = function(event){
+          $(a).tipsy('hide');
+          contact.className = "contact";
           let oldguid = event.dataTransfer.getData('guid');
           let newguid = guid;
           if(oldguid == newguid) return;

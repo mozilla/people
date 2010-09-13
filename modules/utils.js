@@ -106,9 +106,9 @@ let Utils = {
   },
 
 
-  mapCall: function mapCall(self, args) {
+  mapCall: function mapCall(self, args, func) {
     let array = args[0];
-    let func = mapCall.caller;
+    //let func = mapCall.caller;
     let extra = Array.slice(args, 1);
     return array.map(function(item) func.apply(self, [item].concat(extra)));
   },
