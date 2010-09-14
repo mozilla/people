@@ -449,8 +449,9 @@ let PeopleManager = {
           event.dataTransfer.setData('DN', dN);
         };
         
-        contact.ondragenter = function(event) { 
-          if(event.dataTransfer.getData('guid') != guid){
+        contact.ondragenter = function(event) {
+					let otherguid = event.dataTransfer.getData('guid')
+          if (otherguid && otherguid != guid) {
             a.title = "Merge contacts \"" + event.dataTransfer.getData('DN') +  "\" and \"" + dN + "\"";
             $(a).tipsy('show');
             contact.className = "contact highlighted";
@@ -470,6 +471,7 @@ let PeopleManager = {
           $(a).tipsy('hide');
           contact.className = "contact";
           let oldguid = event.dataTransfer.getData('guid');
+					if (!oldguid) return;
           let newguid = guid;
           if(oldguid == newguid) return;
           let olddN = event.dataTransfer.getData('DN');

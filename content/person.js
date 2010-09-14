@@ -612,7 +612,8 @@ function renderSourceItems(person, personBox){
 	
 	$(link).tipsy({trigger:"manual", fade:true});
 	contentBox.ondragenter = function(event) {
-	  if(event.dataTransfer.getData('guid') != gPerson.guid){
+		let otherguid = event.dataTransfer.getData('guid')
+    if (otherguid && otherguid != gPerson.guid) {
       link.title = "Merge contacts \"" + event.dataTransfer.getData('DN') +  "\" and \"" + dN + "\"";
 	    $(link).tipsy('show');
     }
@@ -627,6 +628,7 @@ function renderSourceItems(person, personBox){
   contentBox.ondrop = function(event){
     $(link).tipsy('hide');
     let oldguid = event.dataTransfer.getData('guid');
+		if (!oldguid) return;
     let newguid = gPerson.guid;
     if(oldguid == newguid) return;
     let olddN = event.dataTransfer.getData('DN');
