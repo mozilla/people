@@ -100,7 +100,10 @@ GmailImporter.prototype = {
     }
 
     //dump(req.responseText + "\n");
-
+    if (!req.responseXML) {
+      this.completionCallback({error:"API Error", message:"Error while accessing Google Contacts: " + req.status+": "+req.responseText});  
+      return;
+    }
     let xmlDoc = req.responseXML;
     let root = xmlDoc.ownerDocument == null ?
       xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;
