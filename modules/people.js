@@ -43,7 +43,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const DB_VERSION = 3; // The database schema version
+const DB_VERSION = 4; // The database schema version
 const SORT_WEIGHTS = {
   displayName:1,
   "name.formatted":2,
@@ -211,6 +211,7 @@ PeopleService.prototype = {
         // Get the version of the schema in the file. It will be 0 if the
         // database has not been created yet.
         let version = this._db.schemaVersion;
+	this._log.debug("db schemaVersion is "+version);
         if (version == 0) {
           isFirstRun = true;
           this._dbCreate();
@@ -239,6 +240,7 @@ PeopleService.prototype = {
 
     this._log.debug("Creating Index Tables");
     for each (let index in this._dbSchema.index_tables) {
+      this._log.debug("  creating table: "+index);
       this._db.createTable(index, "id INTEGER PRIMARY KEY, " +
         "person_id INTEGER NOT NULL, val TEXT NOT NULL COLLATE NOCASE");
       for each (let col in ["person_id", "val"])
@@ -319,15 +321,23 @@ PeopleService.prototype = {
     
     this._dbCreate();
   },
+  
+  _dbMigrateToVersion3: function _dbMigrateToVersion3() {
+    this._db.createTable("tags", "id INTEGER PRIMARY KEY, " +
+      "person_id INTEGER NOT NULL, val TEXT NOT NULL COLLATE NOCASE");
+    this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS tags_person_id ON tags(person_id)");
+    this._db.executeSimpleSQL("CREATE INDEX IF NOT EXISTS tags_val ON tags(val)");
+  },
 
-  _dbMigrateToVersion3 : function _dbMigrateToVersion3() {
-    for each (var key in ["displayName", "emails", "familyName", "givenName"]) {
+  _dbMigrateToVersion4 : function _dbMigrateToVersion4() {
+    for each (let index in this._dbSchema.index_tables) {
       for each (var idx in ["person_id", "val"]) {
         this._db.createStatement("DROP INDEX IF EXISTS " + key + "_" + idx).execute();
       }
       this._db.createStatement("DROP TABLE IF EXISTS " + key).execute();
     }
     this._db.createStatement("DROP TABLE IF EXISTS people").execute();
+    this._db.createStatement("DROP TABLE IF EXISTS tags").execute();
     this._db.createStatement("DROP INDEX IF EXISTS site_permissions_url").execute();
     this._db.createStatement("DROP TABLE IF EXISTS site_permissions").execute();
     this._db.createStatement("DROP TABLE IF EXISTS service_metadata").execute();
