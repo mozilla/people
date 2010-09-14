@@ -330,7 +330,7 @@ PeopleService.prototype = {
   },
 
   _dbMigrateToVersion4 : function _dbMigrateToVersion4() {
-    for each (let index in this._dbSchema.index_tables) {
+    for each (let key in this._dbSchema.index_tables) {
       for each (var idx in ["person_id", "val"]) {
         this._db.createStatement("DROP INDEX IF EXISTS " + key + "_" + idx).execute();
       }
