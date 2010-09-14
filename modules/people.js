@@ -330,6 +330,7 @@ PeopleService.prototype = {
     this._db.createStatement("DROP TABLE IF EXISTS people").execute();
     this._db.createStatement("DROP INDEX IF EXISTS site_permissions_url").execute();
     this._db.createStatement("DROP TABLE IF EXISTS site_permissions").execute();
+    this._db.createStatement("DROP TABLE IF EXISTS service_metadata").execute();
     this._db.createStatement("DROP TABLE IF EXISTS mergeHints").execute();
     this._db.createStatement("DROP INDEX IF EXISTS mergeHints_val").execute();
     this._db.createStatement("DROP INDEX IF EXISTS mergeHints_person_id").execute();
