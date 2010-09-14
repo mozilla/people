@@ -633,7 +633,7 @@ function renderSourceItems(person, personBox){
     var answer = confirm ('Combine contacts "' + olddN + '" and "' + dN + '"?');
     if(!answer) return;
     event.preventDefault();
-    mergePeople(oldguid, newguid);
+    mergePeople(newguid, oldguid);
   };
 	
 	heading.appendChild(link);
