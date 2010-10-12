@@ -274,11 +274,11 @@ Cu.import("resource://people/modules/importers/abcard.js");
 Cu.import("resource://people/modules/importers/native.js");
 Cu.import("resource://people/modules/importers/facebook.js");
 Cu.import("resource://people/modules/importers/gmail.js");
-Cu.import("resource://people/modules/importers/linkedin.js");
+//Cu.import("resource://people/modules/importers/linkedin.js");
 Cu.import("resource://people/modules/importers/plaxo.js");
 Cu.import("resource://people/modules/importers/twitter.js");
 Cu.import("resource://people/modules/importers/yahoo.js");
-Cu.import("resource://people/modules/importers/lastfm.js");
+//Cu.import("resource://people/modules/importers/lastfm.js");
 
 Cu.import("resource://people/modules/importers/webfinger.js");
 //Cu.import("resource://people/modules/importers/googleSocialGraph.js");
