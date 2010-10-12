@@ -17,3 +17,9 @@ contract @mozilla.org/network/protocol;1?name=person {b6e1d39c-b39c-4b1f-a088-e2
 
 component {545c79b1-1c45-4f5e-b6bb-98ce9e9fbd12} components/nsFormFillOverride.js
 contract @mozilla.org/satchel/form-autocomplete;1 {545c79b1-1c45-4f5e-b6bb-98ce9e9fbd12}
+
+interfaces components/INativeAddressBook.xpt
+interfaces components/INativeAddressCard.xpt
+binary-component platform/Darwin/components/NativeAddressBook.dylib ABI=Darwin_x86-gcc3
+binary-component platform/Darwin/components/NativeAddressBook.dylib ABI=Darwin_x86_64-gcc3
+
