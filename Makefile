@@ -159,7 +159,7 @@ oauth_bundle: xpi
 	rm -f $(xpi_dir)/$(oauth_bundle_xpi_name)
 	cp bundle_install.rdf $(xpi_dir)/install.rdf
 	cp $(oauth_xpi_path) $(xpi_dir)
-	cd $(xpi_dir);zip -9r $(oauth_bundle_xpi_name) $(xpi_name) oauthorizer-0.1-dev.xpi install.rdf
+	cd $(xpi_dir);zip -9r $(oauth_bundle_xpi_name) $(xpi_name) oauthorizer-0.1.2-dev.xpi install.rdf
 	rm $(xpi_dir)/install.rdf
 
 

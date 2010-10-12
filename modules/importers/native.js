@@ -140,7 +140,8 @@ NativeAddressBookImporter.prototype = {
 				let addressValues = allCards[i].getPropertyListValues("addresses", []);
 				for (let j=0;j<addressLabels.length;j++) {
           if (!person.addresses) person.addresses = [];
-          var addr = JSON.parse(addressValues[j]);
+          // sometimes we get invalid JSON because of \n
+          var addr = JSON.parse(addressValues[j].replace("\n", " "));
           addr.type = addressLabels[j];
 					person.addresses.push(addr);
 				}

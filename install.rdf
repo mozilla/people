@@ -7,7 +7,7 @@
     <em:id>contacts@labs.mozilla.com</em:id>
     <em:name>Contacts</em:name>
     <em:version>0.4</em:version>
-
+    <em:unpack>true</em:unpack>
     <em:description>A Mozilla Labs Experiment: Adds a database of information about people to Firefox.</em:description>
     <em:creator>Mozilla Labs Team</em:creator>
     <em:homepageURL>http://mozillalabs.com/contacts/</em:homepageURL>
@@ -16,7 +16,7 @@
     <em:targetApplication> <!-- Firefox -->
       <Description>
         <em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>
-        <em:minVersion>3.6</em:minVersion>
+        <em:minVersion>4.0b6</em:minVersion>
         <em:maxVersion>4.0.*</em:maxVersion>
       </Description>
     </em:targetApplication>
