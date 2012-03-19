@@ -43,6 +43,7 @@
 
   <script type="application/javascript" src="chrome://people/content/firstrun.js"/>
   <script type="application/javascript" src="chrome://people/content/injector.js"/>
+  <!--script type="application/javascript" src="chrome://people/content/sendLink.js"/-->
   <script type="application/javascript">
   <![CDATA[
     Components.utils.import("resource://people/content/location_autocomplete.js");
@@ -52,8 +53,17 @@
       gURLBar.setAttribute("autocompletesearch", "people " +
         gURLBar.getAttribute("autocompletesearch"));
     }, false);
+    
+   function peopleAuthRequest(url, progressListener) {
+      gBrowser.addProgressListener(progressListener, Components.interfaces.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+      gBrowser.addTab(url);
+   }
   ]]>
   </script>
+  
+  <!--keyset id="mainKeyset">
+    <key id="key_open" modifiers="control alt" k="c" oncommand="SendLinkMethods.showSendWindow(gBrowser.selectedTab.linkedBrowser.contentDocument.documentElement);//SendLinkMethods.showSendWindow(null);" />
+  </keyset-->
 
   <menupopup id="menu_ToolsPopup">
     <menuitem class="menuitem-iconic"
@@ -61,6 +71,13 @@
           oncommand="window.getBrowser().selectedTab = window.getBrowser().addTab('chrome://people/content/manager.xul');">
     </menuitem>
   </menupopup>
+  
+  <!--menupopup id="contentAreaContextMenu">
+    <menuitem id="context-PeopleSendLink" label="Send Link to Contact"
+              accesskey="C"
+              insertafter="context-sendlink"
+              oncommand="SendLinkMethods.showSendWindow(document.popupNode);"/>
+  </menupopup-->
 
   <tabbrowser id="content" autocompletepopup="PopupAutoCompleteRichResult"/>
 

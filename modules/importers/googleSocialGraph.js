@@ -56,7 +56,8 @@ GoogleSocialGraphDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
   get name() "GoogleSocialGraph",
   get displayName() "Google Social Graph API",
-	get iconURL() "",
+  get iconURL() "",
+  get description() "Searches for a contact's e-mail addresses and web pages on the Google Social Graph search engine, which indexes public personal web pages that are linked together.",  
   
  explainString : function explainString() {
     return "From searching for this contact with the <a href=\"http://code.google.com/apis/socialgraph/docs/\">Google Social Graph</a>";

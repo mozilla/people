@@ -9,14 +9,8 @@ function _() {
   dump(msg + "\n");
   Cu.reportError(msg);
 }
-_("?loaded");
+_("?loaded CONTACTS");
 
-__defineGetter__("FAC", function() {
-  _("get FAC");
-  delete this.FAC;
-  return this.FAC = Components.classesByID["{c11c21b2-71c9-4f87-a0f8-5e13f50495fd}"].
-    getService(Ci.nsIFormAutoComplete);
-});
 __defineGetter__("People", function() {
   delete this.People;
   Cu.import("resource://people/modules/people.js");
@@ -27,8 +21,10 @@ function PeopleAutoComplete() {
 }
 PeopleAutoComplete.prototype = {
   classDescription: "People AutoComplete",
-  contractID: "@mozilla.org/satchel/form-autocomplete;1",
-  classID: Components.ID("{545c79b1-1c45-4f5e-b6bb-98ce9e9fbd12}"),
+  contractID: "@labs.mozilla.com/contacts/form-autocomplete;1",
+  classID: Components.ID("{7bc6728f-9ecf-de44-9fc9-8ce679f7529d}"),
+  _xpcom_categories: [{category: "form-autocomplete-handler",
+                       entry: "contacts-addon"}],
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFormAutoComplete]),
 
   // Specify the html5 types that we want and some values to guess
@@ -106,6 +102,7 @@ PeopleAutoComplete.prototype = {
           dupCheck[suggestion.value] = 1;
 
           data = person.displayName + " <" + suggestion.value + ">";
+          _("appending match for " + person.displayName);
           result.appendMatch(suggestion.value, data, thumb, "people");
         }
       }
@@ -115,6 +112,7 @@ PeopleAutoComplete.prototype = {
     });
 
     let resultCode = result.matchCount ? "RESULT_SUCCESS" : "RESULT_NOMATCH";
+    _("returning autocomplete " +resultCode+ " result with " + result.matchCount + " items");
     result.setSearchResult(Ci.nsIAutoCompleteResult[resultCode]);
     return result;
   },
@@ -128,14 +126,15 @@ PeopleAutoComplete.prototype = {
     if (type != null)
       return this.findPeople(query, type);
 
-    // Use the base form autocomplete for non-people searches
-    return FAC.autoCompleteSearch(name, query, field, prev);
+    return null;
   }
 };
 
 let components = [PeopleAutoComplete];
-function NSGetModule(compMgr, fileSpec) {
-  return XPCOMUtils.generateModule(components);
-}
+if (XPCOMUtils.generateNSGetFactory)
+    var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+else
+    var NSGetModule = XPCOMUtils.generateNSGetModule(components);
+
 
 

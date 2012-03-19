@@ -38,13 +38,20 @@
 
 # Pass rebuild_native=1 to build the native components.
 
-objdir=dist
+ifeq ($(TOPSRCDIR),)
+  export TOPSRCDIR = $(shell pwd)
+endif
+
+# Build into "dist", construct staging in "stage", package into "xpi"
+objdir=$(TOPSRCDIR)/dist
 stage_dir=$(objdir)/stage
 xpi_dir=$(objdir)/xpi
 error=exit 1
 
-contacts_version := 0.3.2
+# Must match install.rdf
+contacts_version := 0.4.2
 
+# We serve the update from mhanson's personal directory right now.
 ifeq ($(release_build),)
   xpi_type := dev
   update_url := https://people.mozilla.com/~mhanson/contacts/update.rdf
@@ -52,6 +59,13 @@ else
   xpi_type := rel
   update_url :=
 endif
+
+# Contacts 0.4 and later depends on oauthorizer.  The oauth_bundle target
+# creates a xpi that contains both Contacts and OAuthorizer; the 
+# "oauth_xpi_path" variable must be defined and passed in for this target.
+xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
+xpi_files := chrome.manifest components content install.rdf locale modules platform
+oauth_bundle_xpi_name:= contacts-$(contacts_version)-relbundle-$(xpi_type).xpi
 
 ifeq ($(update_url),)
   update_url_tag :=
@@ -100,7 +114,9 @@ subst_names := \
 export $(subst_names)
 export substitute = perl -pe 's/@([^@]+)@/defined $$$$ENV{$$$$1} ? $$$$ENV{$$$$1} : $$$$&/ge'
 
+SLINK = ln -sf
 ifneq ($(findstring MINGW,$(shell uname -s)),)
+  SLINK = cp -r
   export NO_SYMLINK = 1
 endif
 
@@ -119,18 +135,34 @@ setup:
 native: setup
 	$(MAKE) -C native $(native_build_target)
 
-build: native 
-	cp -r chrome.manifest content install.rdf locale modules $(stage_dir)
-	mkdir -p $(stage_dir)/components  
+build: 
+	mkdir -p $(stage_dir)/components
 	cp -r components/* $(stage_dir)/components
-	
-xpi_name := contacts-$(contacts_version)-$(xpi_type).xpi
-xpi_files := chrome.manifest components content install.rdf locale modules platform
+	test -d $(stage_dir)/chrome.manifest || $(SLINK) $(TOPSRCDIR)/chrome.manifest $(stage_dir)/chrome.manifest
+	test -d $(stage_dir)/install.rdf || $(SLINK) $(TOPSRCDIR)/install.rdf $(stage_dir)/install.rdf
+	test -d $(stage_dir)/content || $(SLINK) $(TOPSRCDIR)/content $(stage_dir)/content
+	test -d $(stage_dir)/locale || $(SLINK) $(TOPSRCDIR)/locale $(stage_dir)/locale
+	test -d $(stage_dir)/modules || $(SLINK) $(TOPSRCDIR)/modules $(stage_dir)/modules
 
 xpi: build
 	rm -f $(xpi_dir)/$(xpi_name)
 	cd $(stage_dir);zip -9r $(xpi_name) $(xpi_files)
 	mv $(stage_dir)/$(xpi_name) $(xpi_dir)/$(xpi_name)
+
+
+ifeq ($(oauth_xpi_path),)
+  OAUTH_DEFINED=@echo "      *** Error: Define 'oauth_xpi_path'";exit 1
+endif
+
+oauth_bundle: xpi
+	$(OAUTH_DEFINED)
+	rm -f $(xpi_dir)/$(oauth_bundle_xpi_name)
+	cp bundle_install.rdf $(xpi_dir)/install.rdf
+	cp $(oauth_xpi_path) $(xpi_dir)
+	cd $(xpi_dir);zip -9r $(oauth_bundle_xpi_name) \
+        $(xpi_name) oauthorizer-0.1.2-${xpi_type}.xpi install.rdf
+	rm $(xpi_dir)/install.rdf
+
 
 clean:
 	rm -rf $(objdir)
@@ -143,6 +175,7 @@ help:
 	@echo "chrome (only updates the source directory)"
 	@echo "test (runs tests, runs a build first)"
 	@echo "xpi (sets manifest to use jars, make build to undo)"
+	@echo "oauth_bundle (builds xpi with oauthorizer.xpi and contacts.xpi)
 	@echo clean
 	@echo
 	@echo Variables:

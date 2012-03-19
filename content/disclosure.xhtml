@@ -12,114 +12,43 @@
       src="chrome://people/content/disclosure.js"></script>
 </head>
 
-
-<script type="text/javascript;version=1.8">
-let allFieldList = ["displayName", "emailhash", "emails", "phoneNumbers", "urls", "name/givenName", "name/familyName"];
-let fieldLabels = {displayName:"Name", 
-                    emailhash: "Unique Identifier (based on email, but not addressible)", 
-                    emails: "Email Addresses", 
-                    phoneNumbers: "Phone Numbers", 
-                    urls: "URLs (web site addresses)", 
-                    "name/givenName":"Given Name", 
-                    "name/familyName":"Family Name"
-                  };
-let fieldActive = {
-                displayName:true, 
-                "name/familyName":true, 
-                "name/givenName":true, 
-                emailhash:true, 
-                emails:true, 
-                phoneNumbers:true, 
-                urls:true,
-                }
-let fieldList = allFieldList; // by default, ask for all fields
-let selectedPeople = {}
-let remember = {};
-
-function selectAll() { for (p in selectedPeople) { selectedPeople[p] = true; } PeopleDisclosure.render();}
-function unselectAll() { for (p in selectedPeople) { selectedPeople[p] = false; } PeopleDisclosure.render();}
-
-$(document).ready(function(){
-	Components.utils.import("resource://people/modules/people.js");
-	
-
-	var targetURL  = window.top.arguments ? window.top.arguments[0].site : "Some Page";
-	var targetFields  = window.top.arguments ? window.top.arguments[0].fields : undefined;
-	remember  = window.top.arguments ? window.top.arguments[0].remember : undefined;
-	selectedPeople = window.top.arguments ? window.top.arguments[0].selectedPeople : {};
-	
-	if (targetFields != undefined) {
-		fieldList = targetFields;
-		fieldActive = window.top.arguments[0].fieldsActive;
-		for each (var f in fieldList) {
-			fieldActive[f] = true;
-		}
-	}
-	
-	let titleText = document.getElementById("titleText");
-	
-	// TODO: DO a better job extracting the host name from the target URL
-	if (targetURL != undefined) {
-		if (("" + targetURL).indexOf("file:") == 0) {
-			targetURL = "A file on your computer";
-		}
-	}
-	titleText.innerHTML = "" + targetURL + " wants to access...";
-
-	let fields = document.getElementById("fieldselector");
-	for each (let aField in fieldList) {
-		let aLabel = fieldLabels[aField];
-		let aLabelDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-		aLabelDiv.innerHTML = aLabel;
-		aLabelDiv.setAttribute("class", "fieldLabel");
-
-		let aFieldCheckbox = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
-		aFieldCheckbox.id = "field-" + aField;
-		aFieldCheckbox.setAttribute("type", "checkbox");
-		aFieldCheckbox.setAttribute("onclick", "fieldActive['" + aField + "']=!fieldActive['" + aField + "']; PeopleDisclosure.render()");
-		if (fieldActive[aField]) {
-			aFieldCheckbox.setAttribute("checked", "true");
-		}
-
-		aLabelDiv.insertBefore(aFieldCheckbox, aLabelDiv.firstChild);
-		fields.appendChild(aLabelDiv);
-	}
-	
-	PeopleDisclosure.onLoad();
-});
-
-function toggleRemember()
-{
-	remember.value = document.getElementById('remember').checked;
-}
-
-</script>
-
 <body id="body">
-	<form class="controls" method="get">
+  <form class="controls" method="get">
 
-	<div style="font-size:16pt;font-weight:bold; left:10px;margin-left:32px;padding-top:16px;padding-top:16px">
+  <div id="content">
 
-	<div style="float:right; padding-right:12px;font:9pt Arial">
-		<input type="checkbox" id="remember" onclick="toggleRemember()" /> Remember these settings for this page<br/>
-		<small>(NOTE: Current implementation does not save<br/>restricted people, only fields. If you "remember",<br/>all people will be included in the result set next time.)</small>
-	</div>
+  <div id="titleText" style="display:inline"></div>
 
-	<div id="titleText" style="display:inline"></div>
-	<div id="fieldselector" class="fieldselector"></div>
-	</div>
+  <div id="fieldPicker">
+    <b>These fields will be shared:</b><br/>
 
-	<div style="float:right; padding-right:12px;font:9pt Arial">
-		<a class="selectLinks" href="javascript:selectAll()">select all</a> - 
-		<a class="selectLinks" href="javascript:unselectAll()">unselect all</a>
-	</div>	
-	<div style="font-size:16pt;font-weight:bold; margin-left:32px;left:10px;">
-	for these people:
-	</div>
-	
-	</form>
+    <div id="fieldselector" class="fieldselector"></div>
+  </div>
+  
+  <div id="message"/>
+  <div id="groupPicker">
+    <b>Select one or more groups of contacts to share, or select "All":</b><br/>
+    <div id="results"></div>
+  </div>
 
-	<div id="message"></div>
-	<div id="results"></div>
+  <div id="rememberPicker">
+    By default, this information will only be shared until you restart your browser.<br/><br/>
+    <input type="checkbox" id="remember" onclick="toggleRemember()" /> <b>Remember these settings for this page</b><br/>
+    <div id="rememberFinePrint">(You can revoke permission later from the "Contacts" item in the "Tools" menu)</div>
+  </div>
+
+
+  </div>
+  </form>
+
 </body>
 </html>
+
+
+<!--
+  <div style="float:right; padding-right:12px;font:9pt Arial">
+    <a class="selectLinks" onclick="selectAll()">select all</a> - 
+    <a class="selectLinks" onclick="unselectAll()">unselect all</a>
+  </div>  
+
+-->

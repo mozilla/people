@@ -11,6 +11,10 @@ a {
   color:#3875D7
 }
 
+a:hover {
+  cursor: pointer;
+}
+
 .head {
   width:500px;
   margin:0px auto;

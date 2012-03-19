@@ -56,7 +56,8 @@ GravatarImageDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
   get name() "Gravatar",
   get displayName() "Gravatar Avatar Images",
-	get iconURL() "chrome://people/content/images/gravatar.png",
+  get iconURL() "chrome://people/content/images/gravatar.png",
+  get description() "Checks whether any of the e-mail addresses of a contact have an avatar picture at Gravatar.",
 
   discover: function NativeAddressBookImporter_import(forPerson, completionCallback, progressFunction) {
     var discoveryToken;
@@ -75,10 +76,13 @@ GravatarImageDiscoverer.prototype = {
         gravLoad.onreadystatechange = function (aEvt) {
           try {
             if (gravLoad.readyState == 4) {
-              let newPerson = null;
+              let newPerson = {"_refreshDate":new Date().getTime()}; 
               if (gravLoad.status == 200) {
                 newPerson= {};
                 newPerson.photos = [{type:"thumbnail", value:"http://www.gravatar.com/avatar/" + md5}];
+  
+                // and register a link for their profile page, which the HCard importer will pick up...
+                newPerson.urls = [{type:"profile", title:"Gravatar profile for " + checkedEmailValue, value:"http://www.gravatar.com/" + md5}];
                 People._log.info("Checked " + checkedEmailValue + ": found a Gravatar");
               } else {
                 People._log.info("Checked " + checkedEmailValue + ": no Gravatar");

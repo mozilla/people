@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+    version="-//W3C//DTD XHTML 1.1//EN" xml:lang="en">
+<head>
+<link rel="stylesheet" href="chrome://people/content/group.css" type="text/css" />
+<script type="text/javascript;version=1.8" src="chrome://people/content/group.js"></script>
+</head>
+<body>
+<div id="content" onclick="document.location.href = event.target">
+</div>
+<script>
+initGroup(document.getElementById('content'), unescape(document.location.href.slice(13)));
+</script>
+</body>
+</html>

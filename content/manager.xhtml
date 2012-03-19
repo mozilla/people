@@ -15,10 +15,13 @@
       src="chrome://people/content/search.js"></script>
   <script type="text/javascript;version=1.8"
       src="chrome://people/content/manager.js"></script>
+  <script type='text/javascript'
+      src='chrome://people/content/jquery.tipsy.js'></script>
+  <link rel="stylesheet" href="chrome://people/content/tipsy.css" type="text/css" />
 </head>
 
-
 <script type="text/javascript;version=1.8">
+
 function doServiceConnect(service)
 {
   try {
@@ -40,7 +43,7 @@ function doServiceDisconnect(service)
 {
   try {
     People.disconnectService(service);
-    navigator.people.find( {}, null, PeopleManager.loadComplete);    
+    People.findCallback( {}, PeopleManager.loadComplete, null);   
   } catch (e) {
     updateImportProgress(service, e.message);
   }
@@ -78,7 +81,7 @@ function importerComplete(error, service)
     }
   } else {
     updateImportProgress(service, null);
-    navigator.people.find( {}, null, PeopleManager.loadComplete);
+    People.findCallback( {}, PeopleManager.loadComplete, null);
   }
   displayServices();  
 }
@@ -92,8 +95,19 @@ function resetSavedPerms()
 function deleteAll()
 {
   People.deleteAll();
-  navigator.people.find( {}, null, PeopleManager.loadComplete);
+  People.findCallback( {}, PeopleManager.loadComplete, null);
   displayServices();  
+}
+
+function deleteDiscovered()
+{
+  People.removeDiscoveryData();
+  People.findCallback( {}, PeopleManager.loadComplete, null);
+}
+
+function exportVCard()
+{
+  PeopleManager.exportVCard();
 }
 
 function setContactDisplayMode(mode)
@@ -111,15 +125,19 @@ function renderPermissions()
     let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     let aSite = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     let aFields = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let aGroups = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
 
     aDiv.setAttribute("class", "row");
     aSite.setAttribute("class", "site");
     aFields.setAttribute("class", "field");
+    aGroups.setAttribute("class", "field");
 
     aDiv.appendChild(aSite);
     aDiv.appendChild(aFields);
+    aDiv.appendChild(aGroups);
     aSite.appendChild(document.createTextNode(perm.url));
-    aFields.appendChild(document.createTextNode(perm.fields));
+    aFields.appendChild(document.createTextNode(perm.fields.split(",").join(", ")));
+    aGroups.appendChild(document.createTextNode(perm.groups));
 
     permissionTable.appendChild(aDiv);
   }
@@ -179,7 +197,9 @@ function displayServices()
 function renderServices()
 {
   let services = PeopleImporter.getBackends();  
+  let discoverers = PeopleImporter.getDiscoverers();  
   let importers = document.getElementById('importerbadges');
+  let discovererDiv = document.getElementById('discoverybadges');
   importers.innerHTML = "";
   let connected = People.connectedServices();
   
@@ -204,7 +224,7 @@ function renderServices()
       svcButton.setAttribute("id", "importer" + service + "action");
       svcButton.setAttribute("type", "submit");
       svcButton.setAttribute("class", "importerbutton");
-      svcButton.setAttribute("onclick", "javascript:doServiceRefresh('" + service + "')");
+      svcButton.setAttribute("onclick", "doServiceRefresh('" + service + "')");
       svcButton.setAttribute("value", "Connect");
       svcDiv.appendChild(svcButton);
 
@@ -218,7 +238,7 @@ function renderServices()
       disconButton.setAttribute("id", "importer" + service + "disconnect");
       disconButton.setAttribute("type", "submit");
       disconButton.setAttribute("class", "importersubbutton");
-      disconButton.setAttribute("onclick", "javascript:doServiceDisconnect('" + service + "')");
+      disconButton.setAttribute("onclick", "doServiceDisconnect('" + service + "')");
       disconButton.setAttribute("value", "Disconnect");
       svcDiv.appendChild(disconButton);
 
@@ -227,6 +247,40 @@ function renderServices()
       People._log.warn("Error while rendering service " + service + ": " + e);
     }
   }
+
+  let enabledDiscoverers = PeopleImporter.getEnabledDiscoverers();
+  for (let d in discoverers) {
+    try {
+      let discoverer = PeopleImporter.getDiscoverer(d);
+      // let enabled = (enabledDiscoverers[d] == true);
+      
+      let svcDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcDiv.setAttribute("class", "discovererbadge");
+
+      /*
+      let svcImg = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+      svcImg.setAttribute("src", discoverer.iconURL);
+      svcImg.setAttribute("id", d+"-badge");
+      svcDiv.appendChild(svcImg);
+      */
+      
+      let svcLabel = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      svcLabel.setAttribute("class", "discovererlabel");
+      svcLabel.appendChild(document.createTextNode(discoverer.displayName));
+      // svcLabel.appendChild(document.createTextNode(enabled ? " Enabled": " Disabled"));
+      svcDiv.appendChild(svcLabel);
+
+      let desc = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      desc.setAttribute("class", "discoverertext");
+      desc.appendChild(document.createTextNode(discoverer.description));
+      svcDiv.appendChild(desc);
+
+      discovererDiv.appendChild(svcDiv);
+    } catch (e) {
+      People._log.warn("Error while rendering discoverer " + d + ": " + e);
+    }
+  }
+
 }
 
 function setsrc(id, u)
@@ -235,11 +289,11 @@ function setsrc(id, u)
 }
   
 var contactDisplayMode = "table";  
-var PANES = ["contact", "service", "permission"];
+var PANES = ["contact", "service", "discoverers", "permission"];
 function selectPane(pane) {
   document.getElementById("contacts").style.display= (pane == "contact"?"block":"none");
-  document.getElementById("contactdetail").style.display=(pane == "contact"?"block":"none");
-
+  document.getElementById("contactdetail").style.display=(pane == "contact"  &amp;&amp; contactDisplayMode == "table"?"block":"none");
+  
   for each (var p in PANES) {
     if (p == pane) {
       document.getElementById(p + "pane").style.display="block";
@@ -249,7 +303,9 @@ function selectPane(pane) {
       document.getElementById(p + "paneswitch").setAttribute("class", "controlbutton");
     }
   }
+  if(pane == "contact") PeopleManager.reRender();
 }
+
 </script>
 
 <body id="body">
@@ -263,6 +319,12 @@ function selectPane(pane) {
     <img src="images/services.png"/><br/>
     <div class="controlbuttonlabel">Services</div>
   </div>
+
+  <div id="discovererspaneswitch" class="controlbutton" onclick="selectPane('discoverers')">
+    <img src="images/services.png"/><br/>
+    <div class="controlbuttonlabel">Finders</div>
+  </div>
+
   <div id="permissionpaneswitch" class="controlbutton" onclick="selectPane('permission')">
     <img src="images/lock.png"/><br/>
     Permissions
@@ -289,16 +351,16 @@ function selectPane(pane) {
 <div style="display:none" id="servicepane">
 
 <div id="servicesHeader">
-	<a target="_blank" href="http://mozillalabs.com/contacts"><img class="contactsLogo" src="images/contactsLogo.png"/></a>
-	<p style="color:#505050;font-weight:normal">
-	This is a <b>Mozilla Labs Experiment</b>.  It is NOT production-quality code.  It
-	may crash, generate incorrect output, or contain security bugs.  Please do not use it
-	on Firefox profile you cannot afford to lose.  If you do not know what a Firefox Profile
-	is, you may want to read about them <a href="http://support.mozilla.com/en-US/kb/Managing+profiles?bl=n&amp;s=profile&amp;as=q">here</a>;
-	they are a good way to experiment with Firefox addons without putting your data at risk.
-	</p>
-	<p><b>Firefox Contacts</b> reads your contact information from any website or program on your computer, and uses it to enhance your web browsing experience.</p>
-	<p>Contacts will try to connect contacts that probably represent the same person by looking at email addresses and full names.</p>
+  <a target="_blank" href="http://mozillalabs.com/contacts"><img class="contactsLogo" src="images/contactsLogo.png"/></a>
+  <p style="color:#505050;font-weight:normal">
+  This is a <b>Mozilla Labs Experiment</b>.  It is NOT production-quality code.  It
+  may crash, generate incorrect output, or contain security bugs.  Please do not use it
+  on Firefox profile you cannot afford to lose.  If you do not know what a Firefox Profile
+  is, you may want to read about them <a href="http://support.mozilla.com/en-US/kb/Managing+profiles?bl=n&amp;s=profile&amp;as=q">here</a>;
+  they are a good way to experiment with Firefox addons without putting your data at risk.
+  </p>
+  <p><b>Firefox Contacts</b> reads your contact information from any website or program on your computer, and uses it to enhance your web browsing experience.</p>
+  <p>Contacts will try to connect contacts that probably represent the same person by looking at email addresses and full names.</p>
 </div>
 
 <div class="controlsubhead">Contact Services</div>
@@ -321,6 +383,35 @@ These are services that Firefox can load your contacts from.
 Remove all contacts (you can import them again)
 </p>
 
+<p>
+<div style="float:right"><input type="submit" onclick="javascript:exportVCard()" value="Export Contacts"/></div>
+Export contacts for use in another program
+</p>
+
+<p>
+<div style="float:right"><input type="submit" onclick="javascript:deleteDiscovered()" value="Delete Found Data"/></div>
+Delete saved data that was found about contacts using the Finders.
+</p>
+
+</div>
+
+<div style="display:none" id="discovererspane">
+
+<div id="servicesHeader">
+  <p><b>Firefox Contacts</b> can use the information in your contact list to access other data 
+  about people that is available on the web.  Firefox is not creating a database that other people
+  can access - it is just displaying information from the web in your browser.
+  </p>
+</div>
+
+<div class="controlsubhead">Contact Finder Services</div>
+<p>
+These are services that Firefox uses to learn more about people you know.
+</p>
+
+<div id="discoverybadges">
+</div>
+
 </div>
 
 <div style="display:none" id="permissionpane">
@@ -335,6 +426,7 @@ to.
   <div class="permissionsTableHead">
     <div class="sitehead">Site</div>
     <div class="fieldhead">Data Fields</div>
+    <div class="fieldhead">Groups</div>
   </div>
   
   <div id='permissionsTableBody' class='permissionsTableBody'></div>

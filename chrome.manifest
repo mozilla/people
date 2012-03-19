@@ -9,3 +9,23 @@ locale  people   en-US   locale/en-US/
 
 overlay chrome://browser/content/browser.xul           chrome://people/content/browser.xul
 overlay chrome://browser/content/pageinfo/pageInfo.xul chrome://people/content/pageInfo.xul
+
+overlay chrome://messenger/content/messenger.xul chrome://people/content/thunderbird.xul
+
+component {b6e1d39c-b39c-4b1f-a088-e2fbb4cff9a6} components/personProtocol.js
+contract @mozilla.org/network/protocol;1?name=person {b6e1d39c-b39c-4b1f-a088-e2fbb4cff9a6}
+
+component {7bc6728f-9ecf-de44-9fc9-8ce679f7529d} components/nsFormFillOverride.js
+contract @labs.mozilla.com/contacts/form-autocomplete;1 {7bc6728f-9ecf-de44-9fc9-8ce679f7529d}
+category form-autocomplete-handler contacts-addon @labs.mozilla.com/contacts/form-autocomplete;1
+
+component {a90ef7fd-ef96-6f4a-bb0e-075fc2f06e23} components/extensibleFormFiller.js
+contract @mozilla.org/satchel/form-autocomplete;1 {a90ef7fd-ef96-6f4a-bb0e-075fc2f06e23}
+component {099b2bff-8b6e-7b48-a475-dbc09a53f24d} components/extensibleFormFiller.js
+contract @mozilla.org/satchel/inputlist-autocomplete;1 {099b2bff-8b6e-7b48-a475-dbc09a53f24d}
+
+interfaces components/INativeAddressBook.xpt
+interfaces components/INativeAddressCard.xpt
+binary-component platform/Darwin/components/NativeAddressBook.dylib ABI=Darwin_x86-gcc3
+binary-component platform/Darwin/components/NativeAddressBook.dylib ABI=Darwin_x86_64-gcc3
+

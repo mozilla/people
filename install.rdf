@@ -4,20 +4,28 @@
      xmlns:em="http://www.mozilla.org/2004/em-rdf#">
 
   <Description about="urn:mozilla:install-manifest">
-    <em:id>contacts@labs.mozilla.com</em:id>
-    <em:name>Contacts</em:name>
-    <em:version>0.3.2</em:version>
-
+    <em:id>contacts@labs.mozilla</em:id>
+    <em:name>Mozilla Labs: Contacts</em:name>
+    <em:version>0.4.3</em:version>
+    <em:unpack>true</em:unpack>
     <em:description>A Mozilla Labs Experiment: Adds a database of information about people to Firefox.</em:description>
     <em:creator>Mozilla Labs Team</em:creator>
-    <em:homepageURL>http://mozillalabs.com/conceptseries/identity/contacts/</em:homepageURL>
-    <em:updateURL>https://people.mozilla.com/~mhanson/contacts/update.rdf</em:updateURL>
+    <em:homepageURL>http://mozillalabs.com/contacts/</em:homepageURL>
+    <em:iconURL>https://mozillalabs.com/wp-content/themes/labs_project/img/contacts-header.png</em:iconURL>
 
     <em:targetApplication> <!-- Firefox -->
       <Description>
         <em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>
         <em:minVersion>3.6</em:minVersion>
-        <em:maxVersion>3.7.*</em:maxVersion>
+        <em:maxVersion>13.0</em:maxVersion>
+      </Description>
+    </em:targetApplication>
+
+    <em:targetApplication>
+      <Description>
+        <em:id>{3550f703-e582-4d05-9a08-453d09bdfdc6}</em:id> <!-- Thunderbird -->
+        <em:minVersion>3.1b2pre</em:minVersion>
+        <em:maxVersion>6.*</em:maxVersion>
       </Description>
     </em:targetApplication>
 

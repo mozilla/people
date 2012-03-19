@@ -8,7 +8,12 @@ body {
 }
 
 a {
-  color:#3875D7
+  color:#3875D7;
+  text-decoration:none;
+}
+a:hover {
+  cursor: pointer;
+  text-decoration:underline;
 }
 
 .spinner {
@@ -45,10 +50,13 @@ a {
   -moz-border-radius: 1em; 
   background-color: rgba(255,255,255,1);
   border: 1px solid rgba(185,185,185,1);
-	-moz-box-shadow: 
-		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
-		inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
-		rgba(0, 0, 0, 0.1) 0px 2px 0px;
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
+}
+.contactMethods {
+  margin-left:0px;
 }
 
 .photo {
@@ -62,6 +70,9 @@ a {
   width: 64px; 
   height: 64px; 
 }
+.listedPhoto {
+
+}
 
 .displayName {
   font:caption;
@@ -69,16 +80,30 @@ a {
   font-size:120%;
   font-weight:bold;
   padding-bottom:16px;
+  min-height:40px;
 }
 
+.org {
+  font:caption;
+  font-size:90%;
+  font-weight:normal;
+}
 .vlist_title {
   font:small-caption;
+/*  border-bottom:1px dotted #808080;*/
+}
+
+.subsecHead {
+  width:400px;
+  margin-left:74px;
+  font:small-caption;
+  margin-bottom:4px;
   border-bottom:1px dotted #808080;
 }
 
 .vlist {
-  margin-left:74px;
-  padding-bottom:16px;
+/*  margin-left:74px;*/
+  padding-bottom:8px;
   width:auto;
 }
 .photolist {
@@ -155,6 +180,9 @@ a {
 .updatefavicon {
   padding-right:4px;
 }
+.valuefavicon {
+  padding-right:4px;
+}
 
 .update > .text {
   color:#075FB2;
@@ -175,6 +203,11 @@ a {
 .update > .source > a:hover {
   color:#3875D7;
   text-decoration:underline
+}
+
+.service {
+  margin-left:74px;
+  font:small-caption;
 }
 
 .servicedetail {

@@ -1,4 +1,4 @@
-/* ***** BEGIN LICENSE BLOCK *****
+  /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -16,7 +16,7 @@
  * The Initial Developer of the Original Code is Mozilla.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
- *
+ *a
  * Contributor(s):
  *   Michael Hanson <mhanson@mozilla.com>
  *
@@ -33,17 +33,18 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-const Cu = Components.utils;
-const Ci = Components.interfaces;
-const Cc = Components.classes;
 
-Cu.import("resource://people/modules/people.js");
-Cu.import("resource://people/modules/import.js");    
+Components.utils.import("resource://people/modules/people.js");
+Components.utils.import("resource://people/modules/import.js");
 
-var FAVICON_SERVICE = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
-var IO_SERVICE = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-var UNESCAPE_SERVICE = Cc["@mozilla.org/feed-unescapehtml;1"].getService(Ci.nsIScriptableUnescapeHTML);
-
+try {
+// if the favicon service doesn't exist (e.g. Thunderbird) just ignore it
+var FAVICON_SERVICE = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
+var HISTORY_SERVICE = Components.classes["@mozilla.org/browser/nav-history-service;1"].getService(Components.interfaces.nsINavHistoryService);
+} catch(e) {}
+var IO_SERVICE = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+var UNESCAPE_SERVICE = Components.classes["@mozilla.org/feed-unescapehtml;1"].getService(Components.interfaces.nsIScriptableUnescapeHTML);
+                               
 var gPerson = null;
 var gContainer;
 var gDocuments;
@@ -55,17 +56,48 @@ var gDisplayMode = CONTACT_CARD;
 
 var gDiscoveryCoordinator = null;
 
+var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                   .getService(Components.interfaces.nsIWindowMediator);
+var win = wm.getMostRecentWindow(null);
+window.openURL = win.openURL;
+
+
+//event to stop discovery if guid is matching
+function receiveMessage(event)
+{
+  if(event.origin != "chrome://people")
+    return;
+    
+  let message = JSON.parse(event.data);
+  
+  if(message.message != "stopDiscovery")
+    return;
+
+  if(gPerson.guid == message.guid) 
+    stopDiscovery();
+    
+}
+window.addEventListener("message", receiveMessage, false);
+
 function createDiv(clazz)
 {
-	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-	aDiv.setAttribute("class", clazz);
+  let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+  aDiv.setAttribute("class", clazz);
+  return aDiv;
+}
+
+function createSpan(clazz, text)
+{
+  let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "span");
+  aDiv.setAttribute("class", clazz);
+  if (text) aDiv.appendChild(document.createTextNode(text));
   return aDiv;
 }
 
 function createElem(type, clazz)
 {
-	let anElem = document.createElementNS("http://www.w3.org/1999/xhtml", type);
-	if (clazz) anElem.setAttribute("class", clazz);
+  let anElem = document.createElementNS("http://www.w3.org/1999/xhtml", type);
+  if (clazz) anElem.setAttribute("class", clazz);
   return anElem;
 }
 
@@ -75,7 +107,7 @@ function renderTypeValueList(title, objectType, list, options)
   itemsDiv.setAttribute("id", objectType + "s");
   var titleDiv = createDiv("vlist_title");
   titleDiv.setAttribute("id", objectType + "stitle");
-  titleDiv.appendChild(document.createTextNode(title + ":"));
+//  titleDiv.appendChild(document.createTextNode(title + ":"));
   itemsDiv.appendChild(titleDiv);
 
   var already = {};
@@ -89,8 +121,23 @@ function renderTypeValueList(title, objectType, list, options)
         continue; // skip it.
       }
     }
-    if (already[item.type + item.value] != undefined) continue;
-    already[item.type + item.value] = 1;
+    var value = item.value;
+    if (options && options.itemRender) {
+      value = options.itemRender(item);
+      if (value == null) continue;
+    }
+    if (options && options.skipTypeList) {
+      if (options.skipTypeList.indexOf(item.type) >= 0) continue;
+    }
+    if (options && options.skipPathSubstringList) {
+      if (options.skipPathSubstringList.some(function(e) {return item.value.indexOf(e) >= 0})) continue;
+    }
+
+    // Normalize trailing slash for duplicate check
+    let alreadyKey = value;
+    if (alreadyKey.length > 0 && alreadyKey[alreadyKey.length - 1] == '/') alreadyKey = alreadyKey.substring(0, alreadyKey.length - 1);
+    if (already[alreadyKey] != undefined) continue;
+    already[alreadyKey] = 1;
 
     // Begin disclosure box, if needed...
     count++;
@@ -111,9 +158,13 @@ function renderTypeValueList(title, objectType, list, options)
 
     var favicon= null;
     if (options && options.includeFavicon) {
+      let itemURL = IO_SERVICE.newURI(item.value, null, null);
       try {
-        favicon = FAVICON_SERVICE.getFaviconImageForPage(IO_SERVICE.newURI(item.value, null, null));
-      } catch (e) {}
+        favicon = FAVICON_SERVICE.getFaviconImageForPage(itemURL);
+      } catch (e) {
+        // could do, but is slow and not cached in tb
+        //favicon = IO_SERVICE.newURI("http://www.getfavicon.org/?url="+itemURL.host, null, null);
+      }
       if (favicon) {
         var faviconImg = createElem("img");
         faviconImg.setAttribute("src", favicon.spec);
@@ -121,21 +172,93 @@ function renderTypeValueList(title, objectType, list, options)
         itemValueDiv.appendChild(faviconImg);
       }
     }
-    var value = item.value;
-    if (options && options.itemRender) value = options.itemRender(item);
-    
     if (options && options.linkify) {
       var link = createElem("a");
-      link.setAttribute("href", value);
-      link.setAttribute("target", "_blank");
-      link.appendChild(document.createTextNode(value));
+      if (options.onclick) {
+        link.setAttribute("onclick", "openURL('"+value+"')");
+        link.setAttribute("href", "javascript:void(null)");
+      } else {
+        link.setAttribute("href", value);
+        link.setAttribute("target", "_blank");
+      }
+      
+      if (!options.useHistoryTitles) {
+        let theURI = IO_SERVICE.newURI(item.value, null, null);
+				let title = null;
+        try {
+          title = HISTORY_SERVICE.getPageTitle(theURI);
+				} catch(e) {}
+        if (title && title.length > 0 && title[0] != '/') {
+          link.appendChild(document.createTextNode(title));        
+        } else {
+          link.appendChild(document.createTextNode(value));        
+        }
+        
+        /*
+        let query = HISTORY_SERVICE.getNewQuery();
+        let options = HISTORY_SERVICE.getNewQueryOptions();
+        options.sortingMode = options.SORT_BY_DATE_DESCENDING;
+        // options.resultType = options.RESULTS_AS_FULL_VISIT; not implemented, see bug 320831.
+        // Note that this bug blocks us from properly following redirects to get the title.
+        
+        let queryURI = IO_SERVICE.newURI(item.value, null, null);
+        query.uri = queryURI;
+
+        let result = HISTORY_SERVICE.executeQuery(query, options);
+        if (result && result.root) {
+          result.root.containerOpen = true;
+        }
+        if (result && result.root && result.root.hasChildren) {
+          let node = result.root.getChild(0);          
+          link.appendChild(document.createTextNode(node.title));        
+        } else {
+          link.appendChild(document.createTextNode(value));        
+        }*/
+      }
+      else
+      {
+        link.appendChild(document.createTextNode(value));
+      }
       itemValueDiv.appendChild(link);
     } else if (options && options.linkToURL) {
       var link = createElem("a");
-      link.setAttribute("href", options.linkToURL + value);
-      link.setAttribute("target", "_blank");
+      if (options.onclick) {
+        link.setAttribute("onclick", "openURL('"+options.linkToURL +escape(value)+"')");
+        link.setAttribute("href", "javascript:void(null)");
+      } else {
+        link.setAttribute("href", options.linkToURL + escape(value));
+        link.setAttribute("target", "_blank");
+      }
       link.appendChild(document.createTextNode(value));
       itemValueDiv.appendChild(link);    
+    } else if (options && options.splitifyMult){
+      //split link if multiple people
+      let node = document.createTextNode(item.value);
+      if(item.link != ""){
+        let urlink = createElem("a");
+        urlink.setAttribute("href", item.link);
+        urlink.appendChild(node);
+        node = urlink;
+      }
+      let link = createElem("a");
+      link.setAttribute("onclick", "splitPerson('" + options.splitifyMult.obj.guid + "', '" +item.type + "', '" + item.value + "')");
+      link.setAttribute("href", "javascript:void(null)");
+      link.appendChild(document.createTextNode("Split"));
+      itemValueDiv.appendChild(node);
+      itemValueDiv.appendChild(document.createTextNode(" ("));
+      itemValueDiv.appendChild(link); 
+      itemValueDiv.appendChild(document.createTextNode(")"));
+    } else if (options && options.splitifySing){
+      // no split link if singular person
+      let node = document.createTextNode(item.value);
+      if(item.link != ""){
+        let urlink = createElem("a");
+        urlink.setAttribute("href", item.link);
+        urlink.setAttribute("target", "_blank");
+        urlink.appendChild(node);
+        node = urlink;
+      }
+      itemValueDiv.appendChild(node);
     } else {
       itemValueDiv.appendChild(document.createTextNode(item.value));
     }
@@ -147,11 +270,28 @@ function renderTypeValueList(title, objectType, list, options)
     var link = createElem("a");
     link.setAttribute("class", "item_overflow_link");
     link.setAttribute("id", objectType + "overflowlink");
-    link.setAttribute("href", "javascript:revealOverflow('" + objectType + "')");
+    link.setAttribute("onclick", "revealOverflow('" + objectType + "')");
     link.appendChild(document.createTextNode("Show " + (count-5) + " more..."));
     itemsDiv.appendChild(link);
   }
   return itemsDiv;
+}
+
+//stop discovery coordinator by telling it
+function stopDiscovery(){
+  dump("Stopping discovery...\n");
+  if(gDiscoveryCoordinator){
+    dump("Setting discovery to stop...\n");
+    gDiscoveryCoordinator.setShouldUpdate(false);
+  }
+}
+
+//Split two people...
+function splitPerson(guid, service, id){
+  dump("Calling split onperson: " + guid + ", " + service + ", " + id + "\n");
+  stopDiscovery();
+  People.split(guid, service, id);
+  initPerson(gContainer, "guid:" + guid);
 }
 
 function renderPhotoList(title, objectType, list, options)
@@ -160,7 +300,7 @@ function renderPhotoList(title, objectType, list, options)
   itemsDiv.setAttribute("id", objectType + "s");
   var titleDiv = createDiv("vlist_title");
   titleDiv.setAttribute("id", objectType + "stitle");
-  titleDiv.appendChild(document.createTextNode(title + ":"));
+//  titleDiv.appendChild(document.createTextNode(title + ":"));
   itemsDiv.appendChild(titleDiv);
 
   var listContainer = itemsDiv;
@@ -174,7 +314,7 @@ function renderPhotoList(title, objectType, list, options)
     var link = createElem("a");
     link.setAttribute("class", "item_overflow_link");
     link.setAttribute("id", objectType + "overflowlink");
-    link.setAttribute("href", "javascript:revealOverflow('" + objectType + "')");
+    link.setAttribute("onclick", "revealOverflow('" + objectType + "')");
     link.appendChild(document.createTextNode("Show " + (list.length) + " photos..."));
     itemsDiv.appendChild(link);
   }
@@ -193,6 +333,7 @@ function renderPhotoList(title, objectType, list, options)
     var theItem = createElem("li");
     var theImg = createElem("img");
     theImg.setAttribute("src", item.value);
+    theImg.setAttribute("class", "listedPhoto");
     theItem.appendChild(theImg);
     itemList.appendChild(theItem);
   }
@@ -209,6 +350,7 @@ function revealOverflow(objectType)
   
 }
 
+let gPersistDiscovery = false;
 function initPerson(container, identifier)
 {
   gContainer = container;
@@ -226,12 +368,26 @@ function initPerson(container, identifier)
     gPerson = searchResult[0];
     gDocuments = searchResult[0].obj.documents;
   } else {
-    gDocuments = {input:input};
+    gDocuments = [{input:input}];
     gPerson = new Person({documents:gDocuments});
   }
+  if (gPerson.guid) gPersistDiscovery = true;
+  gPerson.services = gPerson.constructServices();
+  gPerson.servicesByProvider = gPerson.constructServicesByProvider();
   renderPerson();
+ 
+  createDiscovery();
   
-  gDiscoveryCoordinator = new DiscoveryCoordinator(gPerson);
+  window.setTimeout('startDiscovery()', 3000);
+}
+
+function createDiscovery()
+{
+  gDiscoveryCoordinator = new DiscoveryCoordinator(gPerson, gPersistDiscovery, renderPerson, renderProgressIndicator, renderPerson);
+}
+
+function startDiscovery() 
+{
   gDiscoveryCoordinator.start();
 }
 
@@ -297,7 +453,7 @@ function renderProgressIndicator()
       
       var text = "<div>";
       for each (d in gDiscoveryCoordinator._pendingDiscoveryMap) {
-        text += d + "<br/>";
+        text += htmlescape(d) + "<br/>";
       }
       text += "</div>";
       spinnerBox.appendChild(spinnerImg);
@@ -305,17 +461,35 @@ function renderProgressIndicator()
       var spinnerMouseover = createDiv("mouseover");
       spinnerMouseover.setAttribute("id", "progressBox");
       spinnerMouseover.setAttribute("style", "display:none");
-      spinnerMouseover.innerHTML = text;
+      try {
+        spinnerMouseover.innerHTML = text;
+      } catch (e) {
+        spinnerMouseover.innerHTML = "Whoops, got an error";
+        dump("Illegal spinner text: " + text + "\n");
+      }
       spinnerBox.appendChild(spinnerMouseover);
     }
   }
 }
 
+//merge these two people together.. refresh container after done
+function mergePeople(guid1, guid2){
+  dump("Merging: " + guid1 + "," + guid2 + "\n");
+  stopDiscovery();
+  People.mergePeople(guid1, guid2);
+  
+  initPerson(gContainer, "guid:" + guid1);
+}
+
 function renderPerson()
 {  
   try {
-    var personBox = createDiv("person");
+    gPerson.services = gPerson.constructServices();
+    gPerson.servicesByProvider = gPerson.constructServicesByProvider();
+  
+    var personBox = createDiv("person vcard contact");
     personBox.setAttribute("id", "person");
+    
     renderProgressIndicator();
     
     let controls = createDiv("displaymode");
@@ -326,12 +500,12 @@ function renderPerson()
     switch (gDisplayMode) {
       case CONTACT_CARD:
         renderContactCard(personBox);
-        link.setAttribute("href", "javascript:setDisplayMode(" + DATA_SOURCES +")");
-        link.appendChild(document.createTextNode("Show data sources"));
+        link.setAttribute("onclick", "setDisplayMode(" + DATA_SOURCES +")");
+        link.appendChild(document.createTextNode("View data sources"));
         break;
       case DATA_SOURCES:
         renderDataSources(personBox);
-        link.setAttribute("href", "javascript:setDisplayMode(" + CONTACT_CARD +")");
+        link.setAttribute("onclick", "setDisplayMode(" + CONTACT_CARD +")");
         link.appendChild(document.createTextNode("Return to summary view"));
         break;
     }
@@ -364,33 +538,160 @@ function renderContactCard(personBox)
 
   var dN = gPerson.getProperty("displayName");
   if (dN) {
-    var displayNameDiv = createDiv("displayName");
+    var displayNameDiv = createDiv("displayName fn");
     displayNameDiv.appendChild(document.createTextNode(dN));
     personBox.appendChild(displayNameDiv);
     document.title = dN;
-  }
 
-  var emails = gPerson.getProperty("emails");
+    var orgs = gPerson.getProperty("organizations");
+    if (orgs && orgs.length > 0) {
+      var orgDiv = createDiv("org");
+      var org = orgs[0];
+      if (org.title) {
+        orgDiv.appendChild(createSpan("title", org.title));
+        if (org.name) orgDiv.appendChild(document.createTextNode(", "));
+      }
+      if (org.name) {
+        orgDiv.appendChild(createSpan("summary", org.name)); 
+      }
+      displayNameDiv.appendChild(orgDiv);
+    }
+  }
+  
+  renderSourceItems(gPerson, personBox);
+  renderContactMethods(gPerson, personBox);
+  renderContentLinks(gPerson, personBox);
+  
+  let Prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                     .getService(Components.interfaces.nsIPrefService);
+  Prefs = Prefs.getBranch("extensions.mozillalabs.contacts.");
+  let allow = false;
+  try{
+    allow = Prefs.getBoolPref("allowServices");
+  } catch (e){
+    //nothing
+  }
+  if(allow) renderServiceLinks(gPerson, personBox);
+}
+
+function renderSourceItems(person, personBox){
+  var contentBox = createDiv("sources");
+  
+  let dN = gPerson.getProperty("displayName");
+    if (dN == null || dN.length ==0) {
+      let emails = gPerson.getProperty("emails");
+      if (emails && emails.length > 0) {
+        dN = emails[0].value;
+      } else {
+        let accounts = gPerson.getProperty("accounts");
+        if (accounts && accounts.length > 0) {
+          dN = accounts[0].username;
+        } else {
+          let orgs = gPerson.getProperty("organizations");
+          if (orgs && orgs.length > 0) {
+            dN = orgs[0].name;
+          } else {
+            let urls = gPerson.getProperty("urls");
+            if (urls && urls.length > 0) {
+              dN = urls[0].value;
+            } else {
+              dN = "Unnamed Contact";
+            }
+          }
+        }
+      }
+    }
+
+  var heading = createDiv("subsecHead");
+  heading.appendChild(document.createTextNode("Sources: "));
+  let link = createElem("a");
+  link.setAttribute("href", "#");
+  link.setAttribute("onclick", "return false;")
+  link.setAttribute("style", "color:black;");
+  link.appendChild(document.createTextNode("(Drag contact here to merge.)"));
+  
+  $(link).tipsy({trigger:"manual", fade:true});
+  contentBox.ondragenter = function(event) {
+    let otherguid = event.dataTransfer.getData('guid')
+    if (otherguid && otherguid != gPerson.guid) {
+      link.title = "Merge contacts \"" + event.dataTransfer.getData('DN') +  "\" and \"" + dN + "\"";
+      $(link).tipsy('show');
+    }
+  };
+  contentBox.ondragleave = function(event) {
+    $(link).tipsy('hide');
+  };
+  contentBox.ondragover = function(event){
+    event.preventDefault();
+  };
+  
+  contentBox.ondrop = function(event){
+    $(link).tipsy('hide');
+    let oldguid = event.dataTransfer.getData('guid');
+    if (!oldguid) return;
+    let newguid = gPerson.guid;
+    if(oldguid == newguid) return;
+    let olddN = event.dataTransfer.getData('DN');
+    var answer = confirm ('Combine contacts "' + olddN + '" and "' + dN + '"?');
+    if(!answer) return;
+    event.preventDefault();
+    mergePeople(newguid, oldguid);
+  };
+  
+  heading.appendChild(link);
+  contentBox.appendChild(heading);
+  
+  let list = [];
+  if (person.obj.merge) {
+    for each(let i in Iterator(person.obj.merge)) {
+      let type = i[0];
+      for each(let j in Iterator(i[1])){
+        if(j[1] == true && person.obj.documents[type] && person.obj.documents[type][j[0]]) {
+          let svc = PeopleImporter.getBackend(type);
+          let url = svc.getLinkFromKey(j[0]);
+          list.push({value:j[0], type:type, link:url});
+        }
+      }
+    }
+  }
+  if(list.length > 1)
+    contentBox.appendChild(renderTypeValueList("Sources", "source", list, {splitifyMult:person}));
+  else 
+    contentBox.appendChild(renderTypeValueList("Sources", "source", list, {splitifySing:person}));
+    
+  personBox.appendChild(contentBox);
+}
+
+function renderContactMethods(person, personBox){
+  var photos = gPerson.getProperty("photos");
+  var contactBox = createDiv("contactMethods");
+  var any = false;
+
+  var heading = createDiv("subsecHead");
+  heading.appendChild(document.createTextNode("Details:"));
+  contactBox.appendChild(heading);
+  
+  var emails = person.getProperty("emails");
   if (emails) {
-    personBox.appendChild(renderTypeValueList("Email Addresses", "email", emails));
+    any = true;
+    contactBox.appendChild(renderTypeValueList("Email Addresses", "email", emails, {linkToURL:"mailto:",onclick:true}));
   }
-  var phones = gPerson.getProperty("phoneNumbers");
+  var phones = person.getProperty("phoneNumbers");
   if (phones) {
-    personBox.appendChild(renderTypeValueList("Phone Numbers", "phone", phones));
+    any = true;
+    contactBox.appendChild(renderTypeValueList("Phone Numbers", "phone", phones, {linkToURL:"callto:",onclick:true}));
   }
-  var locations = gPerson.getProperty("location");
+  var locations = person.getProperty("location");
   if (locations) {
-    personBox.appendChild(renderTypeValueList("Locations", "location", locations, 
+    any = true;
+    contactBox.appendChild(renderTypeValueList("Locations", "location", locations, 
       {linkToURL:"http://maps.google.com/maps?q="}));
   }
 
-  if (photos && photos.length > 1) {
-    personBox.appendChild(renderPhotoList("Photos", "photos", photos));
-  }
-
-  var addresses = gPerson.getProperty("addresses");
+  var addresses = person.getProperty("addresses");
   if (addresses) {
-    personBox.appendChild(renderTypeValueList("Addresses", "adr", addresses, {itemRender: function addrRender(item) {
+    any = true;
+    contactBox.appendChild(renderTypeValueList("Addresses", "adr", addresses, {itemRender: function addrRender(item) {
       var val = "";
       if (item.streetAddress) {
         val += item.streetAddress;
@@ -413,25 +714,54 @@ function renderContactCard(personBox)
         val += item.country;
         val += " ";
       }
+      // remove dupes from locations
+      if (locations && locations.some(function(e) {return (e.value == val.trim());})) return null;
       if (val.length == 0 && item.value) return item.value;
       return val;
      }, linkToURL:"http://maps.google.com/maps?q="}));
   }
-  var birthday = gPerson.getProperty("birthday");
+  var birthday = person.getProperty("birthday");
   if (birthday) {
-    personBox.appendChild(renderTypeValueList("Birthday", "url", [{type:"Birthday", value:birthday}]));
+    any = true;  
+    contactBox.appendChild(renderTypeValueList("Birthday", "url", [{type:"Birthday", value:birthday}]));
+  }
+
+  if (photos && photos.length > 1) {
+    any = true;
+    contactBox.appendChild(renderPhotoList("Photos", "photos", photos));
   }
   
-  var urls = gPerson.getProperty("urls");
+  if (any) {
+    personBox.appendChild(contactBox);
+  }
+}
+
+function renderContentLinks(person, personBox)
+{
+  var contentBox = createDiv("content");
+  var any = false;
+
+  var heading = createDiv("subsecHead");
+  heading.appendChild(document.createTextNode("Content:"));
+  contentBox.appendChild(heading);
+
+  var urls = person.getProperty("urls");
   if (urls) {
     urls = selectTopLevelUrls(urls);
-    personBox.appendChild(renderTypeValueList("Links", "url", urls, {includeFavicon:true, linkify:true, hideLongList:true}));
+    any = true;
+    contentBox.appendChild(renderTypeValueList("Links", "url", urls, 
+      {includeFavicon:true, linkify:true, hideLongList:false, skipTypeList:["data"],
+       skipPathSubstringList:["/friend", "/contacts"]
+      }
+    ));
   }
-  var notes = gPerson.getProperty("notes");
+  var notes = person.getProperty("notes");
   if (notes) {
-    personBox.appendChild(renderTypeValueList("Notes", "note", notes));
+    any = true;
+    contentBox.appendChild(renderTypeValueList("Notes", "note", notes));
   }
   
+  /*
   // Construct sorted union of all feed items...
   var allUpdates = [];
   for each (var u in urls)
@@ -507,7 +837,7 @@ function renderContactCard(personBox)
           
           if (theEntry.entry.enclosures) {
             for (var e = 0; e < theEntry.entry.enclosures.length; ++e) {
-              var enc = theEntry.entry.enclosures.queryElementAt(e, Ci.nsIWritablePropertyBag2);
+              var enc = theEntry.entry.enclosures.queryElementAt(e, Components.interfaces.nsIWritablePropertyBag2);
               if (enc.hasKey("type")) {
                 var enctype = enc.get("type");
                 if (enctype.indexOf("image/") == 0)
@@ -552,8 +882,49 @@ function renderContactCard(personBox)
         }
       }
     }
-    personBox.appendChild(itemsDiv);
+    contentBox.appendChild(itemsDiv);
   }
+  */
+
+  if (any) {
+    personBox.appendChild(contentBox);
+  }
+
+}
+
+function renderServiceLinks(person, personBox)
+{
+  var serviceBox = createDiv("services");
+  var any = false;
+
+  var heading = createDiv("subsecHead");
+  heading.appendChild(document.createTextNode("Services:"));
+  serviceBox.appendChild(heading);
+
+  for (let k in person.services)
+  {
+    let aService = createDiv("service");
+
+    let link = createElem("a");
+    link.appendChild(document.createTextNode(k));
+    link.setAttribute("onclick", "invokeService(\"" + k + "\")");
+    //link.setAttribute("href", "#");
+
+    let container = createDiv("service_render_area");
+    container.setAttribute("id", "service_render_" + k);
+
+    aService.appendChild(link);
+    aService.appendChild(container);
+
+    serviceBox.appendChild(aService);
+  }
+  personBox.appendChild(serviceBox);
+}
+
+function invokeService(svc) {
+  let ui = PersonServiceFactory.getServiceDefaultUI(svc);
+  dump("Invoking service " + svc + "\n");
+  ui(gPerson, document.getElementById("service_render_" + svc));
 }
 
 function formatDate(dateStr)
@@ -584,7 +955,6 @@ function formatDate(dateStr)
   return str;
 }
 
-
 function renderDataSources(personBox)
 {
   let svcbox = createDiv("servicedetail");
@@ -597,7 +967,11 @@ function renderDataSources(personBox)
     if (svc) {
       header.innerHTML = svc.explainString();
     } else {
-      header.innerHTML = "Results of discovery or import module \"" + aService + "\":";
+      try {
+        header.innerHTML = "Results of discovery or import module \"" + htmlescape(aService) + "\":";
+      } catch (e) {
+        header.innerHTML = "Results of discovery or import module \"(bad name)\":";      
+      }
     }
     svcbox.appendChild(header);
     traverseRender(aDoc, svcbox);
@@ -787,106 +1161,6 @@ function selectTopLevelUrls(urls)
   return ret;
 }
 
-function DiscoveryCoordinator(person) {
-  this._person = person;
-  this._pendingDiscoveryCount = 0;
-  this._pendingDiscoveryMap = {};
-  this._completedDiscoveryMap = {};
-}
-
-/** DiscoveryCoordinator is responsible for invoking discovery
- * engines until we've completed a full spanning walk of the
- * connection graph.
- *
- * The current scheme is as follows:
- *
- *   When start() is called, every engine is invoked on
- * the current person record.  Each engine is responsible 
- * for calling the progressFunction with an an object that
- * has an "initiate" property containing a unique discoveryToken for
- * the discovery task, and a "msg" property containing a human-
- * readable progress message.
- *
- *  If the "initiate" property has been seen before, DiscoveryCoordinator
- * will throw "DuplicatedDiscovery".  Discovery engines are
- * required to watch for and catch this exception silently.
- *
- *  Otherwise the engine may proceed as necessary.  When
- * discovery is complete, the engine is required to call the
- * completionFunction with the new person data and the 
- * same discoveryToken provided in "initiate".
- *
- *  The coordinator will re-initiate discovery when every engine has
- * had a chance to run; this leads to a breadth-first walk through
- * the discovery graph.
-*/
-DiscoveryCoordinator.prototype = {
-  anyPending: function() {
-    return this._pendingDiscoveryCount > 0;
-  },
-  
-  start: function() {
-    var discoverers = PeopleImporter.getDiscoverers();
-    var that = this;
-    for (var d in discoverers) {
-      let discoverer = PeopleImporter.getDiscoverer(d);
-      if (discoverer) {
-        let engine = d;
-
-        discoverer.discover(this._person, 
-          function completion(newDoc, discoveryToken) {
-
-            that._pendingDiscoveryCount -= 1;
-            if (!discoveryToken) discoveryToken = engine;
-            that._completedDiscoveryMap[discoveryToken] = 1;
-            
-            delete that._pendingDiscoveryMap[discoveryToken];
-            if (newDoc) {
-              gDocuments[discoveryToken] = newDoc;
-              renderPerson();
-            }
-            renderProgressIndicator();
-            
-            // If we've finished everything, go look again.  Repeat until we start nothing.
-            if (that._pendingDiscoveryCount == 0) {
-              renderProgressIndicator();
-              that.start();
-            }
-          },
-          function progress(msg) {
-            if (msg.initiate) {
-              if (that._completedDiscoveryMap[msg.initiate] ||
-                  that._pendingDiscoveryMap[msg.initiate]) throw "DuplicatedDiscovery";
-
-              that._pendingDiscoveryCount += 1;
-              that._pendingDiscoveryMap[msg.initiate] = msg.msg;
-              renderProgressIndicator();
-            }
-          }
-        );
-      }
-    }
-    
-    
-    /***
-    
-    Disabled for 0.3 release.  Uncomment to activate experimental support for feed import.
-    
-    // If we make it this far and aren't doing anything, it's safe to start looking for activity streams
-    People._log.info("Checking for activity start: "+ this._pendingDiscoveryCount);
-    if (this._pendingDiscoveryCount <= 0)
-    {
-      if (!this._activityCoordinator) {
-        People._log.info("Creating activity coordinator");
-        this._activityCoordinator = new ActivityRetrievalCoordinator(gPerson);
-        this._activityCoordinator.start();
-      }
-    }
-    
-    ***/ 
-  }
-};
-
 function ActivityRetrievalCoordinator(person) {
   this._person = person;
   this._pendingRetrievalCount = 0;
@@ -1019,8 +1293,8 @@ function isArray(obj) {
 }
 
 function htmlescape(html) {
-	if (!html) return html;
-	if (!html.replace) return html;
+  if (!html) return html;
+  if (!html.replace) return html;
   
   return html.
     replace(/&/gmi, '&amp;').
@@ -1028,3 +1302,4 @@ function htmlescape(html) {
     replace(/>/gmi, '&gt;').
     replace(/</gmi, '&lt;')
 }
+

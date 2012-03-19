@@ -45,210 +45,231 @@ Cu.import("resource://people/modules/utils.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
 Cu.import("resource://people/modules/people.js");
 Cu.import("resource://people/modules/import.js");
+Cu.import("resource://people/modules/oauthbase.js");
+Cu.import("resource://oauthorizer/modules/oauthconsumer.js");
 
+// XXX portable contacts format is available, however it does not contain
+// email addresses, whereas the oauth contacts api does.
+// for portable contacts, scope = http://www-opensocial.googleusercontent.com/api/people/
 
 function GmailImporter() {
   this._log = Log4Moz.repository.getLogger("People.GmailImporter");
   this._log.debug("Initializing importer backend for " + this.displayName);
 }
 GmailImporter.prototype = {
-  __proto__: ImporterBackend.prototype,
-  get name() "gmail",
+  __proto__: OAuthBaseImporter.prototype,
+  get name() "google",
   get displayName() "Gmail Contacts",
-	get iconURL() "chrome://people/content/images/gmail.png",
+  get iconURL() "chrome://people/content/images/gmail.png",
+  getPrimaryKey: function (person){
+    return person.emails[0].value;
+  },
 
-  beginTest: function t0(l) { return /^begin:vcard$/i.test(l); },
-  tests: [
-    function t1(l) { return /^end:vcard$/i.test(l); },
-    function t2(l) { return /^version:/i.test(l); },
-    function t3(l, o) {
-      if (/^fn:(.*)$/i.test(l)) {
-        o.displayName = RegExp.$1;
-        return true;
-      }
-      return false;
-    },
-    function t4(l, o) {
-      if (/^n:([^;]*);([^;]*);([^;]*);([^;]*);(.*)$/i.test(l)) {
-
-        let family = RegExp.$1, given = RegExp.$2, additional = RegExp.$3,
-            honorific = RegExp.$4, honorificSuf = RegExp.$5;
-
-        if (!o.displayName) {
-          o.displayName = given;
-          if (additional)
-            o.displayName += " " + additional;
-          if (family)
-            o.displayName += " " + family;
-          if (honorific)
-            o.displayName = honorific + " " + disp;
-          if (honorificSuf)
-            o.displayName += ", " + honorificSuf;
-        }
-
-        o.name = { givenName: given };
-        if (additional)
-          o.name.middleName = additional;
-        if (family)
-          o.name.familyName = family;
-        if (honorific)
-          o.name.honorificPrefix = honorific;
-        if (honorificSuf)
-          o.name.honorificSuffix = honorificSuf;
-
-        return true;
-      }
-      return false;
-    },
-    function t5(l, o) {
-      if (/^email;type=([^;]+);type=([^:]+):(.*)$/i.test(l) ||
-          /^email;type=([^;]+):(.*)$/i.test(l)) {
-
-        let type = RegExp.$1, value = RegExp.$2;
-        if (RegExp.$3) {
-          type = RegExp.$2;
-          value = RegExp.$3;
-        }
-
-        if (!o.emails)
-          o.emails = [];
-        o.emails.push({value: value, type: type.toLowerCase()});
-
-        return true;
-      }
-      return false;
-    },
-    function t6(l, o) {
-      if (/^tel;type=([^:]+):(.*)$/i.test(l)) {
-
-        let type = RegExp.$1.toLowerCase(),
-            value = RegExp.$2;
-        if ("cell" == type)
-          type = "mobile";
-
-        if (!o.phoneNumbers)
-          o.phoneNumbers = [];
-        o.phoneNumbers.push({value: value, type: type});
-
-        return true;
-      }
-      return false;
-    },
-    // fixme: loses work/home type information
-    function t7(l, o) {
-      if (/^x-(aim|msn|yahoo);type=([^:]+):(.*)$/i.test(l)) {
-        if (!o.ims)
-          o.ims = [];
-        o.ims.push({value: RegExp.$2, type: RegExp.$1.toLowerCase()});
-        return true;
-      }
-      return false;
-    },
-    function t7(l, o) {
-      if (/^bday:(.*)$/i.test(l)) {
-        o.birthday = RegExp.$1;
-        return true;
-      }
-      return false;
-    },
-    function t8(l, o) {
-      if (/^org:(.*)/i.test(l)) {
-
-        if (!o.organizations)
-          o.organizations = [{}];
-        o.organizations[0].name = RegExp.$1;
-
-        return true;
-      }
-      return false;
-    },
-    function t9(l, o) {
-      if (/^title:(.*)/i.test(l)) {
-
-        if (!o.organizations)
-          o.organizations = [{}];
-        o.organizations[0].title = RegExp.$1;
-
-        return true;
-      }
-      return false;
-    },
-    // FIXME: how to map these?
-    function t10(l, o) {
-      if (/adr;type=([^:;]*):([^;]*);([^;]*);([^;]*);([^;]*);([^;]*);([^;]*);([^;]*)/i.test(l)) {
-        let type = RegExp.$1,
-            pobox = RegExp.$2, extendedAddr = RegExp.$3, street = RegExp.$4,
-            locality = RegExp.$5, region = RegExp.$6, code = RegExp.$7,
-            country = RegExp.$8;
-        if (!o.addresses)
-          o.addresses = [];
-        o.addresses.push({type: type, formatted: extendedAddr,
-                          streetAddress: street,
-                          locality: locality, region: region,
-                          postalCode: code, country: country});
-        return true;
-      }
-      return false;
-    },
-    function t11(l, o) {
-      if (/url;type=([^:]*):(.*)$/i.test(l)) {
-        if (!o.urls)
-          o.urls = [];
-        o.urls.push({type: RegExp.$1, value: RegExp.$2});
-        return true;
-      }
-      return false;
+  completionCallback: null,
+  progressCallback: null,
+  oauthHandler: null,
+  authParams: {
+      'xoauth_displayname': "Firefox Contacts",
+      'scope': 'http://www.google.com/m8/feeds/' // http://www-opensocial.googleusercontent.com/api/people/' // contacts
+  },
+  consumerToken: 'anonymous',
+  consumerSecret: 'anonymous',
+  redirectURL: 'http://google.contacts.local/',
+  get message() {
+    return {
+      action: 'http://www.google.com/m8/feeds/contacts/default/full',
+      method: "GET",
+      parameters: {'v':'2', "max-results":"2000"}
     }
-  ],
+  },
+  
+  handleResponse: function GmailImporter_handleResponse(req) {
 
-  import: function GmailImporter_import(completionCallback, progressFunction) {
-    this._log.debug("Importing Gmail contacts into People store");
-
-    let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-      .createInstance(Components.interfaces.nsIXMLHttpRequest);
-    req.open('GET', 'https://mail.google.com/mail/contacts/data/export?' +
-             'exportType=GROUP&groupToExport=^Mine&out=VCARD', false);
-    req.send(null);
-
-    if (req.status != 200) {
-      this._log.warn("Could not download contacts from Google " +
-                     "(status " + req.status + ")");
-      throw {error:"Unable to get contacts from Google", 
-						 message:"Could not download contacts from Google: please make sure you are <a target='_blank' href='https://mail.google.com'>logged in to Gmail</a>"};
+    People._log.info("Google Contacts API: " + req.status+" "+req.statusText);
+    
+    if (req.status == 401) {
+      var headers = req.getAllResponseHeaders();
+      if (req.statusText.indexOf('Token invalid') >= 0)
+      {
+	// start over with authorization
+	let svc = this.oauthHandler.service;
+	OAuthConsumer.resetAccess(svc.name, svc.consumerKey, svc.consumerSecret);
+	this.import(this.completionCallback, this.progressCallback);
+	return;
+      }
+      else if (headers.indexOf("oauth_problem=\"token_expired\"") > 0)
+      {
+        this.oauthHandler.reauthorize();
+        return;
+      }
+      this.completionCallback({error:"API Error", message:"Error while accessing Google Contacts: " + req.status+": "+req.responseText});  
+      return;
     }
 
-    this._log.debug("Contact list downloaded, parsing");
-    progressFunction(0.25);
+    //dump(req.responseText + "\n");
+    if (!req.responseXML) {
+      this.completionCallback({error:"API Error", message:"Error while accessing Google Contacts: " + req.status+": "+req.responseText});  
+      return;
+    }
+    let xmlDoc = req.responseXML;
+    let root = xmlDoc.ownerDocument == null ?
+      xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;
+    let nsResolver = xmlDoc.createNSResolver(root);
 
-    let people = [], cur = {}, fencepost = true;
-    for each (let line in req.responseText.split('\r\n')) {
-      progressFunction(0.50);
-      if (this.beginTest(line)) {
-        if (fencepost) {
-          fencepost = !fencepost;
-          continue;
+    function evaluate(elem, xpathString) xmlDoc.evaluate(xpathString, elem, nsResolver,
+              Ci.nsIDOMXPathResult.ANY_TYPE, null);
+    
+    let people = [];
+    let iter = evaluate(xmlDoc, "//*[local-name()='entry']");
+    let elem;
+    let groupHrefMap = {}; // map from group hrefs to arrays of person records
+    
+    while ((elem = iter.iterateNext())) {
+      //dump("Checking person:\n");
+      try
+      {
+        let person = {};
+  
+        //<gd:email rel='http://schemas.google.com/g/2005#other' address='foobar@gmail.com' primary='true'/>
+        let emailIter = evaluate(elem, "*[local-name()='email']");
+        var email;
+        while ((email = emailIter.iterateNext()))
+        {
+          if (!person.emails) person.emails = [];
+          let anEmail = {};
+          anEmail.value = email.getAttribute('address');
+          anEmail.type = "internet";
+          person.emails.push(anEmail);
+        }
+
+        let orgIter = evaluate(elem, "*[local-name()='organization']");
+        let org = orgIter.iterateNext();
+        if (org) {
+          let orgNameIter = evaluate(org, "*[local-name()='orgName']");
+          let orgTitleIter = evaluate(org, "*[local-name()='orgTitle']");
+          let orgName = orgNameIter.iterateNext();
+          let orgTitle = orgTitleIter.iterateNext();
+          if (orgName || orgTitle) {
+            let orgObj = {};
+            if (orgName) orgObj.name = orgName;
+            if (orgTitle) orgObj.title = orgTitle;
+            person.organizations = [orgObj];
+          }
+        }
+
+        let titleIter = evaluate(elem, "*[local-name()='title']");
+        let title = titleIter.iterateNext();
+        if (title && title.textContent) {
+          let displayName = title.textContent;
+          person.displayName = displayName;
+          let space = displayName.indexOf(" ");
+          if (space > 0) {
+            person.name = {givenName:displayName.substring(0, space), familyName:displayName.substring(space+1)};
+          } else {
+            person.name = {familyName:displayName};
+          }
         } else {
-          people.push(cur);
-          cur = {};
-          continue;
+          person.displayName = person.emails[0].value;
         }
-      }
-      let parsed = false;
-      for each (let t in this.tests) {
-        if (t(line, cur)) {
-          parsed = true;
-          continue;
+        
+        // Process groups - need to fetch groupMembershipInfo links to get names
+        // <gContact:groupMembershipInfo href="http://www.google.com/feeds/contacts/groups/jo%40gmail.com/base/1234a"/>
+        let groupMembershipIter = evaluate(elem, "*[local-name()='groupMembershipInfo']");
+        while ((group = groupMembershipIter.iterateNext()))
+        {
+          href = group.getAttribute("href");
+          if (!groupHrefMap[href]) groupHrefMap[href] = [];
+          groupHrefMap[href].push(person);
+          //dump(person.displayName + " is in group " + href + "\n");
         }
+        
+        people.push(person);
+      } catch (e) {
+        this._log.info("Error importing GMail contact: " + e.stack);
       }
-      if (!parsed)
-        this._log.debug("Could not parse line: " + line);
     }
+    
+    //dump("People lenght: " + people.length + "\n");
 
-    this._log.info("Adding " + people.length + " Gmail contacts to People store");
-    People.add(people, this, progressFunction);
-    progressFunction(0.75);
-		completionCallback(null);
+    // At this point we have all the people, and the groupMap contains
+    // all of the groupMembershipInfo hrefs that we encountered.  We now
+    // need to fetch all those groups to find their names.
+    let msg = {
+      action: 'http://www.google.com/m8/feeds/groups/default/full',
+      method:"GET",
+      parameters:{'v':'2', "max-results":"2000"}
+    };
+    let self = this;
+    this.oauthHandler = OAuthConsumer.authorize(
+        this.name,
+        this.consumerToken,
+        this.consumerSecret,
+        this.redirectURL,
+        function doGroupsImport(svc) { 
+
+          OAuthConsumer.call(svc, msg, function GmailGroupImportCallHandler(req) {
+            if (req.status != 200) {
+	      People._log.error("Error " + req.status + " while fetching GMail groups: " + req.responseText + "\n");
+            } else {
+              let xmlDoc = req.responseXML;
+              let root = xmlDoc.ownerDocument == null ?
+                xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;
+              let nsResolver = xmlDoc.createNSResolver(root);
+              function evaluate(elem, xpathString) xmlDoc.evaluate(xpathString, elem, nsResolver,
+			    Ci.nsIDOMXPathResult.ANY_TYPE, null);
+
+              let iter = evaluate(xmlDoc, "//*[local-name()='entry']");
+              while ((elem = iter.iterateNext())) {
+              
+                let idIter = evaluate(elem, "*[local-name()='id']");
+                let id = idIter.iterateNext();
+                if (id) id = id.textContent;
+                //dump("Handling gmail contact group " + id + "\n");
+              
+                if (id) {
+                  if (groupHrefMap[id]) { 
+                    let titleIter = evaluate(elem, "*[local-name()='title']");
+                    let title = titleIter.iterateNext();
+                    if (title) title = title.textContent;
+                    //dump(" Got title " + title + "\n");
+                    if (title) {
+                      if (title.indexOf("System Group: ") == 0) {
+                        title = title.substring(14); // strip off System Group
+                      }
+                      for each (let p in groupHrefMap[id]) {
+                        //dump("Pushing group " + title + " on person " + p.displayName + "\n");
+                        if (!p.tags) p.tags = [];
+                        p.tags.push(title);
+                      }
+                    }
+                  } else {
+                    //dump(" unused\n");
+                  }
+                }
+              }
+
+              // Now - if a person is not in -any- group, they are a harvested address.
+              // We don't want those.
+              let peopleToImport = [];
+              for each (let p in people)
+              {
+                if (p.tags && p.tags.length > 0)
+                {
+                  peopleToImport.push(p);
+                  p.tags.push("Gmail");
+                }
+              }
+              self._log.info("Adding " + peopleToImport.length + " Gmail address book contacts to People store");
+              People.add(peopleToImport, self, self.progressCallback);
+              self.completionCallback(null);
+            }
+          });
+
+    },
+    this.authParams,
+    "contacts@labs.mozilla");
   }
+
 };
 
 

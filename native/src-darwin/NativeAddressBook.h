@@ -1,7 +1,7 @@
 #include "INativeAddressBook.h"
 
 #define NATIVEADDRESSBOOK_CONTRACTID	"@labs.mozilla.com/NativeAddressBook;1"
-#define NATIVEADDRESSBOOK_CLASSNAME	"NativeAddressBook"
+#define NATIVEADDRESSBOOK_CLASSNAME		"NativeAddressBook"
 
 /* Header file */
 class NativeAddressBook : public INativeAddressBook

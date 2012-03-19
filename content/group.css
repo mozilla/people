@@ -1,0 +1,147 @@
+body { 
+  font-family: sans-serif; 
+  font-size: 11pt; 
+  margin: 0px;
+  padding: 0px; 
+  background-color: #EDEDED;; 
+  height:100%
+}
+
+a {
+  color:#3875D7
+}
+
+.header {
+  display:block;
+  position:relative;
+  width:300px;
+  margin-left:16px;
+  margin-right:16px;
+  margin-top:8px;
+  padding:8px;
+  font:caption;
+  font-weight:bold;
+  font-size:120%
+}
+
+.people {
+  display:inline-block;
+  position:relative;
+  width:200px;
+  margin-left:16px;
+  margin-right:16px;
+  margin-top:16px;
+  padding:16px;
+  min-height:40px;
+  -moz-border-radius: 1em; 
+  background-color: rgba(255,255,255,1);
+  border: 1px solid rgba(185,185,185,1);
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
+}
+
+
+.person {
+  display:block;
+}
+.photo {
+  width: 54px; 
+  height: 54px; 
+  position: absolute; 
+}
+.profilePhoto {
+  margin: 0em; 
+  padding: 0em; 
+  width: 50px; 
+  height: 50px; 
+}
+
+.displayName {
+  font:small-caption;
+  font-weight:bold;
+}
+.displayName > a {
+  color:black;
+  text-decoration:none;
+}
+.displayName > a:hover {
+  color:#3875D7;
+  text-decoration:underline;
+}
+
+.updates {
+  display:inline-block;
+  position:absolute;
+  left: 300px;
+  top:16px;
+  padding:16px;
+
+  -moz-border-radius: 1em; 
+  background-color: rgba(255,255,255,1);
+  border: 1px solid rgba(185,185,185,1);
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
+}
+
+.updateheader {
+  font:caption;
+  font-weight:bold;
+  font-size:120%
+}
+
+.servicemap {
+  padding-top:8px;
+  padding-bottom:16px;
+}
+.svc  {
+  -moz-border-radius:6px 6px 6px 6px;
+  -moz-box-shadow:0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 -1px 0 rgba(0, 0, 0, 0.2) inset, 0 1px 0 rgba(0, 0, 0, 0.1);
+  background-color:#F8F8F8;
+  border:1px solid #E6E6E6;
+  display:inline-block;
+  font-size:80%;
+  margin-right:8px;
+  margin-top:4px;
+  padding:3px 5px 3px 2px;
+}
+.svc img {
+  padding-right:3px
+}
+
+.updatePhoto {
+  width:40px;
+  height:40px;
+}
+
+.update {
+  font:9pt Helvetica;
+  min-height:45px;  
+}
+
+.update > .updatetext > .author        {color:#3875D7;text-decoration:none;font-weight:bold}
+.update > .updatetext > .author:hover {text-decoration:underline}
+.update > .updatetext > .title {
+
+}
+.update > .updatetext > .tagline {
+  color:#808080;  
+}
+.update > .updatetext > .updateTime {
+}
+.update > .updatetext > .updateSource {
+}
+
+
+.pubdate {
+  font:bold 8pt Helvetica;
+  color:#808080
+}
+
+.updatetext {
+  margin-left:44px;
+  display:inline-block;
+}

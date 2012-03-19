@@ -58,7 +58,8 @@ YelpAccountDiscoverer.prototype = {
   __proto__: DiscovererBackend.prototype,
   get name() "Yelp",
   get displayName() "Yelp Account Discoverer",
-	get iconURL() "",
+  get iconURL() "",
+  get description() "If you are logged in to Yelp, checks whether any of the e-mail addresses of a contact have a public profile.",  
 
   discover: function YelpAccountDiscoverer_person(forPerson, completionCallback, progressFunction) {
     for each (let email in forPerson.getProperty("emails")) {

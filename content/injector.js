@@ -38,7 +38,10 @@
 /* Inject the People content API into window.navigator objects. */
 /* Partly based on code in the Geode extension. */
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
+const ALL_GROUP_CONSTANT = "___all___";
+let refreshed;
 
 let PeopleInjector = {
   // URI module
@@ -47,91 +50,53 @@ let PeopleInjector = {
   // People module
   People: null,
 
-  get _docSvc() {
-    delete this._docSvc;
-    return this._docSvc = Cc["@mozilla.org/docloaderservice;1"].
-                          getService(Ci.nsIWebProgress);
-  },
-
   onLoad: function() {
-    // WebProgressListener for getting notification of new doc loads.
-    // XXX Ugh. Since we're a chrome overlay, it would be nice to just
-    // use gBrowser.addProgressListener(). But that isn't sending
-    // STATE_TRANSFERRING, and the earliest we can get at the page is
-    // STATE_STOP (which is onload, and is inconveniently late).
-    // We'll use the doc loader service instead, but that means we need to
-    // filter out loads for other windows.
-    this._docSvc.addProgressListener(this,
-                                     Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+    var obs = Components.classes["@mozilla.org/observer-service;1"].
+                          getService(Components.interfaces.nsIObserverService);
+    obs.addObserver(this, 'content-document-global-created', false);
   },
 
   onUnload: function() {
-    this._docSvc.removeProgressListener(this);
+    var obs = Components.classes["@mozilla.org/observer-service;1"].
+                          getService(Components.interfaces.nsIObserverService);
+    obs.removeObserver(this, 'content-document-global-created');
   },
 
 
-  //**************************************************************************//
-  // nsISupports
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                         Ci.nsISupportsWeakReference]),
-
-
-  //**************************************************************************//
-  // nsIWebProgressListener
-
-  onStateChange: function(aWebProgress, aRequest, aStateFlags,  aStatus) {
-    // STATE_START is too early, doc is still the old page.
-    // STATE_STOP is inconveniently late (it's onload).
-    if (!(aStateFlags & Ci.nsIWebProgressListener.STATE_TRANSFERRING))
+  observe: function(aSubject, aTopic, aData) {
+    if (!aSubject.location.href) return;
+    // is this window a child of OUR XUL window?
+    var mainWindow = aSubject.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                   .getInterface(Components.interfaces.nsIWebNavigation)
+                   .QueryInterface(Components.interfaces.nsIDocShellTreeItem)
+                   .rootTreeItem
+                   .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                   .getInterface(Components.interfaces.nsIDOMWindow); 
+    if (mainWindow != window) {
       return;
-
-    var domWindow = aWebProgress.DOMWindow;
-    var chromeWin = domWindow
-                        .QueryInterface(Ci.nsIInterfaceRequestor)
-                        .getInterface(Ci.nsIWebNavigation)
-                        .QueryInterface(Ci.nsIDocShellTreeItem)
-                        .rootTreeItem
-                        .QueryInterface(Ci.nsIInterfaceRequestor)
-                        .getInterface(Ci.nsIDOMWindow)
-                        .QueryInterface(Ci.nsIDOMChromeWindow);
-    if (chromeWin != window)
-      return;
-
-    this._inject(domWindow);
+    }
+    this._inject(aSubject);
   },
-
-  // Stubs for the nsIWebProgressListener interfaces that we don't use.
-  onProgressChange: function() {},
-  onLocationChange: function() {},
-  onStatusChange:   function() {},
-  onSecurityChange: function() {},
-
 
   //**************************************************************************//
   // 
 
-  SCRIPT_TO_INJECT_URI: "resource://people/content/injected.js",
-
   get _scriptToInject() {
     delete this._scriptToInject;
 
-    let uri =
-      new this.URI(this.SCRIPT_TO_INJECT_URI).QueryInterface(Ci.nsIFileURL);
+    var scriptToInject =  (function () {
+      if (window && navigator){
+        if (!navigator.service)
+          navigator.service = {};
+        navigator.service.contacts = {
+          find: function(fields, successCallback, failureCallback, options) {
+            contacts_find(window, fields, successCallback, failureCallback, options);
+          }
+        };
+      }
+    }).toString();
 
-    // Slurp the contents of the file into a string.
-    let inputStream = Cc["@mozilla.org/network/file-input-stream;1"].
-                      createInstance(Ci.nsIFileInputStream);
-    inputStream.init(uri.file, 0x01, -1, null); // RD_ONLY
-    let lineStream = inputStream.QueryInterface(Ci.nsILineInputStream);
-    let line = { value: "" }, hasMore, scriptToInject = "";
-    do {
-        hasMore = lineStream.readLine(line);
-        scriptToInject += line.value + "\n";
-    } while (hasMore);
-    lineStream.close();
-
-    return this._scriptToInject = scriptToInject;
+    return this._scriptToInject = "("+scriptToInject+")();";
   },
 
   /*
@@ -139,12 +104,17 @@ let PeopleInjector = {
    *
    * Injects the content API into the specified DOM window.
    */
-  _inject: function(win) {
-    let sandbox = new Cu.Sandbox(win);
-    sandbox.importFunction(this._getFindFunction(), "find");
-    sandbox.window = win.wrappedJSObject;
-    Cu.evalInSandbox(this._scriptToInject, sandbox, "1.8",
-                     this.SCRIPT_TO_INJECT_URI, 1);
+  _inject: function(safeWin) {
+    if (typeof(XPCNativeWrapper) != 'undefined') {
+      // ensure we do indeed have a nativewrapper
+      safeWin = new XPCNativeWrapper(safeWin);
+    }
+    // options here are ignored for 3.6
+    let sandbox = new Components.utils.Sandbox(safeWin, { sandboxProto: safeWin, wantXrays: true });
+    sandbox.importFunction(this._getFindFunction(), "contacts_find");
+    sandbox.window = safeWin;
+    sandbox.navigator = safeWin.navigator.wrappedJSObject;
+    Components.utils.evalInSandbox(this._scriptToInject, sandbox, "1.8");
   },
 
   _getFindFunction: function() {
@@ -152,143 +122,171 @@ let PeopleInjector = {
     let People = this.People;
     let URI = this.URI;
 
-    return function(win, attrs, fields, successCallback, failureCallback) {
+    return function(win, fields, successCallback, failureCallback, options) {
+      // fx 4 no longer has XPCSafeJSObjectWrapper, it is handled transparently
+      if (typeof(XPCSafeJSObjectWrapper) != 'undefined') {
+        win = XPCSafeJSObjectWrapper(win);
+        options = XPCSafeJSObjectWrapper(options);
+        successCallback = XPCSafeJSObjectWrapper(successCallback);
+        failureCallback = XPCSafeJSObjectWrapper(failureCallback);
+      }
 
-      win = XPCSafeJSObjectWrapper(win);
-      attrs = XPCSafeJSObjectWrapper(attrs);
-      successCallback = XPCSafeJSObjectWrapper(successCallback);
-      failureCallback = XPCSafeJSObjectWrapper(failureCallback);
-
-      let permissionManager = Cc["@mozilla.org/permissionmanager;1"].
-                              getService(Ci.nsIPermissionManager);
+      let permissionManager = Components.classes["@mozilla.org/permissionmanager;1"].
+                              getService(Components.interfaces.nsIPermissionManager);
       let uri = new URI(win.location);
 
       function onAllow() {
-				// This function is called when the user clicks "Allow..."
-				// or automatically because a) they are in a built-in screen,
-				// or b) they've saved the permissions.
-			
-				let people = null;
-
-				if (win.location != "chrome://people/content/manager.xhtml" && 
-					  win.location != "chrome://people/content/disclosure.xhtml")
-				{
-					// Check for saved site permissions; if none are found, present the disclosure box
-					people = People.find(attrs);
-					let peopleGuidMap = null;
-					let allowedFields = People.getSiteFieldPermissions(uri.spec);
-					
-					if (allowedFields == null)
-					{
-						peopleGuidMap = {};
-						let fieldsActive = {};
-						let remember = {value:false};
-						let loc;
-						try {
-							loc = win.location.host;
-						} catch (e) {
-							loc = win.location;
-						}
-						
-						var params = {
-							site: loc,
-							fields: fields, 
-							fieldsActive: fieldsActive, // on exit, a map of fields to booleans
-							peopleList: people,
-							selectedPeople: peopleGuidMap, // on exit, a map of guids to booleans
-							remember: remember,
-							cancelled: false
-						};
-						var disclosureDialog = openDialog("chrome://people/content/disclosure.xul", "Access to Contacts", "modal", params);
- 						if (!params.cancelled)
-						{
-							// Construct allowed field list...
-							var editedFields = [];
-							for each (f in fields) {
-								if (fieldsActive[f]) editedFields.push(f);
-							}
-							allowedFields = editedFields;
-							People._log.info("remember is " + JSON.stringify(remember));
-
-							if (remember.value) {
-								People._log.info("Disclosure dialog requests remember");
-							
-								People.storeSiteFieldPermissions(uri.spec, allowedFields);
-
-								// This blows up if uri doesn't have a host
-								permissionManager.add(uri, "people-find",
-																			Ci.nsIPermissionManager.ALLOW_ACTION);
-							} else {
-								People._log.info("Disclosure dialog requests NO remember");
-							}
-						} else {
-							// user cancelled
-							return onDeny();
-						}
-					} 
-					
-					// FIXME: right now, if you save permissions, we always use the entire people list.
-					// (this is signalled by personGuidMap == null)
-					// Storing individual guids is a big lose; perhaps groups can save us?
-					
-					// Limit the result data...
-					fields = allowedFields;
-					People._log.warn("got field set of " + fields);
-					if (peopleGuidMap) {
-						People._log.warn("using selected-person map");
-					} else {
-						People._log.warn("selecting all people");
-					}
-
-					let outputSet = [];
-					for each (p in people) {
-						if (peopleGuidMap == null || peopleGuidMap[p.guid]) {
-							
-							// Convert from the multi-service internal representation
-							// to a simple, flat, single-schema representation:
-							let newPerson = {}
-							for each (f in fields) {
-                newPerson[f] = p.getProperty(f);
-              }
-							outputSet.push(newPerson);
-						}
-					}
-					people = outputSet;
-				}
-				else
-				{
-					people = People.find(attrs);
-					// FIXME: detect errors finding people and call the failure callback.
-				}
-
+        // This function is called when the user clicks "Allow..."
+        // or automatically because a) they are in a built-in screen,
+        // or b) they've saved the permissions.
+      
         try {
-          successCallback(people);
-        }
-        catch(ex) {
-          Components.utils.reportError(ex);
-        }
+        
+          let people = null;
+  
+          if (win.location != "chrome://people/content/manager.xhtml" && 
+              win.location != "chrome://people/content/disclosure.xhtml")
+          {
+            // Special field for services
+            let Prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                               .getService(Components.interfaces.nsIPrefService);
+            Prefs = Prefs.getBranch("extensions.mozillalabs.contacts.");
+            let allow = false;
+            try{
+              allow = Prefs.getBoolPref("allowServices");
+            } catch (e){
+              //nothing
+            }
+            if(allow){
+              fields.push("Services");
+            } else {
+              for (let f in fields){
+                if(fields[f] == "Services"){
+                  fields.splice(f,1);
+                  break;
+                }
+              }
+            }
+            
+            // if the page was refreshed
+            if(refreshed) {
+              People.removeSessionSitePermissions(uri.spec);
+              refreshed = false;
+            }
+            
+            // Check for saved site permissions; if none are found, present the disclosure box
+            people = People.find({});
+            let groupList = null;
+            let permissions = People.getSitePermissions(uri.spec);
+  
+            // TODO: If the site has asked for a new field permission,
+            // ask the user again (but this could get annoying, hm)
+            if (permissions) {
+              var extendedPermissions = false;
+              for each (f in fields) {
+                if (permissions.fields.indexOf(f) < 0) {
+                  extendedPermissions = true;
+                }
+              }
+              if (extendedPermissions) permissions = null;
+            }
+            
+            if (permissions == null)
+            {
+              groupMap = {};
+              let fieldsActive = {};
+              let remember = {value:false};
+              let loc;
+              try {
+                loc = win.location.host;
+              } catch (e) {
+                loc = win.location;
+              }
+              
+              var params = {
+                site: loc,
+                fields: fields, 
+                fieldsActive: fieldsActive, // on exit, a map of fields to booleans
+                peopleList: people,
+                selectedGroups: groupMap, // on exit, a map of tags to booleans
+                remember: remember,
+                cancelled: false
+              };
+              var disclosureDialog = openDialog("chrome://people/content/disclosure.xul", "Access to Contacts", "modal", params);
+               if (!params.cancelled)
+              {
+                // Construct allowed field list...
+                var allowedFields = [];
+                for each (f in fields) {
+                  if (fieldsActive[f]) allowedFields.push(f);
+                }
+                groupList = [];
+                for (g in groupMap) {
+                  if (groupMap[g]) groupList.push(g);
+                }
+                
+                if (remember.value) {
+                  People.storeSitePermissions(uri.spec, allowedFields, groupList);
+                  // This blows up if uri doesn't have a host
+                  permissionManager.add(uri, "people-find",
+                                        Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
+                }
+  
+                // TODO: Checkbox to allow "just once"
+                People.setSessionSitePermissions(uri.spec, allowedFields, groupList);
+  
+              } else {
+                // user cancelled
+                return onDeny();
+              }
+            } else {
+              // saved permissions exist:
+              // set fields to the minimum overlapping set of saved permissions and what the site wanted.
+              var allowedFields = [];
+              for each (f in fields) {
+                if (permissions.fields.indexOf(f) >= 0) {
+                  allowedFields.push(f);
+                }
+              }
+              
+              // and set groups to what the user saved
+              groupList = permissions.groups;
+            }
+            
+            // Limit the result data...
+            fields = allowedFields;
+            People.findExternal(fields, successCallback, failureCallback, options, groupList);
+            
+          } else {
+            fields.push("Services");
+            People.findExternal(fields, successCallback, failureCallback, options);
+          }
 
+        } catch (e) {
+          dump(e + "\n");
+          dump(e.stack + "\n");
+        }
       }
 
       function onDeny() {
-				People._log.warn("user denied permission for people.find call");
+        People._log.warn("user denied permission for people.find call");
         let error = { message: "permission denied" };
         if (failureCallback) {
           try {
             failureCallback(error);
           }
           catch(ex) {
-						People._log.warn("Error: " + ex);
+            People._log.warn("Error: " + ex);
             Components.utils.reportError(ex);
           }
         } else {
-					People._log.warn("No failure callback");
-				}
+          People._log.warn("No failure callback");
+        }
 
-				// FIXME: We have no way to persist a deny right now, since we moved the checkbox into the disclosure dialog.
+        // FIXME: We have no way to persist a deny right now, since we moved the checkbox into the disclosure dialog.
 /*        if (checkbox && checkbox.checked) {
           permissionManager.add(uri, "people-find",
-                                Ci.nsIPermissionManager.DENY_ACTION);
+                                Components.interfaces.nsIPermissionManager.DENY_ACTION);
         }*/
       }
 
@@ -297,22 +295,33 @@ let PeopleInjector = {
       // to get chrome access but should always have access to your people
       // (since it is a feature of this extension).
       if (win.location == "chrome://people/content/manager.xhtml" || 
-					win.location == "chrome://people/content/disclosure.xhtml") 
-			{
+          win.location == "chrome://people/content/disclosure.xhtml") 
+      {
         onAllow();
         return;
       }
 
-      switch(permissionManager.testPermission(uri, "people-find")) {
-        case Ci.nsIPermissionManager.ALLOW_ACTION:
-          onAllow();
-          return;
-        case Ci.nsIPermissionManager.DENY_ACTION:
-          onDeny();
-          return;
-        case Ci.nsIPermissionManager.UNKNOWN_ACTION:
-        default:
-          // fall through to the rest of the function.
+
+      // TODO HACK: To support session permissions,
+      // check sitePermissions here
+      let permissions = People.getSitePermissions(uri.spec);
+      if (permissions) {
+        onAllow();
+        return;
+      }
+      else
+      {
+        switch(permissionManager.testPermission(uri, "people-find")) {
+          case Components.interfaces.nsIPermissionManager.ALLOW_ACTION:
+            onAllow();
+            return;
+          case Components.interfaces.nsIPermissionManager.DENY_ACTION:
+            onDeny();
+            return;
+          case Components.interfaces.nsIPermissionManager.UNKNOWN_ACTION:
+          default:
+            // fall through to the rest of the function.
+        }
       }
 
       function getNotificationBox() {
@@ -323,8 +332,8 @@ let PeopleInjector = {
 
         // Find the <browser> that contains the document by looking through
         // all the open windows and their <tabbrowser>s.
-        let wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-                 getService(Ci.nsIWindowMediator);
+        let wm = Components.classes["@mozilla.org/appshell/window-mediator;1"].
+                 getService(Components.interfaces.nsIWindowMediator);
         let enumerator = wm.getEnumerator("navigator:browser");
         let tabBrowser = null;
         let foundBrowser = null;
@@ -373,11 +382,10 @@ let PeopleInjector = {
         box.removeNotification(oldBar);
     }
   }
-
 };
 
-Cu.import("resource://people/modules/ext/URI.js", PeopleInjector);
-Cu.import("resource://people/modules/people.js", PeopleInjector);
+Components.utils.import("resource://people/modules/ext/URI.js", PeopleInjector);
+Components.utils.import("resource://people/modules/people.js", PeopleInjector);
 
-window.addEventListener("load",   function() PeopleInjector.onLoad(),   false);
+PeopleInjector.onLoad()
 window.addEventListener("unload", function() PeopleInjector.onUnload(), false);

@@ -10,15 +10,18 @@ body {
   height:100%
 }
 
-A {
+a {
   color:#3875D7
+}
+a:hover {
+  cursor:pointer;
 }
 
 scrollbar {-moz-opacity: 0.3 !important;}
 scrollbar:hover {-moz-opacity: 1.0 !important;}
 
 .controlbar {
-  margin:0;	
+  margin:0;  
   padding:0px;
   background: -moz-linear-gradient(top, #CECECE, #A8A8A8);
   height:58px;
@@ -88,11 +91,11 @@ scrollbar:hover {-moz-opacity: 1.0 !important;}
     text-shadow: black 0 1px;
     width: 160px;
     border: 1px solid rgba(0,0,0,0.3);
-   	-moz-border-radius: 0.3em;
-	-moz-box-shadow:
-		inset rgba(0,0,0,0.2) 0px 1px 2px; 
-	padding: 4px 4px 4px 6px; 
-	margin: 2px 0 0 0;
+     -moz-border-radius: 0.3em;
+  -moz-box-shadow:
+    inset rgba(0,0,0,0.2) 0px 1px 2px; 
+  padding: 4px 4px 4px 6px; 
+  margin: 2px 0 0 0;
 }
 
 .searchbox {
@@ -115,10 +118,10 @@ scrollbar:hover {-moz-opacity: 1.0 !important;}
   text-shadow: black 0 1px;
   -moz-border-radius: 0.3em;
   border: 1px solid rgba(185,185,185,1);
-	-moz-box-shadow: 
-		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
-		inset rgba(0, 0, 0, 0.1) 0 -2px 0px,
-		rgba(0, 0, 0, 0.1) 0px 2px 0px; 
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -2px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px; 
   padding: 4px; 
   margin: 0;
 }
@@ -164,13 +167,19 @@ scrollbar:hover {-moz-opacity: 1.0 !important;}
 .contacttable > .contactlist > .contact {
   display:block;
 }
+.contacttable > .contactlist > .group {
+  display:block;
+}
+.contacttable > .contactlist > .groupseparator {
+  height: 2px; border-bottom: 2px solid #fff; -moz-border-bottom-colors:rgba(200,200,200,0.5) rgba(255,255,255,0.5); background-color: #DDDDDD;
+}
 
 .tabledetailpane {
   width:auto;
   height:100%;
   padding-left:0px;
 /*  padding-top:16px;*/
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 
 }
@@ -191,9 +200,17 @@ scrollbar:hover {-moz-opacity: 1.0 !important;}
 
 .tabledetailpane > .identities > .fieldheader {width:112px;margin-left:40px;text-align:left;font-size:80%;font-weight:bold;padding-top:8px;border-bottom:1px solid #F8F8F8}
 
-.contacttable > .contactlist > .contact {font:small-caption; padding-left:6px; height: 24px; position: relative; padding-top: 3px; padding-bottom:3px; border-bottom: 2px solid #fff; -moz-border-bottom-colors:rgba(200,200,200,0.5) rgba(255,255,255,0.5); background-color: transparent;}
+.contacttable > .contactlist > .contact {font:small-caption; padding-left:6px; height: 18px; position: relative; padding-top: 3px; padding-bottom:3px; border-bottom: 2px solid #fff; -moz-border-bottom-colors:rgba(200,200,200,0.5) rgba(255,255,255,0.5); background-color: transparent;}
 .contacttable > .contactlist > .contact:hover {background-color: #ffffff;}
-.contacttable > .contactlist > .contact > .clink {text-decoration:none;color:black; padding-left: 30px; padding-top: 4px; line-height:1em; position: absolute; top: 0px; left: 0px; width: 170px; height: 26px; display: inline-block; }
+.contacttable > .contactlist > .highlighted{background-color: #ffffff;}
+
+.contacttable > .contactlist > .group {font:small-caption; padding-left:6px; height: 18px; position: relative; padding-top: 3px; padding-bottom:3px; border-bottom: 2px solid #fff; -moz-border-bottom-colors:rgba(200,200,200,0.5) rgba(255,255,255,0.5); background-color: transparent;}
+.contacttable > .contactlist > .group:hover {background-color: #ffffff;}
+.contacttable > .contactlist > .group > .clink {text-decoration:none;color:black; padding-left: 30px; padding-top: 4px; line-height:1em; position: absolute; top: 0px; left: 0px; width: 170px; height: 18px; display: inline-block; }
+.contacttable > .contactlist > .group > .clink:hover {text-decoration:underline;color:#3875D7;}
+.contacttable > .contactlist > .group > .clink:active {text-decoration:underline;color:#3875D7; border: none;}
+
+.contacttable > .contactlist > .contact > .clink {text-decoration:none;color:black; padding-left: 30px; padding-top: 4px; line-height:1em; position: absolute; top: 0px; left: 0px; width: 170px; height: 18px; display: inline-block; }
 .contacttable > .contactlist > .contact > .clink:hover {text-decoration:underline;color:#3875D7;}
 .contacttable > .contactlist > .contact > .clink:active {text-decoration:underline;color:#3875D7; border: none;}
 .contacttable > .contactlist > .contact > .photocolumn {width:16px;height:16px;display:inline-block;}
@@ -221,12 +238,12 @@ scrollbar:hover {-moz-opacity: 1.0 !important;}
   -moz-border-radius: 1em; 
   background-color: rgba(255,255,255,1);
   border: 1px solid rgba(185,185,185,1);
-	-moz-box-shadow: 
-		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
-		inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
-		rgba(0, 0, 0, 0.1) 0px 2px 0px;
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
   display:inline-block;
-	vertical-align:top;
+  vertical-align:top;
 }
 
 .contactcards > .contact { min-height: 52px; }
@@ -268,7 +285,7 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   display:inline
 }
 
-.controls { margin:0;	padding:2px; 	background:#D7D6D5;	height:66px;	border-bottom:1px solid #808080; }
+.controls { margin:0;  padding:2px;   background:#D7D6D5;  height:66px;  border-bottom:1px solid #808080; }
 /* form input {padding:2px; font-size:small; width:100%;} */
 
 .servicedetail {
@@ -362,8 +379,8 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 #servicepane > P { padding-left:6px; }
 
 .contactsLogo {
-	float: right;
-	margin-top: -30px;
+  float: right;
+  margin-top: -30px;
 }
 
 #servicesHeader {
@@ -372,10 +389,10 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   -moz-border-radius: 1em; 
   background-color: rgba(255,255,255,1);
   border: 1px solid rgba(185,185,185,1);
-	-moz-box-shadow: 
-		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
-		inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
-		rgba(0, 0, 0, 0.1) 0px 2px 0px;
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
 }
 
 .importerbadge { 
@@ -387,10 +404,10 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   -moz-border-radius: 1em; 
   background-color: rgba(255,255,255,1);
   border: 1px solid rgba(185,185,185,1);
-	-moz-box-shadow: 
-		inset rgba(255, 255, 255, 0.5) 0 1px 0px,
-		inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
-		rgba(0, 0, 0, 0.1) 0px 2px 0px;
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
 }
 
 .importerlabel {
@@ -421,14 +438,55 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 
 
 
+#discovererspane {
+  position:relative;
+  padding-left:32px;
+  padding-top:12px;
+  width:800px;
+  font:small-caption;
+}
+
+.discovererbadge { 
+  position:relative;
+  display:block; 
+  min-height:48px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  -moz-user-select:none;
+  -moz-border-radius: 1em; 
+  background-color: rgba(255,255,255,1);
+  border: 1px solid rgba(185,185,185,1);
+  -moz-box-shadow: 
+    inset rgba(255, 255, 255, 0.5) 0 1px 0px,
+    inset rgba(0, 0, 0, 0.1) 0 -3px 0px,
+    rgba(0, 0, 0, 0.1) 0px 2px 0px;
+}
+
+.discovererlabel {
+  position:absolute;
+  left:54px;
+  top:12px;
+  display:inline;
+  margin-bottom:6px;
+}
+
+.discoverertext {
+  position:absolute;
+  left:240px;
+  top:12px;
+  font-weight:normal;
+  display:inline;
+  margin-bottom:6px;
+}
+
 
 /***** Permissions *****/
 
 #permissionpane {
   font:small-caption;
-  width:610px;
-  margin-left:16px;
-  margin-top:16px;
+  width:710px;
+  padding-left:32px;
+  padding-top:12px;
 }
 
 #permissionsTable {
@@ -437,13 +495,13 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
 
 
 .permissionsTableHead > .sitehead {
-  width:300px;
+  width:296px;
   font-weight:bold;
   background-color:#E0E0E0;
   display:inline-block;
 }
 .permissionsTableHead > .fieldhead {
-  width:300px;
+  width:194px;
   font-weight:bold;
   background-color:#E0E0E0;
   display:inline-block;
@@ -456,14 +514,14 @@ ol>li{ padding: 5px; padding-bottom: 6px; padding-top: 8px;}
   font-weight:normal;
   width:300px;
   height:1.3em;
+  vertical-align:top;
   overflow:hidden;
   display:inline-block;
 }
 .permissionsTableBody > .row > .field {
   font-weight:normal;
-  width:300px;
-  height:1.3em;
-  overflow:hidden;
+  width:200px;
+  vertical-align:top;
   display:inline-block;
 }
 

@@ -1,0 +1,124 @@
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>Firefox Contacts Demo</title>
+<style>
+.person {
+  margin-bottom:8px;
+}
+</style>
+
+<script>
+if (!navigator.service)
+  alert("navigator.service injection failed!");
+
+function gotPeople(peopleStore) 
+{
+  var parent = document.getElementById('peopleList');
+  parent.innerHTML = "<b>people.find() returned this data:<br/><br/></b>"
+  for each (var p in peopleStore) {
+    var aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    aDiv.setAttribute("class", "person");
+    var s = "";
+    
+    for (field in p) {
+      var val = p[field];
+      if (val != null && isArray(val)) {
+        s += field + ":<BR/>";
+
+        for each (var subval in val) {
+          s += "&nbsp;&nbsp;<i>" + subval.type + "</i>: " + subval.value + "<BR/>";
+        }
+
+      } else {
+        s += field + ": " + val + "<BR/>"
+      }
+    }
+    aDiv.innerHTML = s;
+    parent.appendChild(aDiv);
+  }
+}
+
+function failedPeople(error)
+{
+  var parent = document.getElementById('peopleList');
+  parent.innerHTML = "<b>Access to Contacts failed: " + error.message + "</b>";
+}
+
+function isArray(testObject) {   
+  return testObject && !(testObject.propertyIsEnumerable('length')) && typeof testObject === 'object' && typeof testObject.length === 'number';
+}
+
+function doPeople()
+{
+  try {
+    navigator.service.contacts.find(["displayName", "emails", "phoneNumbers", "urls"], gotPeople, failedPeople);
+  } catch(e) {
+    dump('error in find '+e+"\n");
+  }
+}
+
+</script>
+
+<style>
+BODY {
+  font:10pt Arial, sans-serif
+}
+.small {
+  font-size:8pt;
+}
+</style>
+</head>
+<body>
+
+<img src="experiments.png" style="float: right;">
+<div style="padding-left:64px;width:400px;">
+<div style="font-family: &quot;Arial Black&quot;, Arial, sans-serif; font-size:18pt; color:#303080">Contacts Demo</div>
+
+<div>
+This page demonstrates the use of the experimental <a href="http://mozillalabs.com/blog/2010/03/contacts-in-the-browser">Mozilla Labs Contacts</a> add-on.  To use it, you must first:
+</div>
+<ol>
+<li>Be using Firefox 3.5 or later (3.6 is recommended)
+</li><li>Install the <a href="http://people.mozilla.com/%7Emhanson/contacts/contacts-latest.xpi">Contacts Addon</a>
+</li><li>Tell the addon where your contacts are (select "Contacts" from the "Tools" menu and click one or more of the "Import" buttons)
+</li></ol>
+
+<h2>E-mail Autocompletion</h2>
+<div>
+This is an example email text field.  It uses the Contact database to perform e-mail autocompletion:
+</div>
+<input name="email" style="font: 10pt Arial; width: 400px;" value="s" type="text">
+<br>
+<div class="small">Not working for you?  <a href="http://mozillalabs.com/files/2010/03/emailAutocompletion.png">Click for a screenshot</a>.</div>
+
+<h3>HTML5 features</h3>
+<div style="margin-left:16px;font-size:80%">
+These fields show how HTML5 will handle e-mail and telephone fields.
+
+<div>
+This is an input field with type 'email':<br><input name="abc" style="font: 10pt Arial; width: 300px;" type="email">
+</div>
+
+<div>
+This is an input field with type 'tel':<br> <input name="def" style="font: 10pt Arial; width: 300px;" type="tel">
+</div>
+</div>
+
+<h2>Javascript API</h2>
+<form action="javascript:" method="POST">
+<div>This form demonstrates the use of the Contacts Javascript API.  When you click it, you will be asked
+to give permission to the page to access your data.  Note that by default none of your contacts are selected --
+click "select all" if you want to give access to all of them.</div>
+
+<input style="font: 12pt Arial;" value="Use Contacts to Personalize This Page" onclick="doPeople()" type="submit">
+
+<br><br>
+
+
+</form>
+<div style="font:9pt Arial" id="peopleList"></div>
+</div>
+
+
+
+</body></html>

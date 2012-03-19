@@ -61,6 +61,27 @@ let Utils = {
     return rows;
   },
 
+  deepCopy: function Weave_deepCopy(thing, noSort) {
+    if (typeof(thing) != "object" || thing == null)
+      return thing;
+    let ret;
+
+    if (Utils.isArray(thing)) {
+      ret = [];
+      for (let i = 0; i < thing.length; i++)
+        ret.push(Utils.deepCopy(thing[i], noSort));
+
+    } else {
+      ret = {};
+      let props = [p for (p in thing)];
+      if (!noSort)
+        props = props.sort();
+      props.forEach(function(k) ret[k] = Utils.deepCopy(thing[k], noSort));
+    }
+
+    return ret;
+  },
+
   isArray: function isArray(obj) {
     return obj != null && obj.constructor.toString() == Array;
   },
@@ -85,9 +106,9 @@ let Utils = {
   },
 
 
-  mapCall: function mapCall(self, args) {
+  mapCall: function mapCall(self, args, func) {
     let array = args[0];
-    let func = mapCall.caller;
+    //let func = mapCall.caller;
     let extra = Array.slice(args, 1);
     return array.map(function(item) func.apply(self, [item].concat(extra)));
   },
@@ -160,7 +181,7 @@ let Utils = {
     url.QueryInterface(Ci.nsIURL);
     return url;
   },
-	
+  
   xpath: function Weave_xpath(xmlDoc, xpathString) {
     let root = xmlDoc.ownerDocument == null ?
       xmlDoc.documentElement : xmlDoc.ownerDocument.documentElement;

@@ -34,78 +34,103 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Components.utils.import("resource://people/modules/ext/Observers.js");
+var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                   .getService(Components.interfaces.nsIWindowMediator);
+var win = wm.getMostRecentWindow(null);
+window.openURL = win.openURL;
+
+//Observers.add("people-update", setRefresh, this);
+Observers.add("people-add", setRefresh, this);
+Observers.add("people-remove", setRefresh, this);
+Observers.add("people-disconnectService", setRefresh, this);
+Observers.add("people-connectService", setRefresh, this);
+
+var repaint;
+
+function setRefresh(data){
+  if(repaint) window.clearTimeout(repaint);
+  repaint = window.setTimeout(refreshPeople, 50);
+}
+
+function refreshPeople(data){
+  dump("Refreshing Detail Pane\n");
+  PeopleManager.setChanged();
+  if (document.getElementById("contactpane").style.display == "block") PeopleManager.reRender()
+}
+
 function createDiv(clazz)
 {
-	let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-	aDiv.setAttribute("class", clazz);
+  let aDiv = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+  aDiv.setAttribute("class", clazz);
   return aDiv;
 }
 
 function appendNameValueBlock(container, name, value)
 {
   // Note that the name and value are not HTML-escaped prior to insertion into the DOM.
-	let typeDiv = createDiv("type");
-	try {
-		typeDiv.innerHTML = name;
-	} catch (e) {
-		typeDiv.innerHTML = '';	
-	}
-	let valueDiv = createDiv("value");
-	try {
-		valueDiv.innerHTML = value;	
-	} catch (e) {
-		valueDiv.innerHTML = '';		
-	}
-	container.appendChild(typeDiv);
-	container.appendChild(valueDiv);
+  let typeDiv = createDiv("type");
+  try {
+    typeDiv.innerHTML = name;
+  } catch (e) {
+    typeDiv.innerHTML = '';  
+  }
+  let valueDiv = createDiv("value");
+  try {
+    valueDiv.innerHTML = value;  
+  } catch (e) {
+    valueDiv.innerHTML = '';    
+  }
+  container.appendChild(typeDiv);
+  container.appendChild(valueDiv);
 }
 
 function addFieldList(container, aList, defaultType, valueScheme, contentHandlerURL)
 {
-	for each (let item in aList) {
-		let row = createDiv("identity");
-		
-		let label = null;
-		if (item.type) {
-			label = htmlescape(item.type);
-		} else {
-			label = defaultType;
-		}
+  for each (let item in aList) {
+    let row = createDiv("identity");
+    
+    let label = null;
+    if (item.type) {
+      label = htmlescape(item.type);
+    } else {
+      label = defaultType;
+    }
 
-		let value = null;
-		if (valueScheme != undefined) {
-			let uri = encodeURIComponent(item.value);
-			let withScheme = null;
+    let value = null;
+    if (valueScheme != undefined) {
+      let uri = encodeURIComponent(item.value);
+      let withScheme = null;
       
       // To avoid script injection attacks, we need to be a bit careful here.
       // TODO: Escape input to implement XSS protection.
-			if (uri.indexOf(valueScheme) == 0) {
-				withScheme = item.value;
-			} else {
-				withScheme = valueScheme + ':' + escape(item.value);
-			}
-      value = '<a target="_blank" href="' + withScheme + '">' + htmlescape(item.value) + '</a>';
-		} else if (contentHandlerURL) {
-			value = '<a target="_blank" href="' + contentHandlerURL + encodeURIComponent(item.value).replace(/ /g, '+') + '">' + htmlescape(item.value) + '</a>';      
+      if (uri.indexOf(valueScheme) == 0) {
+        withScheme = item.value;
+      } else {
+        withScheme = valueScheme + ':' + escape(item.value);
+      }
+      value = '<a target="_blank" href="javascript:void(null)" onclick="openURL(\'' + withScheme + '\')">' + htmlescape(item.value) + '</a>';
+    } else if (contentHandlerURL) {
+      value = '<a target="_blank" href="javascript:void(null)" onclick="openURL(\'' + contentHandlerURL + encodeURIComponent(item.value).replace(/ /g, '+') + '\')">' + htmlescape(item.value) + '</a>';      
     } else {
-			value = htmlescape(item.value);
-		}
-		appendNameValueBlock(row, label, value);
-		container.appendChild(row);
-	}
+      value = htmlescape(item.value);
+    }
+    appendNameValueBlock(row, label, value);
+    container.appendChild(row);
+  }
 }
 
 function addAccountsList(container, aList)
 {
-	for each (let item in aList) {
-		let row = createDiv("identity");
-		
-		let label = null;
-		if (item.domain) {
-			label = htmlescape(item.domain);
-		} else {
-			label = defaultType;
-		}
+  for each (let item in aList) {
+    let row = createDiv("identity");
+    
+    let label = null;
+    if (item.domain) {
+      label = htmlescape(item.domain);
+    } else {
+      label = defaultType;
+    }
     let value;
     
     if (item.username) {
@@ -115,9 +140,9 @@ function addAccountsList(container, aList)
     } else {
       value = "(no username)";
     }
-		appendNameValueBlock(row, label, value);
-		container.appendChild(row);
-	}
+    appendNameValueBlock(row, label, value);
+    container.appendChild(row);
+  }
 }
 
 
@@ -132,10 +157,9 @@ var INTERNAL_LINK_RELS = {
 
 function addLinksList(container, aList, defaultType, valueScheme, contentHandlerURL)
 {
-  var faviconService = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
 
   var already = {};
-	for each (let item in aList) {
+  for each (let item in aList) {
     var ctype= item["content-type"];
     if (ctype != undefined) {
       if (ctype == "text/html" || ctype == "application/atom+xml" || ctype == "text/plain") { // what about rdf+xml?  Google serves FOAF like that.  Hrm.
@@ -146,36 +170,52 @@ function addLinksList(container, aList, defaultType, valueScheme, contentHandler
     }
     if (already[item.type + item.value] != undefined) continue;
     if (item.rel != undefined && INTERNAL_LINK_RELS[item.rel] != undefined) continue;
-		let row = createDiv("identity");
-		let label = null;
-		if (item.type) {
-			label = htmlescape(item.type);
-		} else {
-			label = defaultType;
-		}
+    let row = createDiv("identity");
+    let label = null;
+    if (item.type) {
+      label = htmlescape(item.type);
+    } else {
+      label = defaultType;
+    }
     let favicon = null;
+    let IOService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+    let itemURL = IOService.newURI(item.value, null, null);
     try {
-      var IOService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
-      favicon = faviconService.getFaviconImageForPage(IOService.newURI(item.value, null, null));
+      var faviconService = Components.classes["@mozilla.org/browser/favicon-service;1"].getService(Components.interfaces.nsIFaviconService);
+      favicon = faviconService.getFaviconImageForPage(itemURL);
     } catch (e) {
       // that's okay
+      //favicon = IOService.newURI("http://www.getfavicon.org/?url="+itemURL.host, null, null);
     }
 
-    value = '<a target="_blank" href="' + item.value + '">' + htmlescape(item.value) + '</a>';
+    value = '<a target="_blank" href="javascript:void(null)" onclick="openURL(\'' + item.value + '\')">' + htmlescape(item.value) + '</a>';
     if (favicon) value = "<img src='" + favicon.spec + "'/> " + value;
-		appendNameValueBlock(row, label, value);
-		container.appendChild(row);
+    appendNameValueBlock(row, label, value);
+    container.appendChild(row);
     already[item.type + item.value] = 1;
-	}
+  }
 }
 
 
 let PeopleManager = {
+  changed: false,
+  setChanged: function() {
+    this.changed = true;
+  },
+  reRender: function() {
+    if(this.changed){
+      this.changed = false;
+      People.findCallback( {}, function(peopleStore){
+        PeopleManager.resultSet = peopleStore;
+        PeopleManager.processData();
+        PeopleManager.render();}, null);
+    } 
+  },
   onLoad: function() {
-    navigator.people.find( {}, null, PeopleManager.loadComplete);
+    People.findCallback( {}, PeopleManager.loadComplete, null);
   },
 
-	loadComplete: function(peopleStore) {
+  loadComplete: function(peopleStore) {
     PeopleManager.resultSet = peopleStore;
 /*    let results = document.getElementById("contacts");
     let parent = results.parentNode;
@@ -188,60 +228,65 @@ let PeopleManager = {
       document.getElementById('contactCount').innerHTML = "You have no contacts loaded.  Activate a Contact Service to make them available to Firefox.";
       selectPane("service");
     }
-    else
-    {
-      for each (p in peopleStore) {
-        p.givenName = p.getProperty("name/givenName");
-        p.familyName = p.getProperty("name/familyName");
-      }
-      document.getElementById('contactCount').innerHTML = "There are " + peopleStore.length + " people in your contacts.  Click 'Contacts', at the top left, to see them.";
-      peopleStore.sort(function(a,b) {
-       try {
-         if (a.familyName && b.familyName) {
-           var ret= a.familyName.localeCompare(b.familyName);
-           if (ret == 0) {
-             return a.givenName.localeCompare(b.givenName);
-           } else {
-             return ret;
-           }
-         } else if (a.familyName) {
-           return -1;
-         } else if (b.familyName) {
-           return 1;
-         } else if (a.displayName && b.displayName) {
-           return a.displayName.localeCompare(b.displayName);
-         } else if (a.displayName) {
-          return -1;
-         } else if (b.displayName) {
-          return 1;
-         } else {
-          return a.guid.localeCompare(b.guid);
-         }
-        } catch (e) {
-          People._log.warn("Sort error: " + e + "; a.familyName is " + a.familyName + ", b.familyName is " + b.familyName);
-          return -1;
-        }
-      });
-      
-      PeopleManager.render();
+    else PeopleManager.processData();
+    PeopleManager.render();
+  },
+  
+  processData: function(){
+    for each (p in PeopleManager.resultSet) {
+      p.givenName = p.getProperty("name/givenName");
+      p.familyName = p.getProperty("name/familyName");
     }
-	},
+    document.getElementById('contactCount').innerHTML = "There are " + PeopleManager.resultSet.length + " people in your contacts.  Click 'Contacts', at the top left, to see them.";
+    PeopleManager.resultSet.sort(function(a,b) {
+     try {
+       if (a.familyName && b.familyName) {
+         var ret= a.familyName.localeCompare(b.familyName);
+         if (ret == 0) {
+           return a.givenName.localeCompare(b.givenName);
+         } else {
+           return ret;
+         }
+       } else if (a.familyName) {
+         return -1;
+       } else if (b.familyName) {
+         return 1;
+       } else if (a.displayName && b.displayName) {
+         return a.displayName.localeCompare(b.displayName);
+       } else if (a.displayName) {
+        return -1;
+       } else if (b.displayName) {
+        return 1;
+       } else {
+        return a.guid.localeCompare(b.guid);
+       }
+      } catch (e) {
+        People._log.warn("Sort error: " + e + "; a.familyName is " + a.familyName + ", b.familyName is " + b.familyName);
+        return -1;
+      }
+    });
+  },
   
   render: function render()
   {
+    if (document.getElementById("contactpane").style.display == "none")
+      return;
     document.getElementById("contacts").innerHTML = "";
     document.getElementById("contactdetail").innerHTML = "";
 
     if (contactDisplayMode == 'table') {
+      //if (!document.getElementById("contactpane").style.display == "none")
+        document.getElementById("contactdetail").style.display = "block";
       PeopleManager.renderTable(PeopleManager.resultSet);        
       if (PeopleManager.selectedPersonGUID) selectPerson(PeopleManager.selectedPersonGUID);
     } else if (contactDisplayMode == 'cards') {
+      document.getElementById("contactdetail").style.display = "none";
       PeopleManager.renderContactCards(PeopleManager.resultSet);
     }  
   },
 
-	renderContactCards : function(peopleStore)
-	{
+  renderContactCards : function(peopleStore)
+  {
     liveUpdateShowMode = 'inline-block';
     let results = document.getElementById("contacts");
     var i =0;
@@ -281,7 +326,7 @@ let PeopleManager = {
 
         let identities = createDiv("identities");
         addFieldList(identities, person.getProperty("emails"), "email", "mailto");
-        addFieldList(identities, person.getProperty("phoneNumbers"), "phone");
+        addFieldList(identities, person.getProperty("phoneNumbers"), "phone", "callto");
         addFieldList(identities, person.getProperty("ims"));
         addAccountsList(identities, person.getProperty("accounts"));
         addFieldList(identities, person.getProperty("urls"), "URL", "http");
@@ -296,7 +341,7 @@ let PeopleManager = {
       }
      }
    $('#searchbox').liveUpdate($("#contacts")).focus();
-	},
+  },
 
   renderTable : function(peopleStore)
   {
@@ -315,11 +360,45 @@ let PeopleManager = {
     detail.setAttribute("id", "tabledetailpane");
     document.getElementById("contactdetail").appendChild(detail);
 
+    // Start with groups
+    let tagMap = {};
+    let tagArray = [];
+    for each (let person in peopleStore) {
+      let tags = person.getProperty("tags");
+      for each (let tag in tags) {
+        if (!tagMap[tag]) tagMap[tag] = 1;
+        else tagMap[tag] += 1;
+      }
+    }
+    for (tag in tagMap) tagArray.push(tag);
+    if (tagArray.length > 0) {
+      tagArray.sort();
+      for each (tag in tagArray) {
+        let group = createDiv("group");
+        let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+        img.setAttribute("width", "16");
+        img.setAttribute("height", "16");
+        img.setAttribute("src", "chrome://people/content/images/group.png");
+        group.appendChild(img);
+
+        let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
+        a.setAttribute("class", "clink");
+        a.setAttribute("href", "javascript:void(null)");
+        a.setAttribute("onclick", "selectGroup('" + tag + "')");
+        a.appendChild(document.createTextNode(tag));
+        group.appendChild(a);
+        contactList.appendChild(group);
+      }
+      let groupSep = createDiv("groupseparator");
+      contactList.appendChild(groupSep);
+    }
+    
     for each (let person in peopleStore) {
       try {
         
         // let id = person.documents.default;
         let contact =  createDiv("contact");
+        //contact.setAttribute("draggable", "true");
 
         let img = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
         img.setAttribute("width", "16");
@@ -328,7 +407,7 @@ let PeopleManager = {
         contact.appendChild(img);
 
 
-        var dN = person.getProperty("displayName");
+        let dN = person.getProperty("displayName");
         if (dN == null || dN.length ==0) {
           let emails = person.getProperty("emails");
           if (emails && emails.length > 0) {
@@ -340,7 +419,7 @@ let PeopleManager = {
             } else {
               let orgs = person.getProperty("organizations");
               if (orgs && orgs.length > 0) {
-                dN = accounts[0].name;
+                dN = orgs[0].name;
               } else {
                 let urls = person.getProperty("urls");
                 if (urls && urls.length > 0) {
@@ -355,8 +434,53 @@ let PeopleManager = {
 
         let a = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
         a.setAttribute("class", "clink");
-        a.setAttribute("href", "javascript:selectPerson('" + person.guid + "')");
+        a.setAttribute("onclick", "selectPerson('" + person.guid + "')");
+        a.setAttribute("title", dN);
         a.appendChild(document.createTextNode(dN));
+        
+        a.setAttribute("draggable", "true");
+        
+        $(a).tipsy({trigger:'manual', gravity:'w', fade:true});
+        let guid = person.guid;
+      
+        //set ondrag methods for merging
+        contact.ondragstart = function(event){
+          event.dataTransfer.setData('guid', guid);
+          event.dataTransfer.setData('DN', dN);
+        };
+        
+        contact.ondragenter = function(event) {
+          let otherguid = event.dataTransfer.getData('guid')
+          if (otherguid && otherguid != guid) {
+            a.title = "Merge contacts \"" + event.dataTransfer.getData('DN') +  "\" and \"" + dN + "\"";
+            $(a).tipsy('show');
+            contact.className = "contact highlighted";
+          }
+        };
+        contact.ondragleave = function() {
+          $(a).tipsy('hide');
+          contact.className = "contact";
+        };
+        
+        contact.ondragover = function(event){
+          event.preventDefault();
+        };
+        
+        //merge on drop
+        contact.ondrop = function(event){
+          $(a).tipsy('hide');
+          contact.className = "contact";
+          let oldguid = event.dataTransfer.getData('guid');
+          if (!oldguid) return;
+          let newguid = guid;
+          if(oldguid == newguid) return;
+          let olddN = event.dataTransfer.getData('DN');
+          var answer = confirm ('Combine contacts "' + olddN + '" and "' + dN + '"?');
+          if(!answer) return;
+          event.preventDefault();
+          mergePeople(newguid, oldguid);
+        };
+        
         contact.appendChild(a);
 
         // hidden div for name
@@ -374,8 +498,96 @@ let PeopleManager = {
       }
     }
     $('#searchbox').liveUpdate($("#contactlist")).focus();
+  },
+  
+  exportVCard: function exportVCard(){
+    var result = "";
+
+    for each (p in this.resultSet)
+    {
+      result += "BEGIN:VCARD\nVERSION:3.0\n";
+      let name = p.getProperty("name");
+      let displayName = p.getProperty("displayName");
+      let orgs = p.getProperty("organizations");
+      let emails = p.getProperty("emails");
+      let phoneNumbers = p.getProperty("phoneNumbers");
+      let addresses = p.getProperty("addresses");
+      let urls = p.getProperty("urls");
+      
+      if (name) {
+        if (name.familyName && name.givenName) {
+          result += "N:" + name.familyName + ";" + name.givenName + ";\n";
+        } else if (name.familyName) {
+          result += "N:" + name.familyName + ";;\n";
+        } else if (name.givenName) {
+          result += "N:;" + name.givenName + ";\n";
+        }
+      }
+      if (displayName) {
+        result += "FN:" + displayName + "\n";
+      }
+      if (orgs) {
+        for each (var o in orgs) {
+          if (o.name) result += "ORG:" + o.name + ";\n";
+          if (o.title) result += "TITLE:" + o.title + ";\n";
+        }
+      }
+      if (phoneNumbers) {
+        for each (var pn in phoneNumbers) {
+          result += "TEL" + (pn.type ? (";type=" + pn.type) : "") + ":" + pn.value + "\n";
+        }
+      }
+      if (emails) {
+        for each (var em in emails) {
+          result += "EMAIL" + (em.type ? (";type=" + em.type) : "") + ":" + em.value + "\n";
+        }
+      }
+
+      function f(s) {
+        if (!s) return "";
+        
+        dump("Converting " + s + " to " + s.replace(/\n/g, " ") + "\n");
+        return s.replace(/\n/g, " ");
+      }
+      if (addresses) {
+        for each (var ad in addresses) {
+          result += "ADR" + (ad.type ? (";type=" + ad.type) : "") + ":" + f(ad.streetAddress) + ";" + 
+            f(ad.locality) + ";" + f(ad.region) + ";" + f(ad.postalCode) + ";" + f(ad.country) + "\n";
+        }
+      }
+      if (urls) {
+        for each (var u in urls) {
+          result += "URL" + (u.type ? (";type=" + u.type) : "") + ":" + u.value + "\n";
+        }      
+      }
+      result += "END:VCARD\n";
+    }
+    window.open("data:text/directory;base64," + window.btoa(bytesFromString(result)));
   }
 };
+
+function bytesFromString(str) {
+ var converter =
+   Components.classes["@mozilla.org/intl/scriptableunicodeconverter"]
+     .createInstance(Components.interfaces.nsIScriptableUnicodeConverter);
+ converter.charset = "UTF-8";
+ var data = converter.ConvertFromUnicode(str);
+ return data + converter.Finish();
+}
+
+function mergePeople(guid1, guid2){
+  dump("Merging: " + guid1 + "," + guid2 + "\n");
+  let iframe = document.getElementById('detailpaneframe');
+  //send messages to stop discovery if person is selected
+  if(iframe){
+    iframe.contentWindow.postMessage(JSON.stringify({message:"stopDiscovery", guid:guid1}), "*");
+    iframe.contentWindow.postMessage(JSON.stringify({message:"stopDiscovery", guid:guid2}), "*");
+  }
+  
+  People.mergePeople(guid1, guid2);
+  // reselect one of the people if the are the selected person
+  if(PeopleManager.selectedPersonGUID == guid1 || PeopleManager.selectedPersonGUID == guid2) selectPerson(guid1);
+}
 
 function selectPerson(guid)
 {
@@ -395,6 +607,22 @@ function selectPerson(guid)
   renderDetailPane();
 }
 
+function selectGroup(groupName)
+{
+  PeopleManager.selectedGroup = groupName;
+
+  let container = document.getElementById('tabledetailpane');
+  container.innerHTML = "";
+  let iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+  iframe.setAttribute("style", "border:0px");
+  iframe.setAttribute("src", "person:group:" + groupName);
+  iframe.setAttribute("border", "0");
+  iframe.setAttribute("width", "100%");
+  iframe.setAttribute("height", "100%");
+  container.appendChild(iframe);
+}
+
+
 function renderDetailPane()
 {
   let person = PeopleManager.selectedPerson;
@@ -402,6 +630,7 @@ function renderDetailPane()
   container.innerHTML = "";
 
   let iframe = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+  iframe.setAttribute("id", "detailpaneframe");
   iframe.setAttribute("style", "border:0px");
   iframe.setAttribute("src", "person:guid:" + person.guid);
   iframe.setAttribute("border", "0");
@@ -427,7 +656,7 @@ function renderDetailPane()
 
     let controls = createDiv("detailcontrols");
     let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
-    link.setAttribute("href", "javascript:renderDetailAttributionPane()");
+    link.setAttribute("onclick", "renderDetailAttributionPane()");
     link.appendChild(document.createTextNode("Where did this information come from?"));
     controls.appendChild(link);
     summary.appendChild(controls);
@@ -514,7 +743,7 @@ function renderDetailPane()
   }
 }
 
-function selectTopLevelUrls(urls)
+  function selectTopLevelUrls(urls)
 {
   var ret = [];
   for each (var u in urls) {
@@ -538,7 +767,7 @@ function renderDetailAttributionPane()
 
   let controls = createDiv("detailcontrols");
   let link = document.createElementNS("http://www.w3.org/1999/xhtml", "a");
-  link.setAttribute("href", "javascript:renderDetailPane()");
+  link.setAttribute("onclick", "renderDetailPane()");
   link.appendChild(document.createTextNode("Back to the summary"));
   controls.appendChild(link);
   container.appendChild(controls);
@@ -704,7 +933,7 @@ function doDiscovery()
   } else {
     gDiscoveryMessage = "Search results:<br/>" + gDiscoveryMessage;
   }
-  navigator.people.find( {}, null, PeopleManager.loadComplete);
+  People.findCallback( {}, PeopleManager.loadComplete, null);
 }
 
 function updateDiscoveryProgress(msg)
@@ -734,8 +963,8 @@ function isArray(obj) {
 }
 
 function htmlescape(html) {
-	if (!html) return html;
-	if (!html.replace) return html;
+  if (!html) return html;
+  if (!html.replace) return html;
   
   return html.
     replace(/&/gmi, '&amp;').
@@ -749,26 +978,26 @@ function htmlescape(html) {
  The implicit canonical user for this rendering is:
  
  aPerson: {
-	photos: [
-		{value:"http://photo", type:"thumbnail"},
-		{value:"http://photo", type:"somethingelse"}
-	],
-	displayName: "GivenName FamilyName",
-	organizations: [
-	  {name:"OrgName", title:"Title"}
-	],
-	emails: [
-		{type:"type",value:"user@somewhere"},
-		{type:"type",value:"user@somewhere"}
-	],
-	accounts: [
-		{domain:"domain.com",username:"value",userid:"1234"},
-		{domain:"domain.com",username:"value",userid:"1234"}
-	],
-	urls: [
-		{type:"type",value:"value"},
-		{type:"type",value:"value"}
-	]
-	}
+  photos: [
+    {value:"http://photo", type:"thumbnail"},
+    {value:"http://photo", type:"somethingelse"}
+  ],
+  displayName: "GivenName FamilyName",
+  organizations: [
+    {name:"OrgName", title:"Title"}
+  ],
+  emails: [
+    {type:"type",value:"user@somewhere"},
+    {type:"type",value:"user@somewhere"}
+  ],
+  accounts: [
+    {domain:"domain.com",username:"value",userid:"1234"},
+    {domain:"domain.com",username:"value",userid:"1234"}
+  ],
+  urls: [
+    {type:"type",value:"value"},
+    {type:"type",value:"value"}
+  ]
+  }
 */
 

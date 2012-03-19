@@ -35,37 +35,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Test protocol related
-const kSCHEME = "person";
-const kPROTOCOL_NAME = "Person Protocol";
-const kPROTOCOL_CONTRACTID = "@mozilla.org/network/protocol;1?name=" + kSCHEME;
-const kPROTOCOL_CID = Components.ID("b6e1d39c-b39c-4b1f-a088-e2fbb4cff9a6");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-// Mozilla defined
-const kSIMPLEURI_CONTRACTID = "@mozilla.org/network/simple-uri;1";
-const kIOSERVICE_CONTRACTID = "@mozilla.org/network/io-service;1";
-const nsISupports = Components.interfaces.nsISupports;
-const nsIIOService = Components.interfaces.nsIIOService;
 const nsIProtocolHandler = Components.interfaces.nsIProtocolHandler;
-const nsIURI = Components.interfaces.nsIURI;
 
-const Cu = Components.utils;
-
-function Protocol()
+function PersonProtocol()
 {
 }
 
-Protocol.prototype =
+PersonProtocol.prototype =
 {
-  QueryInterface: function(iid)
-  {
-    if (!iid.equals(nsIProtocolHandler) &&
-        !iid.equals(nsISupports))
-      throw Components.results.NS_ERROR_NO_INTERFACE;
-    return this;
-  },
+  classDescription: "Person Protocol",  
+  contractID: "@mozilla.org/network/protocol;1?name=person",  
+  classID: Components.ID("b6e1d39c-b39c-4b1f-a088-e2fbb4cff9a6"),
+  QueryInterface: XPCOMUtils.generateQI([nsIProtocolHandler]),
 
-  scheme: kSCHEME,
+  scheme: "person",
   defaultPort: -1,
   protocolFlags: nsIProtocolHandler.URI_NORELATIVE |
                  nsIProtocolHandler.URI_NOAUTH,
@@ -77,77 +62,34 @@ Protocol.prototype =
 
   newURI: function(spec, charset, baseURI)
   {
-    var uri = Components.classes[kSIMPLEURI_CONTRACTID].createInstance(nsIURI);
+    var uri = Components.classes["@mozilla.org/network/simple-uri;1"]
+                        .createInstance(Components.interfaces.nsIURI);
     uri.spec = spec;
     return uri;
   },
 
   newChannel: function(aURI)
   {
-    Cu.import("resource://people/modules/people.js");
-    Cu.import("resource://people/modules/import.js");    
+    // XXX why is this done here?
+    Components.utils.import("resource://people/modules/people.js");
+    Components.utils.import("resource://people/modules/import.js");    
 
     // aURI is a nsIUri, so get a string from it using .spec
-    var ios = Components.classes[kIOSERVICE_CONTRACTID].getService(nsIIOService);
+    var ios = Components.classes["@mozilla.org/network/io-service;1"]
+                        .getService(Components.interfaces.nsIIOService);
     var term = aURI.spec.slice(7);
-    let uri = ios.newURI("chrome://people/content/person.xhtml?input=" + term, null, null);
+    let uri;
+    if (term.indexOf("group:") == 0) {
+      uri = ios.newURI("chrome://people/content/group.xhtml?input=" + term.slice(6), null, null);    
+    } else {
+      uri = ios.newURI("chrome://people/content/person.xhtml?input=" + term, null, null);
+    }
     return ios.newChannelFromURI(uri);
-  },
+  }
 }
 
-var ProtocolFactory = new Object();
-
-ProtocolFactory.createInstance = function (outer, iid)
-{
-  if (outer != null)
-    throw Components.results.NS_ERROR_NO_AGGREGATION;
-
-  if (!iid.equals(nsIProtocolHandler) &&
-      !iid.equals(nsISupports))
-    throw Components.results.NS_ERROR_NO_INTERFACE;
-
-  return new Protocol();
-}
-
-
-/**
- * JS XPCOM component registration goop:
- *
- * We set ourselves up to observe the xpcom-startup category.  This provides
- * us with a starting point.
- */
-
-var TestModule = new Object();
-
-TestModule.registerSelf = function (compMgr, fileSpec, location, type)
-{
-  compMgr = compMgr.QueryInterface(Components.interfaces.nsIComponentRegistrar);
-  compMgr.registerFactoryLocation(kPROTOCOL_CID,
-                                  kPROTOCOL_NAME,
-                                  kPROTOCOL_CONTRACTID,
-                                  fileSpec, 
-                                  location, 
-                                  type);
-}
-
-TestModule.getClassObject = function (compMgr, cid, iid)
-{
-  if (!cid.equals(kPROTOCOL_CID))
-    throw Components.results.NS_ERROR_NO_INTERFACE;
-
-  if (!iid.equals(Components.interfaces.nsIFactory))
-    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-    
-  return ProtocolFactory;
-}
-
-TestModule.canUnload = function (compMgr)
-{
-  return true;
-}
-
-function NSGetModule(compMgr, fileSpec)
-{
-  return TestModule;
-}
-
+var components = [PersonProtocol];
+if (XPCOMUtils.generateNSGetFactory)
+    var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+else
+    var NSGetModule = XPCOMUtils.generateNSGetModule(components);

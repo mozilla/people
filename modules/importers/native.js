@@ -55,43 +55,57 @@ NativeAddressBookImporter.prototype = {
   __proto__: ImporterBackend.prototype,
   get name() "native",
   get displayName() "Native Address Book (on your computer)",
-	get iconURL() "chrome://people/content/images/macaddrbook.png",
+  get iconURL() "chrome://people/content/images/macaddrbook.png",
+  getPrimaryKey: function (person){
+    if (person.emails && person.emails[0] && person.emails.value) {
+      return person.emails[0].value + person.displayName;
+    } else if (person.displayName) {
+      return person.displayName;
+    }
+  },
 
 
   import: function NativeAddressBookImporter_import(completionCallback, progressFunction) {
     this._log.debug("Importing Native address book contacts into People store");
 
-		try
-		{
-			let nativeAddrBook = Components.classes["@labs.mozilla.com/NativeAddressBook;1"].getService(Components.interfaces["INativeAddressBook"]);
-			let allCards = nativeAddrBook.getCards({});
-			
-			let people = [];
-			for (i=0;i<allCards.length;i++) {
+    try
+    {
+      let nativeAddrBook = Components.classes["@labs.mozilla.com/NativeAddressBook;1"].getService(Components.interfaces["INativeAddressBook"]);
+      let allCards = nativeAddrBook.getCards({});
+      
+      let people = [];
+      for (i=0;i<allCards.length;i++) {
         progressFunction(Math.floor( i * 100.0 / allCards.length ));
         
-				person = {}
-				let fname = allCards[i].getProperty("firstName");
-				let lname = allCards[i].getProperty("lastName");
+        person = {}
+        person.tags = [];
+        let fname = allCards[i].getProperty("firstName");
+        let lname = allCards[i].getProperty("lastName");
         let org = allCards[i].getProperty("organization");
         let dept = allCards[i].getProperty("department");
         let jobTitle = allCards[i].getProperty("jobTitle");
-				// let email = allCards[i].getProperty("email");
-				
-				if (!fname && !lname) continue; // skip anonymous cards for now
-				
+        let groups = allCards[i].getProperty("groups");
+        
+        if (!fname && !lname) continue; // skip anonymous cards for now
+        
         this._log.info("Got lname " + lname);
         
-				if (fname && lname) {
-					person.displayName = fname + " " + lname;
-				} else if (lname) {
-					person.displayName = lname;			
-				} else if (fname) {
-					person.displayName = fname;
-				}
-				person.name = {}
-				person.name.givenName = fname;
-				person.name.familyName = lname;
+        if (fname && lname) {
+          person.displayName = fname + " " + lname;
+        } else if (lname) {
+          person.displayName = lname;      
+        } else if (fname) {
+          person.displayName = fname;
+        }
+        person.name = {}
+        person.name.givenName = fname;
+        person.name.familyName = lname;
+        try {
+          person.tags = JSON.parse(groups);
+        } catch (e) {
+          this._log.debug("Error while parsing groups: " + e);
+        }
+        person.tags.push("On My Computer");
 
         if (org || jobTitle) {
           person.organizations = [];
@@ -102,49 +116,50 @@ NativeAddressBookImporter.prototype = {
           person.organizations.push(orgRecord);
         }
 
-				let emailLabels = allCards[i].getPropertyListLabels("email", []);
-				let emailValues = allCards[i].getPropertyListValues("email", []);
-				for (let j=0;j<emailLabels.length;j++) {
+        let emailLabels = allCards[i].getPropertyListLabels("email", []);
+        let emailValues = allCards[i].getPropertyListValues("email", []);
+        for (let j=0;j<emailLabels.length;j++) {
           if (!person.emails) person.emails = [];
-					person.emails.push({value:emailValues[j], type:emailLabels[j]});
-				}
-				let phoneLabels = allCards[i].getPropertyListLabels("phone", []);
-				let phoneValues = allCards[i].getPropertyListValues("phone", []);
-				for (let j=0;j<phoneLabels.length;j++) {
+          person.emails.push({value:emailValues[j], type:emailLabels[j]});
+        }
+        let phoneLabels = allCards[i].getPropertyListLabels("phone", []);
+        let phoneValues = allCards[i].getPropertyListValues("phone", []);
+        for (let j=0;j<phoneLabels.length;j++) {
           if (!person.phoneNumbers) person.phoneNumbers = [];
-					person.phoneNumbers.push({value:phoneValues[j], type:phoneLabels[j]});
-				}
+          person.phoneNumbers.push({value:phoneValues[j], type:phoneLabels[j]});
+        }
 
-				let urlLabels = allCards[i].getPropertyListLabels("urls", []);
-				let urlValues = allCards[i].getPropertyListValues("urls", []);
-				for (let j=0;j<urlLabels.length;j++) {
+        let urlLabels = allCards[i].getPropertyListLabels("urls", []);
+        let urlValues = allCards[i].getPropertyListValues("urls", []);
+        for (let j=0;j<urlLabels.length;j++) {
           if (!person.urls) person.urls = [];
-					person.urls.push({value:urlValues[j], type:urlLabels[j]});
-				}
+          person.urls.push({value:urlValues[j], type:urlLabels[j]});
+        }
 
-				let addressLabels = allCards[i].getPropertyListLabels("addresses", []);
-				let addressValues = allCards[i].getPropertyListValues("addresses", []);
-				for (let j=0;j<addressLabels.length;j++) {
+        let addressLabels = allCards[i].getPropertyListLabels("addresses", []);
+        let addressValues = allCards[i].getPropertyListValues("addresses", []);
+        for (let j=0;j<addressLabels.length;j++) {
           if (!person.addresses) person.addresses = [];
-          var addr = JSON.parse(addressValues[j]);
+          // sometimes we get invalid JSON because of \n
+          var addr = JSON.parse(addressValues[j].replace("\n", " "));
           addr.type = addressLabels[j];
-					person.addresses.push(addr);
-				}
+          person.addresses.push(addr);
+        }
 
-				people.push(person);
-			}
-			this._log.info("Adding " + people.length + " Native address book contacts to People store");
+        people.push(person);
+      }
+      this._log.info("Adding " + people.length + " Native address book contacts to People store");
       People.add(people, this, progressFunction);
-			completionCallback(null);
-		} catch (e) {
+      completionCallback(null);
+    } catch (e) {
       if ((""+e).indexOf("NativeAddressBook;1'] is undefined") >= 0) {
         completionCallback({error:"Access Error",message:"Sorry, native address book support isn't done for this platform yet."});
       } else {
         this._log.info("Unable to access native address book importer: " + e);
         completionCallback({error:"Access Error",message:"Unable to access native address book importer: " + e});
       }
-		}
-	}
+    }
+  }
 };
 
 
