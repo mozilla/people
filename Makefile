@@ -49,7 +49,7 @@ xpi_dir=$(objdir)/xpi
 error=exit 1
 
 # Must match install.rdf
-contacts_version := 0.4.2
+contacts_version := 0.4.4
 
 # We serve the update from mhanson's personal directory right now.
 ifeq ($(release_build),)
@@ -165,7 +165,7 @@ oauth_bundle: xpi
 	cp bundle_install.rdf $(xpi_dir)/install.rdf
 	cp -r $(oauth_xpi_path) $(xpi_dir)
 	cd $(xpi_dir);zip -9r $(oauth_bundle_xpi_name) \
-        $(xpi_name) oauthorizer-0.1.2-${xpi_type}.xpi install.rdf
+        $(xpi_name) oauthorizer-0.1.5-${xpi_type}.xpi install.rdf
 	rm $(xpi_dir)/install.rdf
 
 
