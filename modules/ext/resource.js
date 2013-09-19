@@ -139,7 +139,7 @@ Resource.prototype = {
   // to obtain a request channel.
   //
   _createRequest: function Res__createRequest() {
-    let channel = Svc.IO.newChannel(this.spec, null, null).
+    let channel = Services.io.newChannel(this.spec, null, null).
       QueryInterface(Ci.nsIRequest).QueryInterface(Ci.nsIHttpChannel);
 
     // Always validate the cache:

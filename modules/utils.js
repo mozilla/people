@@ -114,7 +114,9 @@ let Utils = {
   },
 
   makeGUID: function makeGUID() {
-    return Svc.UUIDGen.generateUUID().toString().slice(1, 37);
+    let uuidGenerator = Cc["@mozilla.org/uuid-generator;1"].
+                        getService(Ci.nsIUUIDGenerator);
+    return uuidGenerator.generateUUID().toString().slice(1, 37);
   },
 
   // Works on frames or exceptions, munges file:// URIs to shorten the paths
@@ -168,7 +170,7 @@ let Utils = {
     if (!URIString)
       return null;
     try {
-      return Svc.IO.newURI(URIString, null, null);
+      return Services.io.newURI(URIString, null, null);
     } catch (e) {
       let log = Log4Moz.repository.getLogger("Service.Util");
       log.debug("Could not create URI (" + URIString + "): " + Utils.exceptionStr(e));

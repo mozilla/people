@@ -116,9 +116,11 @@ export substitute = perl -pe 's/@([^@]+)@/defined $$$$ENV{$$$$1} ? $$$$ENV{$$$$1
 
 SLINK = ln -sf
 ifneq ($(findstring MINGW,$(shell uname -s)),)
-  SLINK = cp -r
+  SLINK = cp -rf
   export NO_SYMLINK = 1
 endif
+SLINK = cp -rf
+export NO_SYMLINK = 1
 
 all: build
 
@@ -137,12 +139,15 @@ native: setup
 
 build: 
 	mkdir -p $(stage_dir)/components
+	mkdir -p $(stage_dir)/content
+	mkdir -p $(stage_dir)/locale
+	mkdir -p $(stage_dir)/modules
 	cp -r components/* $(stage_dir)/components
-	test -d $(stage_dir)/chrome.manifest || $(SLINK) $(TOPSRCDIR)/chrome.manifest $(stage_dir)/chrome.manifest
-	test -d $(stage_dir)/install.rdf || $(SLINK) $(TOPSRCDIR)/install.rdf $(stage_dir)/install.rdf
-	test -d $(stage_dir)/content || $(SLINK) $(TOPSRCDIR)/content $(stage_dir)/content
-	test -d $(stage_dir)/locale || $(SLINK) $(TOPSRCDIR)/locale $(stage_dir)/locale
-	test -d $(stage_dir)/modules || $(SLINK) $(TOPSRCDIR)/modules $(stage_dir)/modules
+	$(SLINK) $(TOPSRCDIR)/chrome.manifest $(stage_dir)/chrome.manifest
+	$(SLINK) $(TOPSRCDIR)/install.rdf $(stage_dir)/install.rdf
+	$(SLINK) $(TOPSRCDIR)/content/ $(stage_dir)/content/
+	$(SLINK) $(TOPSRCDIR)/locale/ $(stage_dir)/locale/
+	$(SLINK) $(TOPSRCDIR)/modules/ $(stage_dir)/modules/
 
 xpi: build
 	rm -f $(xpi_dir)/$(xpi_name)
@@ -158,13 +163,14 @@ oauth_bundle: xpi
 	$(OAUTH_DEFINED)
 	rm -f $(xpi_dir)/$(oauth_bundle_xpi_name)
 	cp bundle_install.rdf $(xpi_dir)/install.rdf
-	cp $(oauth_xpi_path) $(xpi_dir)
+	cp -r $(oauth_xpi_path) $(xpi_dir)
 	cd $(xpi_dir);zip -9r $(oauth_bundle_xpi_name) \
         $(xpi_name) oauthorizer-0.1.2-${xpi_type}.xpi install.rdf
 	rm $(xpi_dir)/install.rdf
 
 
 clean:
+	rm -rf $(stage_dir)
 	rm -rf $(objdir)
 	$(MAKE) -C native clean
 

@@ -39,9 +39,9 @@
 
 let EXPORTED_SYMBOLS = ["People", "Person", "DiscoveryCoordinator", "PersonServiceFactory"];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
+
+Cu.import("resource://gre/modules/Services.jsm");
 
 const DB_VERSION = 4; // The database schema version
 const SORT_WEIGHTS = {
@@ -158,7 +158,7 @@ PeopleService.prototype = {
     dapp.level = Log4Moz.Level["Trace"];
     root.addAppender(dapp);
 
-    let logfile = Svc.Directory.get("ProfD", Ci.nsIFile);
+    let logfile = Services.dirsvc.get("ProfD", Ci.nsIFile);
     logfile.QueryInterface(Ci.nsILocalFile);
     logfile.append("people-log.txt");
     if (!logfile.exists())
@@ -186,14 +186,14 @@ PeopleService.prototype = {
   },
 
   get _dbFile() {
-    let file = Svc.Directory.get("ProfD", Components.interfaces.nsIFile);
+    let file = Services.dirsvc.get("ProfD", Components.interfaces.nsIFile);
     file.append("people.sqlite");
     this.__defineGetter__("_dbFile", function() file);
     return file;
   },
 
   get _db() {
-    let dbConn = Svc.Storage.openDatabase(this._dbFile); // auto-creates file
+    let dbConn = Services.storage.openDatabase(this._dbFile); // auto-creates file
     this.__defineGetter__("_db", function() dbConn);
     return dbConn;
   },
@@ -389,12 +389,12 @@ PeopleService.prototype = {
     // Create backup file
     if (backup) {
       let backupFile = this._dbFile.leafName + ".corrupt";
-      Svc.Storage.backupDatabaseFile(this._dbFile, backupFile);
+      Services.storage.backupDatabaseFile(this._dbFile, backupFile);
     }
 
     // Finalize all statements to free memory, avoid errors later
     for (let i = 0; i < this._dbStmts.length; i++)
-      this._dbStmts[i].statement.finalize();
+      this._dbStmts[i].finalize();
     this._dbStmts = [];
 
     // Close the connection, ignore 'already closed' error
@@ -429,21 +429,23 @@ PeopleService.prototype = {
   _dbCreateStatement : function _dbCreateStatement(query, params) {
     let wrappedStmt = this._dbStmts[query];
     // Memoize the statements
-    if (!wrappedStmt) {
-      let stmt = this._db.createStatement(query);
-
-      wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
-        createInstance(Ci.mozIStorageStatementWrapper);
-      wrappedStmt.initialize(stmt);
-      this._dbStmts[query] = wrappedStmt;
-    }
+    //if (!wrappedStmt) {
+    //  let stmt = this._db.createStatement(query);
+    //
+    //  wrappedStmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+    //    createInstance(Ci.mozIStorageStatementWrapper);
+    //  wrappedStmt.initialize(stmt);
+    //  this._dbStmts[query] = wrappedStmt;
+    //}
+    let stmt = this._db.createStatement(query);
+    wrappedStmt = stmt;
     // Replace parameters, must be done 1 at a time
     if (params)
       for (let [param, val] in Iterator(params)) {
         // Escape params that start with /
         if (param[0] == "/") {
           param = param.slice(1);
-          val = "%" + wrappedStmt.statement.escapeStringForLIKE(val, "/") + "%";
+          val = "%" + wrappedStmt.escapeStringForLIKE(val, "/") + "%";
         }
         wrappedStmt.params[param] = val;
       }
@@ -1338,7 +1340,7 @@ PeopleService.prototype = {
     // Look up the results, filtering on indexed terms
     let result;
     try {
-      result = Utils.getRows(this._dbCreateStatement(query).statement);
+      result = Utils.getRows(this._dbCreateStatement(query));
     }
     catch(ex) {
       this._log.error("find failed during query: " + Utils.exceptionStr(ex));
@@ -1538,7 +1540,7 @@ PeopleService.prototype = {
     // Look up the results, filtering on indexed terms
     let result;
     try {
-      result = Utils.getRows(this._dbCreateStatement(query, params).statement);
+      result = Utils.getRows(this._dbCreateStatement(query, params));
     }
     catch(ex) {
       this._log.error("find failed during query: " + Utils.exceptionStr(ex));
