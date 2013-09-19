@@ -36,13 +36,11 @@
 
 let EXPORTED_SYMBOLS = ["Utils", "Svc"];
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cu = Components.utils;
+const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://people/modules/ext/Sync.js");
 Cu.import("resource://people/modules/ext/log4moz.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 let Utils = {
   getRows: function getRows(stmt) {
